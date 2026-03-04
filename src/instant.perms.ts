@@ -1,24 +1,75 @@
-// Docs: https://www.instantdb.com/docs/permissions
-
 import type { InstantRules } from "@instantdb/react";
 
 const rules = {
-  /**
-   * Welcome to Instant's permission system!
-   * Right now your rules are empty. To start filling them in, check out the docs:
-   * https://www.instantdb.com/docs/permissions
-   *
-   * Here's an example to give you a feel:
-   * posts: {
-   *   allow: {
-   *     view: "true",
-   *     create: "isOwner",
-   *     update: "isOwner",
-   *     delete: "isOwner",
-   *   },
-   *   bind: ["isOwner", "auth.id != null && auth.id == data.ownerId"],
-   * },
-   */
+  concerts: {
+    allow: {
+      view: "true",
+      create: "isAdmin",
+      update: "isAdmin",
+      delete: "isAdmin",
+    },
+    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+  },
+  ticketTypes: {
+    allow: {
+      view: "true",
+      create: "isAdmin",
+      update: "isAdmin",
+      delete: "isAdmin",
+    },
+    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+  },
+  orders: {
+    allow: {
+      view: "true",
+      create: "true",
+      update: "isAdmin",
+      delete: "isAdmin",
+    },
+    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+  },
+  paymentMethods: {
+    allow: {
+      view: "true",
+      create: "isAdmin",
+      update: "isAdmin",
+      delete: "isAdmin",
+    },
+    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+  },
+  promoters: {
+    allow: {
+      view: "true",
+      create: "isAdmin",
+      update: "isAdmin",
+      delete: "isAdmin",
+    },
+    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+  },
+  coupons: {
+    allow: {
+      view: "true",
+      create: "isAdmin",
+      update: "isAdmin",
+      delete: "isAdmin",
+    },
+    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+  },
+  exchangeRates: {
+    allow: {
+      view: "true",
+      create: "true",
+      update: "true",
+      delete: "isAdmin",
+    },
+    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+  },
+  $files: {
+    allow: {
+      view: "true",
+      create: "true",
+    },
+  },
 } satisfies InstantRules;
 
 export default rules;

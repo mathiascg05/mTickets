@@ -1,169 +1,95 @@
 "use client";
 
-import { db } from "@/lib/db";
-import { type AppSchema } from "@/instant.schema";
-import { id, InstaQLEntity } from "@instantdb/react";
+import Link from "next/link";
 
-type Todo = InstaQLEntity<AppSchema, "todos">;
-
-const room = db.room("todos");
-
-function App() {
-  // Read Data
-  const { isLoading, error, data } = db.useQuery({ todos: {} });
-  const { peers } = db.rooms.usePresence(room);
-  const numUsers = 1 + Object.keys(peers).length;
-  if (isLoading) {
-    return;
-  }
-  if (error) {
-    return <div className="text-red-500 p-4">Error: {error.message}</div>;
-  }
-  const { todos } = data;
+export default function HomePage() {
   return (
-    <div className="font-mono min-h-screen flex justify-center items-center flex-col space-y-4">
-      <div className="text-xs text-gray-500">
-        Number of users online: {numUsers}
-      </div>
-      <h2 className="tracking-wide text-5xl text-gray-300">todos</h2>
-      <div className="border border-gray-300 max-w-xs w-full">
-        <TodoForm todos={todos} />
-        <TodoList todos={todos} />
-        <ActionBar todos={todos} />
-      </div>
-      <div className="text-xs text-center">
-        Open another tab to see todos update in realtime!
-      </div>
-    </div>
-  );
-}
-
-// Write Data
-// ---------
-function addTodo(text: string) {
-  db.transact(
-    db.tx.todos[id()].update({
-      text,
-      done: false,
-      createdAt: Date.now(),
-    }),
-  );
-}
-
-function deleteTodo(todo: Todo) {
-  db.transact(db.tx.todos[todo.id].delete());
-}
-
-function toggleDone(todo: Todo) {
-  db.transact(db.tx.todos[todo.id].update({ done: !todo.done }));
-}
-
-function deleteCompleted(todos: Todo[]) {
-  const completed = todos.filter((todo) => todo.done);
-  const txs = completed.map((todo) => db.tx.todos[todo.id].delete());
-  db.transact(txs);
-}
-
-function toggleAll(todos: Todo[]) {
-  const newVal = !todos.every((todo) => todo.done);
-  db.transact(
-    todos.map((todo) => db.tx.todos[todo.id].update({ done: newVal })),
-  );
-}
-
-// Components
-// ----------
-function ChevronDownIcon() {
-  return (
-    <svg viewBox="0 0 20 20">
-      <path
-        d="M5 8 L10 13 L15 8"
-        stroke="currentColor"
-        fill="none"
-        strokeWidth="2"
-      />
-    </svg>
-  );
-}
-
-function TodoForm({ todos }: { todos: Todo[] }) {
-  return (
-    <div className="flex items-center h-10 border-b border-gray-300">
-      <button
-        className="h-full px-2 border-r border-gray-300 flex items-center justify-center"
-        onClick={() => toggleAll(todos)}
-      >
-        <div className="w-5 h-5">
-          <ChevronDownIcon />
+    <div className="min-h-screen flex flex-col">
+      {/* Hero header */}
+      <header className="bg-accent text-white">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <span className="text-2xl font-bold tracking-wide">
+            m<span className="text-white/80">Tickets</span>
+          </span>
+          <Link
+            href="/admin"
+            className="text-sm text-white/70 hover:text-white transition-colors"
+          >
+            Admin
+          </Link>
         </div>
-      </button>
-      <form
-        className="flex-1 h-full"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const input = e.currentTarget.input as HTMLInputElement;
-          addTodo(input.value);
-          input.value = "";
-        }}
-      >
-        <input
-          className="w-full h-full px-2 outline-none bg-transparent"
-          autoFocus
-          placeholder="What needs to be done?"
-          type="text"
-          name="input"
-        />
-      </form>
-    </div>
-  );
-}
+      </header>
 
-function TodoList({ todos }: { todos: Todo[] }) {
-  return (
-    <div className="divide-y divide-gray-300">
-      {todos.map((todo) => (
-        <div key={todo.id} className="flex items-center h-10">
-          <div className="h-full px-2 flex items-center justify-center">
-            <div className="w-5 h-5 flex items-center justify-center">
-              <input
-                type="checkbox"
-                className="cursor-pointer"
-                checked={todo.done}
-                onChange={() => toggleDone(todo)}
-              />
+      {/* Hero section */}
+      <div className="bg-gradient-to-br from-accent via-accent-dark to-accent-light text-white">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-24 sm:py-32 text-center">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 tracking-tight">
+            Your Event, Your Tickets
+          </h1>
+          <p className="text-lg sm:text-xl text-white/70 max-w-2xl mx-auto mb-10">
+            Use the event link shared with you to view event details and
+            purchase your tickets securely.
+          </p>
+          <Link
+            href="/admin"
+            className="inline-block px-8 py-3.5 bg-white text-accent font-semibold rounded-lg hover:bg-white/90 transition-colors shadow-lg"
+          >
+            Event Organizer? Log In
+          </Link>
+        </div>
+      </div>
+
+      {/* Features section */}
+      <main className="flex-1">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-3">
+            How It Works
+          </h2>
+          <p className="text-muted text-center mb-12 max-w-xl mx-auto">
+            A simple, secure process from purchase to entry
+          </p>
+
+          <div className="grid sm:grid-cols-3 gap-8">
+            <div className="bg-surface border border-border rounded-xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="w-14 h-14 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl text-accent font-bold">1</span>
+              </div>
+              <h3 className="font-semibold text-lg mb-2">Get Your Link</h3>
+              <p className="text-muted text-sm">
+                Receive the event link from the organizer and browse available tickets.
+              </p>
+            </div>
+
+            <div className="bg-surface border border-border rounded-xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="w-14 h-14 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl text-accent font-bold">2</span>
+              </div>
+              <h3 className="font-semibold text-lg mb-2">Purchase & Pay</h3>
+              <p className="text-muted text-sm">
+                Fill in attendee details, choose your payment method, and upload your proof.
+              </p>
+            </div>
+
+            <div className="bg-surface border border-border rounded-xl p-6 text-center hover:shadow-lg transition-shadow">
+              <div className="w-14 h-14 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl text-accent font-bold">3</span>
+              </div>
+              <h3 className="font-semibold text-lg mb-2">Get Your QR Code</h3>
+              <p className="text-muted text-sm">
+                Once approved, your digital ticket with QR code is ready. Show it at the entrance.
+              </p>
             </div>
           </div>
-          <div className="flex-1 px-2 overflow-hidden flex items-center">
-            {todo.done ? (
-              <span className="line-through">{todo.text}</span>
-            ) : (
-              <span>{todo.text}</span>
-            )}
-          </div>
-          <button
-            className="h-full px-2 flex items-center justify-center text-gray-300 hover:text-gray-500"
-            onClick={() => deleteTodo(todo)}
-          >
-            X
-          </button>
         </div>
-      ))}
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-accent text-white/60 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center text-sm">
+          <p className="font-semibold text-white mb-1">mTickets</p>
+          <p>Professional event ticketing platform</p>
+        </div>
+      </footer>
     </div>
   );
 }
-
-function ActionBar({ todos }: { todos: Todo[] }) {
-  return (
-    <div className="flex justify-between items-center h-10 px-2 text-xs border-t border-gray-300">
-      <div>Remaining todos: {todos.filter((todo) => !todo.done).length}</div>
-      <button
-        className=" text-gray-300 hover:text-gray-500"
-        onClick={() => deleteCompleted(todos)}
-      >
-        Delete Completed
-      </button>
-    </div>
-  );
-}
-
-export default App;

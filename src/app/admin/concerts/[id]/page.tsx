@@ -1,0 +1,1133 @@
+"use client";
+
+import { db } from "@/lib/db";
+import { id } from "@instantdb/react";
+import { useParams } from "next/navigation";
+import { useState } from "react";
+
+export default function AdminConcertEditPage() {
+  const params = useParams();
+  const concertId = params.id as string;
+
+  const { isLoading, data } = db.useQuery({
+    concerts: {
+      $: { where: { id: concertId } },
+      ticketTypes: {
+        $: { order: { createdAt: "asc" } },
+        orders: {},
+      },
+      paymentMethods: {
+        $: { order: { createdAt: "asc" } },
+      },
+      promoters: {
+        $: { order: { createdAt: "asc" } },
+      },
+      coupons: {
+        $: { order: { createdAt: "asc" } },
+      },
+    },
+  });
+
+  if (isLoading || !data) {
+    return <div className="animate-pulse text-muted">Loading...</div>;
+  }
+
+  const concert = data.concerts[0];
+  if (!concert) {
+    return <div className="text-muted">Event not found</div>;
+  }
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold mb-2">{concert.name}</h1>
+      <EventLink concertId={concertId} />
+
+      <div className="grid lg:grid-cols-2 gap-6 mt-6">
+        <div className="space-y-6">
+          <ConcertEditForm concert={concert} />
+          <PaymentMethodsSection
+            concertId={concertId}
+            paymentMethods={concert.paymentMethods}
+          />
+          <PromotersSection
+            concertId={concertId}
+            promoters={concert.promoters}
+          />
+          <CouponsSection
+            concertId={concertId}
+            coupons={concert.coupons}
+            allOrders={concert.ticketTypes.flatMap((tt) => tt.orders)}
+          />
+        </div>
+        <TicketTypesSection
+          concertId={concertId}
+          ticketTypes={concert.ticketTypes}
+        />
+      </div>
+    </div>
+  );
+}
+
+function EventLink({ concertId }: { concertId: string }) {
+  const [copied, setCopied] = useState(false);
+  const url =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/concerts/${concertId}`
+      : `/concerts/${concertId}`;
+
+  function handleCopy() {
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="flex items-center gap-2 mb-2">
+      <span className="text-sm text-muted truncate">{url}</span>
+      <button
+        onClick={handleCopy}
+        className="px-3 py-1 text-xs font-medium rounded-lg border border-border hover:border-accent/50 text-muted hover:text-accent-light transition-colors flex-shrink-0"
+      >
+        {copied ? "Copied!" : "Copy Link"}
+      </button>
+    </div>
+  );
+}
+
+type ConcertData = {
+  id: string;
+  name: string;
+  date: string;
+  venue: string;
+  description: string;
+  status: string;
+};
+
+function ConcertEditForm({ concert }: { concert: ConcertData }) {
+  const [name, setName] = useState(concert.name);
+  const [date, setDate] = useState(concert.date);
+  const [venue, setVenue] = useState(concert.venue);
+  const [description, setDescription] = useState(concert.description);
+  const [saved, setSaved] = useState(false);
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    db.transact(
+      db.tx.concerts[concert.id].update({
+        name,
+        date,
+        venue,
+        description,
+      }),
+    );
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  function toggleStatus() {
+    const newStatus = concert.status === "active" ? "draft" : "active";
+    db.transact(db.tx.concerts[concert.id].update({ status: newStatus }));
+  }
+
+  function deleteConcert() {
+    if (confirm("Delete this event? This cannot be undone.")) {
+      db.transact(db.tx.concerts[concert.id].delete());
+      window.location.href = "/admin/concerts";
+    }
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Event Details</h2>
+        <button
+          onClick={toggleStatus}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+            concert.status === "active"
+              ? "bg-success/10 text-success border-success/30 hover:bg-success/20"
+              : "bg-muted/10 text-muted border-muted/30 hover:bg-muted/20"
+          }`}
+        >
+          {concert.status === "active" ? "Active" : "Draft"} - Click to toggle
+        </button>
+      </div>
+
+      <form onSubmit={handleSave} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1.5">Name</label>
+          <input
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">Date</label>
+          <input
+            type="date"
+            required
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">Venue</label>
+          <input
+            required
+            value={venue}
+            onChange={(e) => setVenue(e.target.value)}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">
+            Description
+          </label>
+          <textarea
+            required
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors resize-none"
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors shadow-lg shadow-accent/20"
+          >
+            Save Changes
+          </button>
+          {saved && (
+            <span className="text-success text-sm">{"✓"} Saved!</span>
+          )}
+          <button
+            type="button"
+            onClick={deleteConcert}
+            className="ml-auto px-4 py-2.5 text-danger hover:bg-danger/10 rounded-lg text-sm font-medium transition-colors"
+          >
+            Delete Event
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+type PaymentMethodData = {
+  id: string;
+  name: string;
+  instructions: string;
+  convertCurrency?: string;
+};
+
+function PaymentMethodsSection({
+  concertId,
+  paymentMethods,
+}: {
+  concertId: string;
+  paymentMethods: PaymentMethodData[];
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [instructions, setInstructions] = useState("");
+  const [convertCurrency, setConvertCurrency] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editInstructions, setEditInstructions] = useState("");
+  const [editConvertCurrency, setEditConvertCurrency] = useState("");
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    db.transact(
+      db.tx.paymentMethods[id()]
+        .update({
+          name,
+          instructions,
+          convertCurrency: convertCurrency || undefined,
+          createdAt: Date.now(),
+        })
+        .link({ concert: concertId }),
+    );
+    setName("");
+    setInstructions("");
+    setConvertCurrency("");
+    setShowForm(false);
+  }
+
+  function startEdit(pm: PaymentMethodData) {
+    setEditingId(pm.id);
+    setEditName(pm.name);
+    setEditInstructions(pm.instructions);
+    setEditConvertCurrency(pm.convertCurrency || "");
+  }
+
+  function saveEdit() {
+    if (!editingId) return;
+    db.transact(
+      db.tx.paymentMethods[editingId].update({
+        name: editName,
+        instructions: editInstructions,
+        convertCurrency: editConvertCurrency || undefined,
+      }),
+    );
+    setEditingId(null);
+  }
+
+  const [refreshingRate, setRefreshingRate] = useState(false);
+  const [rateRefreshed, setRateRefreshed] = useState(false);
+
+  async function refreshBcvRates() {
+    setRefreshingRate(true);
+    try {
+      const [usdRes, eurRes] = await Promise.all([
+        fetch("/api/exchange-rates?currency=USD").then((r) => r.json()),
+        fetch("/api/exchange-rates?currency=EUR").then((r) => r.json()),
+      ]);
+      await db.transact([
+        db.tx.exchangeRates["a0000000-0000-4000-8000-000000000001"].update({
+          currency: "USD",
+          rate: usdRes.promedio,
+          fetchedAt: Date.now(),
+        }),
+        db.tx.exchangeRates["a0000000-0000-4000-8000-000000000002"].update({
+          currency: "EUR",
+          rate: eurRes.promedio,
+          fetchedAt: Date.now(),
+        }),
+      ]);
+      setRateRefreshed(true);
+      setTimeout(() => setRateRefreshed(false), 2000);
+    } catch {
+      alert("Failed to refresh rates. Please try again.");
+    } finally {
+      setRefreshingRate(false);
+    }
+  }
+
+  function deletePaymentMethod(pmId: string) {
+    if (confirm("Delete this payment method?")) {
+      db.transact(db.tx.paymentMethods[pmId].delete());
+    }
+  }
+
+  const hasConversionMethods = paymentMethods.some((pm) => pm.convertCurrency);
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Payment Methods</h2>
+        <div className="flex items-center gap-2">
+          {hasConversionMethods && (
+            <button
+              onClick={refreshBcvRates}
+              disabled={refreshingRate}
+              className="px-3 py-1.5 border border-border hover:border-accent/50 text-muted hover:text-accent-light rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              {rateRefreshed ? "Refreshed!" : refreshingRate ? "Refreshing..." : "Refresh BCV Rate"}
+            </button>
+          )}
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
+          >
+            {showForm ? "Cancel" : "+ Add"}
+          </button>
+        </div>
+      </div>
+
+      {showForm && (
+        <form
+          onSubmit={handleCreate}
+          className="bg-background border border-border rounded-lg p-4 mb-4 space-y-3"
+        >
+          <div>
+            <label className="block text-sm font-medium mb-1">Name</label>
+            <input
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+              placeholder="e.g., Bank Transfer, Zelle, Venmo"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Instructions
+            </label>
+            <textarea
+              required
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm resize-none"
+              placeholder="e.g., Transfer to Account #12345..."
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Currency Conversion
+            </label>
+            <select
+              value={convertCurrency}
+              onChange={(e) => setConvertCurrency(e.target.value)}
+              className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+            >
+              <option value="">None</option>
+              <option value="USD">USD &rarr; Bs</option>
+              <option value="EUR">EUR &rarr; Bs</option>
+            </select>
+          </div>
+          <button
+            type="submit"
+            className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            Add Payment Method
+          </button>
+        </form>
+      )}
+
+      <div className="space-y-3">
+        {paymentMethods.length === 0 ? (
+          <p className="text-muted text-sm text-center py-6">
+            No payment methods yet. Add one so buyers can see payment instructions.
+          </p>
+        ) : (
+          paymentMethods.map((pm) =>
+            editingId === pm.id ? (
+              <div
+                key={pm.id}
+                className="bg-background border border-accent/30 rounded-lg p-4 space-y-3"
+              >
+                <div>
+                  <label className="block text-sm font-medium mb-1">Name</label>
+                  <input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Instructions
+                  </label>
+                  <textarea
+                    value={editInstructions}
+                    onChange={(e) => setEditInstructions(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Currency Conversion
+                  </label>
+                  <select
+                    value={editConvertCurrency}
+                    onChange={(e) => setEditConvertCurrency(e.target.value)}
+                    className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  >
+                    <option value="">None</option>
+                    <option value="USD">USD &rarr; Bs</option>
+                    <option value="EUR">EUR &rarr; Bs</option>
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={saveEdit}
+                    className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditingId(null)}
+                    className="px-3 py-1.5 text-muted hover:text-foreground text-sm transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                key={pm.id}
+                className="flex items-start justify-between p-4 border border-border rounded-lg"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{pm.name}</p>
+                    {pm.convertCurrency && (
+                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent/15 text-accent-light">
+                        {pm.convertCurrency} &rarr; Bs
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted mt-1 whitespace-pre-wrap">
+                    {pm.instructions}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                  <button
+                    onClick={() => startEdit(pm)}
+                    className="text-muted hover:text-accent-light transition-colors text-sm"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => deletePaymentMethod(pm.id)}
+                    className="text-muted hover:text-danger transition-colors text-sm"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ),
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+type TicketTypeData = {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  description?: string;
+  orders: { id: string; status: string }[];
+};
+
+function TicketTypesSection({
+  concertId,
+  ticketTypes,
+}: {
+  concertId: string;
+  ticketTypes: TicketTypeData[];
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [description, setDescription] = useState("");
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    db.transact(
+      db.tx.ticketTypes[id()]
+        .update({
+          name,
+          price: parseFloat(price),
+          quantity: parseInt(quantity, 10),
+          description: description || undefined,
+          createdAt: Date.now(),
+        })
+        .link({ concert: concertId }),
+    );
+    setName("");
+    setPrice("");
+    setQuantity("");
+    setDescription("");
+    setShowForm(false);
+  }
+
+  function deleteTicketType(ttId: string) {
+    if (confirm("Delete this ticket type?")) {
+      db.transact(db.tx.ticketTypes[ttId].delete());
+    }
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Ticket Types</h2>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
+        >
+          {showForm ? "Cancel" : "+ Add"}
+        </button>
+      </div>
+
+      {showForm && (
+        <form
+          onSubmit={handleCreate}
+          className="bg-background border border-border rounded-lg p-4 mb-4 space-y-3"
+        >
+          <div>
+            <label className="block text-sm font-medium mb-1">Name</label>
+            <input
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+              placeholder="e.g., General Admission"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Price</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                placeholder="25.00"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Quantity
+              </label>
+              <input
+                type="number"
+                min="1"
+                required
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                placeholder="100"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Description (optional)
+            </label>
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+              placeholder="Includes access to..."
+            />
+          </div>
+          <button
+            type="submit"
+            className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            Add Ticket Type
+          </button>
+        </form>
+      )}
+
+      <div className="space-y-3">
+        {ticketTypes.length === 0 ? (
+          <p className="text-muted text-sm text-center py-6">
+            No ticket types yet.
+          </p>
+        ) : (
+          ticketTypes.map((tt) => {
+            const sold = tt.orders.filter(
+              (o) => o.status === "approved" || o.status === "pending",
+            ).length;
+            return (
+              <div
+                key={tt.id}
+                className="flex items-center justify-between p-4 border border-border rounded-lg"
+              >
+                <div>
+                  <p className="font-medium">{tt.name}</p>
+                  {tt.description && (
+                    <p className="text-sm text-muted">{tt.description}</p>
+                  )}
+                  <p className="text-sm text-muted mt-1">
+                    ${tt.price.toFixed(2)} &middot; {sold}/{tt.quantity} sold
+                  </p>
+                </div>
+                <button
+                  onClick={() => deleteTicketType(tt.id)}
+                  className="text-muted hover:text-danger transition-colors text-sm"
+                >
+                  Delete
+                </button>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+type CouponData = {
+  id: string;
+  code: string;
+  discountType: string;
+  discountValue: number;
+  maxUses?: number;
+  active: boolean;
+};
+
+type OrderData = {
+  id: string;
+  status: string;
+  couponCode?: string;
+};
+
+function CouponsSection({
+  concertId,
+  coupons,
+  allOrders,
+}: {
+  concertId: string;
+  coupons: CouponData[];
+  allOrders: OrderData[];
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [code, setCode] = useState("");
+  const [discountType, setDiscountType] = useState("percentage");
+  const [discountValue, setDiscountValue] = useState("");
+  const [maxUses, setMaxUses] = useState("");
+  const [active, setActive] = useState(true);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editCode, setEditCode] = useState("");
+  const [editDiscountType, setEditDiscountType] = useState("percentage");
+  const [editDiscountValue, setEditDiscountValue] = useState("");
+  const [editMaxUses, setEditMaxUses] = useState("");
+  const [editActive, setEditActive] = useState(true);
+
+  function getUsageCount(couponCode: string) {
+    return allOrders.filter(
+      (o) =>
+        o.couponCode === couponCode &&
+        (o.status === "approved" || o.status === "pending"),
+    ).length;
+  }
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    db.transact(
+      db.tx.coupons[id()]
+        .update({
+          code: code.toUpperCase().trim(),
+          discountType,
+          discountValue: parseFloat(discountValue),
+          maxUses: maxUses ? parseInt(maxUses, 10) : undefined,
+          active,
+          createdAt: Date.now(),
+        })
+        .link({ concert: concertId }),
+    );
+    setCode("");
+    setDiscountType("percentage");
+    setDiscountValue("");
+    setMaxUses("");
+    setActive(true);
+    setShowForm(false);
+  }
+
+  function startEdit(c: CouponData) {
+    setEditingId(c.id);
+    setEditCode(c.code);
+    setEditDiscountType(c.discountType);
+    setEditDiscountValue(String(c.discountValue));
+    setEditMaxUses(c.maxUses != null ? String(c.maxUses) : "");
+    setEditActive(c.active);
+  }
+
+  function saveEdit() {
+    if (!editingId) return;
+    db.transact(
+      db.tx.coupons[editingId].update({
+        code: editCode.toUpperCase().trim(),
+        discountType: editDiscountType,
+        discountValue: parseFloat(editDiscountValue),
+        maxUses: editMaxUses ? parseInt(editMaxUses, 10) : undefined,
+        active: editActive,
+      }),
+    );
+    setEditingId(null);
+  }
+
+  function deleteCoupon(couponId: string) {
+    if (confirm("Delete this coupon?")) {
+      db.transact(db.tx.coupons[couponId].delete());
+    }
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Coupons</h2>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
+        >
+          {showForm ? "Cancel" : "+ Add"}
+        </button>
+      </div>
+
+      {showForm && (
+        <form
+          onSubmit={handleCreate}
+          className="bg-background border border-border rounded-lg p-4 mb-4 space-y-3"
+        >
+          <div>
+            <label className="block text-sm font-medium mb-1">Code</label>
+            <input
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm uppercase"
+              placeholder="e.g., SALE20"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Discount Type
+              </label>
+              <select
+                value={discountType}
+                onChange={(e) => setDiscountType(e.target.value)}
+                className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+              >
+                <option value="percentage">Percentage (%)</option>
+                <option value="amount">Fixed Amount ($)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                {discountType === "percentage" ? "Percentage" : "Amount"}
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={discountValue}
+                onChange={(e) => setDiscountValue(e.target.value)}
+                className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                placeholder={discountType === "percentage" ? "20" : "5.00"}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Max Uses (optional)
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={maxUses}
+                onChange={(e) => setMaxUses(e.target.value)}
+                className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                placeholder="Unlimited"
+              />
+            </div>
+            <div className="flex items-end pb-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={(e) => setActive(e.target.checked)}
+                  className="accent-accent-light"
+                />
+                <span className="text-sm font-medium">Active</span>
+              </label>
+            </div>
+          </div>
+          <button
+            type="submit"
+            className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            Add Coupon
+          </button>
+        </form>
+      )}
+
+      <div className="space-y-2">
+        {coupons.length === 0 ? (
+          <p className="text-muted text-sm text-center py-6">
+            No coupons yet. Add a coupon to offer discounts to buyers.
+          </p>
+        ) : (
+          coupons.map((c) => {
+            const usage = getUsageCount(c.code);
+            if (editingId === c.id) {
+              return (
+                <div
+                  key={c.id}
+                  className="bg-background border border-accent/30 rounded-lg p-4 space-y-3"
+                >
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Code
+                    </label>
+                    <input
+                      value={editCode}
+                      onChange={(e) => setEditCode(e.target.value)}
+                      className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm uppercase"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        Discount Type
+                      </label>
+                      <select
+                        value={editDiscountType}
+                        onChange={(e) => setEditDiscountType(e.target.value)}
+                        className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                      >
+                        <option value="percentage">Percentage (%)</option>
+                        <option value="amount">Fixed Amount ($)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        {editDiscountType === "percentage"
+                          ? "Percentage"
+                          : "Amount"}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={editDiscountValue}
+                        onChange={(e) => setEditDiscountValue(e.target.value)}
+                        className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        Max Uses
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={editMaxUses}
+                        onChange={(e) => setEditMaxUses(e.target.value)}
+                        className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                        placeholder="Unlimited"
+                      />
+                    </div>
+                    <div className="flex items-end pb-1">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editActive}
+                          onChange={(e) => setEditActive(e.target.checked)}
+                          className="accent-accent-light"
+                        />
+                        <span className="text-sm font-medium">Active</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveEdit}
+                      className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="px-3 py-1.5 text-muted hover:text-foreground text-sm transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={c.id}
+                className="flex items-start justify-between p-3 border border-border rounded-lg"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono font-semibold text-sm">
+                      {c.code}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                        c.active
+                          ? "bg-success/15 text-success"
+                          : "bg-muted/15 text-muted"
+                      }`}
+                    >
+                      {c.active ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted mt-0.5">
+                    {c.discountType === "percentage"
+                      ? `${c.discountValue}% off`
+                      : `$${c.discountValue.toFixed(2)} off`}
+                    {" \u00B7 "}
+                    {usage}
+                    {c.maxUses != null ? `/${c.maxUses}` : ""} used
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                  <button
+                    onClick={() => startEdit(c)}
+                    className="text-muted hover:text-accent-light transition-colors text-xs"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => deleteCoupon(c.id)}
+                    className="text-muted hover:text-danger transition-colors text-xs"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+type PromoterData = {
+  id: string;
+  name: string;
+};
+
+function PromotersSection({
+  concertId,
+  promoters,
+}: {
+  concertId: string;
+  promoters: PromoterData[];
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    db.transact(
+      db.tx.promoters[id()]
+        .update({
+          name,
+          createdAt: Date.now(),
+        })
+        .link({ concert: concertId }),
+    );
+    setName("");
+    setShowForm(false);
+  }
+
+  function startEdit(p: PromoterData) {
+    setEditingId(p.id);
+    setEditName(p.name);
+  }
+
+  function saveEdit() {
+    if (!editingId) return;
+    db.transact(db.tx.promoters[editingId].update({ name: editName }));
+    setEditingId(null);
+  }
+
+  function deletePromoter(pId: string) {
+    if (confirm("Delete this promoter?")) {
+      db.transact(db.tx.promoters[pId].delete());
+    }
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Promoters</h2>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          {showForm ? "Cancel" : "+ Add"}
+        </button>
+      </div>
+
+      {showForm && (
+        <form
+          onSubmit={handleCreate}
+          className="bg-background border border-border rounded-lg p-4 mb-4 flex gap-3"
+        >
+          <input
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="flex-1 px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+            placeholder="Promoter name"
+          />
+          <button
+            type="submit"
+            className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            Add
+          </button>
+        </form>
+      )}
+
+      <div className="space-y-2">
+        {promoters.length === 0 ? (
+          <p className="text-muted text-sm text-center py-6">
+            No promoters yet. Add promoters so buyers can select one during purchase.
+          </p>
+        ) : (
+          promoters.map((p) =>
+            editingId === p.id ? (
+              <div
+                key={p.id}
+                className="flex items-center gap-2 p-3 border border-accent/30 rounded-lg bg-background"
+              >
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="flex-1 px-3 py-1.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                />
+                <button
+                  onClick={saveEdit}
+                  className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-medium transition-colors"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => setEditingId(null)}
+                  className="px-3 py-1.5 text-muted hover:text-foreground text-xs transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div
+                key={p.id}
+                className="flex items-center justify-between p-3 border border-border rounded-lg"
+              >
+                <p className="font-medium text-sm">{p.name}</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => startEdit(p)}
+                    className="text-muted hover:text-accent-light transition-colors text-xs"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => deletePromoter(p.id)}
+                    className="text-muted hover:text-danger transition-colors text-xs"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ),
+          )
+        )}
+      </div>
+    </div>
+  );
+}
