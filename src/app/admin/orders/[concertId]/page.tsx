@@ -146,6 +146,9 @@ export default function ConcertOrdersPage() {
         orders: {
           $: { order: { createdAt: "desc" } },
         },
+        phases: {
+          $: { order: { sortOrder: "asc" } },
+        },
       },
       paymentMethods: {
         $: { order: { createdAt: "asc" } },
@@ -163,9 +166,16 @@ export default function ConcertOrdersPage() {
     return <div className="text-muted">Event not found</div>;
   }
 
-  // Flatten all orders with their ticket type info
+  // Flatten all orders with their ticket type info (use phase price when available)
   const allOrders = concert.ticketTypes.flatMap((tt) =>
-    tt.orders.map((order) => ({ ...order, ticketTypeName: tt.name, ticketTypePrice: tt.price })),
+    tt.orders.map((order) => {
+      const phase = (tt.phases || []).find((p: { id: string }) => p.id === order.phaseId);
+      return {
+        ...order,
+        ticketTypeName: tt.name,
+        ticketTypePrice: phase ? phase.price : tt.price,
+      };
+    }),
   );
   allOrders.sort((a, b) => b.createdAt - a.createdAt);
 
@@ -202,10 +212,15 @@ export default function ConcertOrdersPage() {
   const approvedCount = allOrders.filter((o) => o.status === "approved").length;
   const rejectedCount = allOrders.filter((o) => o.status === "rejected").length;
 
+  const getOrderPrice = (tt: (typeof concert.ticketTypes)[number], order: { phaseId?: string; discountAmount?: number }) => {
+    const phase = (tt.phases || []).find((p: { id: string }) => p.id === order.phaseId);
+    return (phase ? phase.price : tt.price) - (order.discountAmount || 0);
+  };
+
   const totalRevenue = concert.ticketTypes.reduce((sum, tt) => {
     return sum + tt.orders
       .filter((o) => o.status === "approved")
-      .reduce((s, o) => s + tt.price - (o.discountAmount || 0), 0);
+      .reduce((s, o) => s + getOrderPrice(tt, o), 0);
   }, 0);
 
   const ticketBreakdown = concert.ticketTypes.map((tt) => {
@@ -213,7 +228,7 @@ export default function ConcertOrdersPage() {
     const pending = tt.orders.filter((o) => o.status === "pending").length;
     const revenue = tt.orders
       .filter((o) => o.status === "approved")
-      .reduce((s, o) => s + tt.price - (o.discountAmount || 0), 0);
+      .reduce((s, o) => s + getOrderPrice(tt, o), 0);
     return {
       name: tt.name,
       price: tt.price,
@@ -313,7 +328,8 @@ export default function ConcertOrdersPage() {
         for (const order of tt.orders) {
           const s = order.status;
           const pm = order.paymentMethod;
-          const finalPrice = tt.price - (order.discountAmount || 0);
+          const orderPhase = (tt.phases || []).find((p: { id: string }) => p.id === order.phaseId);
+          const finalPrice = (orderPhase ? orderPhase.price : tt.price) - (order.discountAmount || 0);
           if (cells[s] && cells[s][pm]) {
             cells[s][pm].count += 1;
             cells[s][pm].amount += finalPrice;

@@ -33,6 +33,7 @@ export default function TicketPage() {
       $: { where: { id: orderId } },
       ticketType: {
         concert: {},
+        phases: {},
       },
     },
   });
@@ -64,6 +65,10 @@ export default function TicketPage() {
 
   const ticketType = order.ticketType;
   const concert = ticketType?.concert;
+  const phase = order.phaseId
+    ? (ticketType?.phases || []).find((p: { id: string }) => p.id === order.phaseId)
+    : null;
+  const displayPrice = phase ? phase.price : ticketType?.price;
   const ticketUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/ticket/${orderId}`
@@ -175,12 +180,14 @@ export default function TicketPage() {
                   <div>
                     <p className="text-muted">Price</p>
                     <p className="font-medium">
-                      {order.discountAmount
+                      {order.discountAmount && displayPrice != null
                         ? <>
-                            <span className="line-through text-muted">${ticketType.price.toFixed(2)}</span>{" "}
-                            ${(ticketType.price - order.discountAmount).toFixed(2)}
+                            <span className="line-through text-muted">${displayPrice.toFixed(2)}</span>{" "}
+                            ${(displayPrice - order.discountAmount).toFixed(2)}
                           </>
-                        : `$${ticketType.price.toFixed(2)}`}
+                        : displayPrice != null
+                          ? `$${displayPrice.toFixed(2)}`
+                          : "N/A"}
                     </p>
                   </div>
                   {order.couponCode && (

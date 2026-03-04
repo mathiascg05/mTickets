@@ -46,6 +46,15 @@ const rules = {
     },
     bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
   },
+  ticketPhases: {
+    allow: {
+      view: "true",
+      create: "isAdmin",
+      update: "isAdmin",
+      delete: "isAdmin",
+    },
+    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+  },
   coupons: {
     allow: {
       view: "true",

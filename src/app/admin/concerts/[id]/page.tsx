@@ -1,6 +1,8 @@
 "use client";
 
 import { db } from "@/lib/db";
+import { getActivePhase, getTodayString } from "@/lib/phases";
+import type { Phase } from "@/lib/phases";
 import { id } from "@instantdb/react";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -15,6 +17,9 @@ export default function AdminConcertEditPage() {
       ticketTypes: {
         $: { order: { createdAt: "asc" } },
         orders: {},
+        phases: {
+          $: { order: { sortOrder: "asc" } },
+        },
       },
       paymentMethods: {
         $: { order: { createdAt: "asc" } },
@@ -496,7 +501,8 @@ type TicketTypeData = {
   price: number;
   quantity: number;
   description?: string;
-  orders: { id: string; status: string }[];
+  orders: { id: string; status: string; phaseId?: string }[];
+  phases: Phase[];
 };
 
 function TicketTypesSection({
@@ -621,34 +627,367 @@ function TicketTypesSection({
           </p>
         ) : (
           ticketTypes.map((tt) => {
+            const phases = tt.phases || [];
+            const hasPhases = phases.length > 0;
             const sold = tt.orders.filter(
               (o) => o.status === "approved" || o.status === "pending",
             ).length;
+            const today = getTodayString();
+            const active = hasPhases ? getActivePhase(phases, tt.orders, today) : null;
+            const totalCapacity = hasPhases
+              ? phases.reduce((s, p) => s + p.quantity, 0)
+              : tt.quantity;
             return (
-              <div
+              <TicketTypeItem
                 key={tt.id}
-                className="flex items-center justify-between p-4 border border-border rounded-lg"
-              >
-                <div>
-                  <p className="font-medium">{tt.name}</p>
-                  {tt.description && (
-                    <p className="text-sm text-muted">{tt.description}</p>
-                  )}
-                  <p className="text-sm text-muted mt-1">
-                    ${tt.price.toFixed(2)} &middot; {sold}/{tt.quantity} sold
-                  </p>
-                </div>
-                <button
-                  onClick={() => deleteTicketType(tt.id)}
-                  className="text-muted hover:text-danger transition-colors text-sm"
-                >
-                  Delete
-                </button>
-              </div>
+                tt={tt}
+                sold={sold}
+                totalCapacity={totalCapacity}
+                hasPhases={hasPhases}
+                activePhase={active}
+                onDelete={() => deleteTicketType(tt.id)}
+              />
             );
           })
         )}
       </div>
+    </div>
+  );
+}
+
+function TicketTypeItem({
+  tt,
+  sold,
+  totalCapacity,
+  hasPhases,
+  activePhase,
+  onDelete,
+}: {
+  tt: TicketTypeData;
+  sold: number;
+  totalCapacity: number;
+  hasPhases: boolean;
+  activePhase: Phase | null;
+  onDelete: () => void;
+}) {
+  const [showPhases, setShowPhases] = useState(false);
+
+  return (
+    <div className="border border-border rounded-lg">
+      <div className="flex items-center justify-between p-4">
+        <div>
+          <p className="font-medium">{tt.name}</p>
+          {tt.description && (
+            <p className="text-sm text-muted">{tt.description}</p>
+          )}
+          {hasPhases ? (
+            <p className="text-sm text-muted mt-1">
+              {activePhase ? (
+                <>
+                  <span className="text-success font-medium">{activePhase.name}</span>
+                  {" "}@ ${activePhase.price.toFixed(2)} &middot;{" "}
+                </>
+              ) : (
+                <span className="text-danger font-medium">All phases exhausted &middot; </span>
+              )}
+              {sold}/{totalCapacity} sold (phases)
+            </p>
+          ) : (
+            <p className="text-sm text-muted mt-1">
+              ${tt.price.toFixed(2)} &middot; {sold}/{tt.quantity} sold
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowPhases(!showPhases)}
+            className="px-3 py-1.5 border border-border hover:border-accent/50 text-muted hover:text-accent-light rounded-lg text-xs font-medium transition-colors"
+          >
+            {showPhases ? "Hide Phases" : "Manage Phases"}
+          </button>
+          <button
+            onClick={onDelete}
+            className="text-muted hover:text-danger transition-colors text-sm"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+      {showPhases && (
+        <div className="border-t border-border p-4">
+          <PhaseManagement ticketTypeId={tt.id} phases={tt.phases || []} orders={tt.orders} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PhaseManagement({
+  ticketTypeId,
+  phases,
+  orders,
+}: {
+  ticketTypeId: string;
+  phases: Phase[];
+  orders: { id: string; status: string; phaseId?: string }[];
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+  const [editQuantity, setEditQuantity] = useState("");
+  const [editEndDate, setEditEndDate] = useState("");
+
+  const today = getTodayString();
+  const active = getActivePhase(phases, orders, today);
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    const nextOrder = phases.length > 0
+      ? Math.max(...phases.map((p) => p.sortOrder)) + 1
+      : 1;
+    db.transact(
+      db.tx.ticketPhases[id()]
+        .update({
+          name,
+          price: parseFloat(price),
+          quantity: parseInt(quantity, 10),
+          endDate: endDate || undefined,
+          sortOrder: nextOrder,
+          createdAt: Date.now(),
+        })
+        .link({ ticketType: ticketTypeId }),
+    );
+    setName("");
+    setPrice("");
+    setQuantity("");
+    setEndDate("");
+    setShowForm(false);
+  }
+
+  function startEdit(p: Phase) {
+    setEditingId(p.id);
+    setEditName(p.name);
+    setEditPrice(String(p.price));
+    setEditQuantity(String(p.quantity));
+    setEditEndDate(p.endDate || "");
+  }
+
+  function saveEdit() {
+    if (!editingId) return;
+    db.transact(
+      db.tx.ticketPhases[editingId].update({
+        name: editName,
+        price: parseFloat(editPrice),
+        quantity: parseInt(editQuantity, 10),
+        endDate: editEndDate || undefined,
+      }),
+    );
+    setEditingId(null);
+  }
+
+  function deletePhase(phaseId: string) {
+    if (confirm("Delete this phase?")) {
+      db.transact(db.tx.ticketPhases[phaseId].delete());
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold">Pricing Phases</h4>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="px-2.5 py-1 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-medium transition-colors"
+        >
+          {showForm ? "Cancel" : "+ Add Phase"}
+        </button>
+      </div>
+
+      {showForm && (
+        <form
+          onSubmit={handleCreate}
+          className="bg-background border border-border rounded-lg p-3 space-y-2"
+        >
+          <div>
+            <label className="block text-xs font-medium mb-1">Name</label>
+            <input
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-1.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+              placeholder="e.g., Fase 1"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="block text-xs font-medium mb-1">Price</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="w-full px-3 py-1.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                placeholder="50.00"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Qty</label>
+              <input
+                type="number"
+                min="1"
+                required
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                className="w-full px-3 py-1.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                placeholder="50"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">End Date</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-3 py-1.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-medium transition-colors"
+          >
+            Add Phase
+          </button>
+        </form>
+      )}
+
+      {phases.length === 0 ? (
+        <p className="text-muted text-xs text-center py-3">
+          No phases. Add phases to enable tiered pricing.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {phases.map((p) => {
+            const phaseSold = orders.filter(
+              (o) =>
+                o.phaseId === p.id &&
+                (o.status === "approved" || o.status === "pending"),
+            ).length;
+            const isActive = active?.id === p.id;
+
+            if (editingId === p.id) {
+              return (
+                <div
+                  key={p.id}
+                  className="bg-background border border-accent/30 rounded-lg p-3 space-y-2"
+                >
+                  <div>
+                    <label className="block text-xs font-medium mb-1">Name</label>
+                    <input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Price</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={editPrice}
+                        onChange={(e) => setEditPrice(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Qty</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={editQuantity}
+                        onChange={(e) => setEditQuantity(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1">End Date</label>
+                      <input
+                        type="date"
+                        value={editEndDate}
+                        onChange={(e) => setEditEndDate(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveEdit}
+                      className="px-3 py-1 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-medium transition-colors"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="px-3 py-1 text-muted hover:text-foreground text-xs transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={p.id}
+                className={`flex items-center justify-between p-3 border rounded-lg ${
+                  isActive
+                    ? "border-success/40 bg-success/5"
+                    : "border-border"
+                }`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm">{p.name}</span>
+                    {isActive && (
+                      <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-success/15 text-success">
+                        Active
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted mt-0.5">
+                    ${p.price.toFixed(2)} &middot; {phaseSold}/{p.quantity} sold
+                    {p.endDate && <> &middot; ends {p.endDate}</>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                  <button
+                    onClick={() => startEdit(p)}
+                    className="text-muted hover:text-accent-light transition-colors text-xs"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => deletePhase(p.id)}
+                    className="text-muted hover:text-danger transition-colors text-xs"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

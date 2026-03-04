@@ -1,6 +1,8 @@
 "use client";
 
 import { db } from "@/lib/db";
+import { getAvailability, getTodayString } from "@/lib/phases";
+import type { Phase } from "@/lib/phases";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -24,6 +26,9 @@ export default function ConcertDetailPage() {
       $: { where: { id: concertId } },
       ticketTypes: {
         orders: {},
+        phases: {
+          $: { order: { sortOrder: "asc" } },
+        },
       },
     },
   });
@@ -119,32 +124,40 @@ function TicketTypeRow({
     price: number;
     quantity: number;
     description?: string;
-    orders: { id: string; status: string }[];
+    orders: { id: string; status: string; phaseId?: string }[];
+    phases: Phase[];
   };
 }) {
   const [qty, setQty] = useState(1);
 
-  const approvedOrPending = ticketType.orders.filter(
-    (o) => o.status === "approved" || o.status === "pending",
-  ).length;
-  const available = ticketType.quantity - approvedOrPending;
-  const soldOut = available <= 0;
+  const today = getTodayString();
+  const { price, available, totalCapacity, activePhase, soldOut } =
+    getAvailability(ticketType, ticketType.phases || [], ticketType.orders, today);
   const maxQty = Math.min(available, 10);
+
+  const buyHref = activePhase
+    ? `/buy/${ticketType.id}?qty=${qty}&phaseId=${activePhase.id}`
+    : `/buy/${ticketType.id}?qty=${qty}`;
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 border border-border rounded-xl hover:border-accent/40 transition-colors">
       <div className="flex-1">
         <h3 className="font-semibold text-lg">{ticketType.name}</h3>
+        {activePhase && (
+          <p className="text-xs font-medium text-accent-light mt-0.5">
+            {activePhase.name}
+          </p>
+        )}
         {ticketType.description && (
           <p className="text-muted text-sm mt-1">{ticketType.description}</p>
         )}
         <p className="text-sm text-muted mt-1">
-          {available} of {ticketType.quantity} available
+          {available} of {totalCapacity} available
         </p>
       </div>
       <div className="flex items-center gap-3">
         <span className="text-2xl font-bold text-accent-light">
-          ${ticketType.price.toFixed(2)}
+          ${price.toFixed(2)}
         </span>
         {soldOut ? (
           <span className="px-4 py-2 bg-muted/20 text-muted rounded-lg font-medium">
@@ -164,7 +177,7 @@ function TicketTypeRow({
               ))}
             </select>
             <Link
-              href={`/buy/${ticketType.id}?qty=${qty}`}
+              href={buyHref}
               className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors shadow-lg shadow-accent/20"
             >
               Buy

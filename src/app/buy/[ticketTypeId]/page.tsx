@@ -1,6 +1,7 @@
 "use client";
 
 import { db } from "@/lib/db";
+import { getAvailability, getTodayString } from "@/lib/phases";
 import { id } from "@instantdb/react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -82,6 +83,9 @@ export default function BuyPage() {
         },
       },
       orders: {},
+      phases: {
+        $: { order: { sortOrder: "asc" } },
+      },
     },
     exchangeRates: {},
   });
@@ -164,10 +168,10 @@ export default function BuyPage() {
   const allOrders = ticketType.orders;
   const selectedPm = paymentMethods.find((pm) => pm.id === selectedPaymentMethod);
 
-  const approvedOrPending = ticketType.orders.filter(
-    (o) => o.status === "approved" || o.status === "pending",
-  ).length;
-  const available = ticketType.quantity - approvedOrPending;
+  const today = getTodayString();
+  const phases = ticketType.phases || [];
+  const { price: effectivePrice, available, activePhase } =
+    getAvailability(ticketType, phases, allOrders, today);
 
   if (available < qty) {
     return (
@@ -189,7 +193,7 @@ export default function BuyPage() {
     );
   }
 
-  const subtotal = ticketType.price * qty;
+  const subtotal = effectivePrice * qty;
   const discount = appliedCoupon
     ? appliedCoupon.discountType === "percentage"
       ? subtotal * (appliedCoupon.discountValue / 100)
@@ -266,6 +270,15 @@ export default function BuyPage() {
       const filePath = `payment-proofs/${Date.now()}-${file.name}`;
       await db.storage.upload(filePath, file);
 
+      // Re-derive active phase from live data to guard against race conditions
+      const liveAvail = getAvailability(ticketType, phases, allOrders, getTodayString());
+      if (liveAvail.available < qty) {
+        setError("Tickets are no longer available. Please go back and try again.");
+        setSubmitting(false);
+        return;
+      }
+      const livePhase = liveAvail.activePhase;
+
       const orderIds: string[] = [];
       const txns = attendees.map((attendee) => {
         const orderId = id();
@@ -285,6 +298,7 @@ export default function BuyPage() {
             ...(appliedCoupon
               ? { couponCode: appliedCoupon.code, discountAmount: discount }
               : {}),
+            ...(livePhase ? { phaseId: livePhase.id } : {}),
           })
           .link({ ticketType: ticketTypeId });
       });
@@ -318,11 +332,16 @@ export default function BuyPage() {
 
           <div className="bg-accent/10 border border-accent/30 rounded-xl p-4 mb-6">
             <p className="font-semibold text-accent-light">{ticketType.name}</p>
+            {activePhase && (
+              <p className="text-xs font-medium text-accent-light/70">
+                {activePhase.name}
+              </p>
+            )}
             {concert && (
               <p className="text-sm text-muted">{concert.name}</p>
             )}
             <p className="text-lg font-medium mt-2 text-foreground">
-              ${ticketType.price.toFixed(2)} x {qty} = ${subtotal.toFixed(2)}
+              ${effectivePrice.toFixed(2)} x {qty} = ${subtotal.toFixed(2)}
             </p>
             {appliedCoupon && discount > 0 && (
               <div className="mt-1 space-y-1">

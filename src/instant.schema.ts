@@ -38,6 +38,7 @@ const _schema = i.schema({
       visited: i.boolean().indexed(),
       couponCode: i.string().optional(),
       discountAmount: i.number().optional(),
+      phaseId: i.string().optional(),
       createdAt: i.number().indexed(),
     }),
     paymentMethods: i.entity({
@@ -54,6 +55,14 @@ const _schema = i.schema({
       currency: i.string().indexed(),
       rate: i.number(),
       fetchedAt: i.number().indexed(),
+    }),
+    ticketPhases: i.entity({
+      name: i.string(),
+      price: i.number(),
+      quantity: i.number(),
+      endDate: i.string().optional().indexed(),
+      sortOrder: i.number().indexed(),
+      createdAt: i.number().indexed(),
     }),
     coupons: i.entity({
       code: i.string().unique().indexed(),
@@ -115,6 +124,19 @@ const _schema = i.schema({
         on: "concerts",
         has: "many",
         label: "promoters",
+      },
+    },
+    ticketTypePhases: {
+      forward: {
+        on: "ticketPhases",
+        has: "one",
+        label: "ticketType",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "ticketTypes",
+        has: "many",
+        label: "phases",
       },
     },
     concertCoupons: {
