@@ -175,9 +175,20 @@ export default function TicketPage() {
                   <div>
                     <p className="text-muted">Price</p>
                     <p className="font-medium">
-                      ${ticketType.price.toFixed(2)}
+                      {order.discountAmount
+                        ? <>
+                            <span className="line-through text-muted">${ticketType.price.toFixed(2)}</span>{" "}
+                            ${(ticketType.price - order.discountAmount).toFixed(2)}
+                          </>
+                        : `$${ticketType.price.toFixed(2)}`}
                     </p>
                   </div>
+                  {order.couponCode && (
+                    <div>
+                      <p className="text-muted">Coupon</p>
+                      <p className="font-medium text-success">{order.couponCode}</p>
+                    </div>
+                  )}
                 </>
               )}
             </div>

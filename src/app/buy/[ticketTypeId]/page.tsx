@@ -277,13 +277,14 @@ export default function BuyPage() {
             email: attendee.email,
             cedula: attendee.cedula,
             paymentMethod: selectedPm?.name || "",
-            promoter: selectedPromoter || undefined,
             status: "pending",
             paymentProofPath: filePath,
             visited: false,
-            couponCode: appliedCoupon?.code || undefined,
-            discountAmount: discount > 0 ? discount : undefined,
             createdAt: Date.now(),
+            ...(selectedPromoter ? { promoter: selectedPromoter } : {}),
+            ...(appliedCoupon
+              ? { couponCode: appliedCoupon.code, discountAmount: discount }
+              : {}),
           })
           .link({ ticketType: ticketTypeId });
       });

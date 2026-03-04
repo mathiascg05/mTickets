@@ -203,13 +203,17 @@ export default function ConcertOrdersPage() {
   const rejectedCount = allOrders.filter((o) => o.status === "rejected").length;
 
   const totalRevenue = concert.ticketTypes.reduce((sum, tt) => {
-    const approved = tt.orders.filter((o) => o.status === "approved").length;
-    return sum + approved * tt.price;
+    return sum + tt.orders
+      .filter((o) => o.status === "approved")
+      .reduce((s, o) => s + tt.price - (o.discountAmount || 0), 0);
   }, 0);
 
   const ticketBreakdown = concert.ticketTypes.map((tt) => {
     const approved = tt.orders.filter((o) => o.status === "approved").length;
     const pending = tt.orders.filter((o) => o.status === "pending").length;
+    const revenue = tt.orders
+      .filter((o) => o.status === "approved")
+      .reduce((s, o) => s + tt.price - (o.discountAmount || 0), 0);
     return {
       name: tt.name,
       price: tt.price,
@@ -217,7 +221,7 @@ export default function ConcertOrdersPage() {
       approved,
       pending,
       total: tt.orders.length,
-      revenue: approved * tt.price,
+      revenue,
     };
   });
 
@@ -309,14 +313,15 @@ export default function ConcertOrdersPage() {
         for (const order of tt.orders) {
           const s = order.status;
           const pm = order.paymentMethod;
+          const finalPrice = tt.price - (order.discountAmount || 0);
           if (cells[s] && cells[s][pm]) {
             cells[s][pm].count += 1;
-            cells[s][pm].amount += tt.price;
+            cells[s][pm].amount += finalPrice;
           } else if (cells[s]) {
             // payment method not in concert.paymentMethods (edge case)
             cells[s][pm] = cells[s][pm] || { count: 0, amount: 0 };
             cells[s][pm].count += 1;
-            cells[s][pm].amount += tt.price;
+            cells[s][pm].amount += finalPrice;
           }
         }
 
@@ -534,7 +539,13 @@ export default function ConcertOrdersPage() {
                     <p className="text-xs text-muted">Promoter: {order.promoter}</p>
                   )}
                   <p className="text-xs text-muted mt-0.5">
-                    ${order.ticketTypePrice.toFixed(2)} &middot;{" "}
+                    ${order.ticketTypePrice.toFixed(2)}
+                    {order.couponCode && (
+                      <span className="text-success">
+                        {" "}(coupon: {order.couponCode}, -${(order.discountAmount || 0).toFixed(2)})
+                      </span>
+                    )}
+                    {" "}&middot;{" "}
                     {new Date(order.createdAt).toLocaleString()}
                   </p>
                 </div>
