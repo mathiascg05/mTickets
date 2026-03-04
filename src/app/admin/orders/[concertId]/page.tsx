@@ -1,9 +1,11 @@
 "use client";
 
 import { db } from "@/lib/db";
+import { id } from "@instantdb/react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
+import { getAvailability, getTodayString } from "@/lib/phases";
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -129,7 +131,309 @@ function ExportSection({
   );
 }
 
+function CouponInlineInput({
+  onApply,
+  onCancel,
+}: {
+  onApply: (code: string) => string | null;
+  onCancel: () => void;
+}) {
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  function handleApply() {
+    const err = onApply(code);
+    if (err) setError(err);
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        type="text"
+        value={code}
+        onChange={(e) => { setCode(e.target.value); setError(null); }}
+        onKeyDown={(e) => e.key === "Enter" && handleApply()}
+        placeholder="Codigo"
+        className={`w-24 px-2 py-1 text-xs bg-background border rounded-lg focus:outline-none focus:border-accent ${error ? "border-danger" : "border-border"}`}
+        autoFocus
+      />
+      <button
+        onClick={handleApply}
+        className="px-2 py-1 text-xs bg-accent/10 text-accent-light border border-accent/30 rounded-lg hover:bg-accent/20 transition-colors"
+      >
+        OK
+      </button>
+      <button
+        onClick={onCancel}
+        className="px-2 py-1 text-xs text-muted border border-border rounded-lg hover:text-foreground transition-colors"
+      >
+        {"✕"}
+      </button>
+    </div>
+  );
+}
+
 type FilterStatus = "all" | "pending" | "approved" | "rejected" | "cancelled";
+
+function CreateOrderModal({
+  concert,
+  onClose,
+}: {
+  concert: {
+    ticketTypes: {
+      id: string;
+      name: string;
+      price: number;
+      quantity: number;
+      orders: { id: string; status: string; phaseId?: string }[];
+      phases: { id: string; name: string; price: number; quantity: number; endDate?: string; sortOrder: number }[];
+    }[];
+    paymentMethods: { id: string; name: string }[];
+  };
+  onClose: () => void;
+}) {
+  const [selectedTicketTypeId, setSelectedTicketTypeId] = useState(
+    concert.ticketTypes[0]?.id || "",
+  );
+  const [quantity, setQuantity] = useState(1);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [cedula, setCedula] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState(concert.paymentMethods[0]?.name || "");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [orderStatus, setOrderStatus] = useState<"approved" | "pending">("approved");
+  const [submitting, setSubmitting] = useState(false);
+
+  const today = getTodayString();
+
+  const ticketOptions = concert.ticketTypes.map((tt) => {
+    const avail = getAvailability(tt, tt.phases || [], tt.orders, today);
+    return { id: tt.id, name: tt.name, price: avail.price, available: avail.available, activePhase: avail.activePhase };
+  });
+
+  const selectedOption = ticketOptions.find((o) => o.id === selectedTicketTypeId);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedOption || submitting) return;
+    setSubmitting(true);
+
+    try {
+      let filePath = "admin-created";
+      if (proofFile) {
+        const ext = proofFile.name.split(".").pop();
+        const storagePath = `payment-proofs/${Date.now()}-admin.${ext}`;
+        await db.storage.upload(storagePath, proofFile);
+        filePath = storagePath;
+      }
+
+      const txns = Array.from({ length: quantity }, () => {
+        const orderId = id();
+        return db.tx.orders[orderId]
+          .update({
+            firstName,
+            lastName,
+            email,
+            cedula,
+            paymentMethod,
+            status: orderStatus,
+            paymentProofPath: filePath,
+            visited: false,
+            createdAt: Date.now(),
+            ...(selectedOption.activePhase
+              ? { phaseId: selectedOption.activePhase.id }
+              : {}),
+          })
+          .link({ ticketType: selectedTicketTypeId });
+      });
+      await db.transact(txns);
+      onClose();
+    } catch (err) {
+      console.error("Failed to create order:", err);
+      alert("Error creating order. Check the console for details.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface border border-border rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-semibold">Crear Orden</h3>
+          <button
+            onClick={onClose}
+            className="text-muted hover:text-foreground transition-colors"
+          >
+            {"✕"}
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Ticket Type */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Tipo de Entrada</label>
+            <select
+              value={selectedTicketTypeId}
+              onChange={(e) => setSelectedTicketTypeId(e.target.value)}
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+            >
+              {ticketOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.name} — ${opt.price.toFixed(2)} ({opt.available} disponibles)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Quantity */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Cantidad</label>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={quantity}
+              onChange={(e) => setQuantity(Math.max(1, Math.min(10, Number(e.target.value))))}
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+            />
+          </div>
+
+          {/* Name */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Nombre</label>
+              <input
+                type="text"
+                required
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Apellido</label>
+              <input
+                type="text"
+                required
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Email</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+            />
+          </div>
+
+          {/* Cedula */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Cedula</label>
+            <input
+              type="text"
+              required
+              value={cedula}
+              onChange={(e) => setCedula(e.target.value)}
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+            />
+          </div>
+
+          {/* Payment Method */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Metodo de Pago</label>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+            >
+              {(concert.paymentMethods || []).map((pm) => (
+                <option key={pm.id} value={pm.name}>
+                  {pm.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Payment Proof (optional) */}
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Comprobante de Pago <span className="text-muted font-normal">(opcional)</span>
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setProofFile(e.target.files?.[0] || null)}
+              className="w-full text-sm text-muted file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-border file:text-sm file:font-medium file:bg-surface-hover file:text-foreground hover:file:bg-surface-hover/80 file:transition-colors"
+            />
+          </div>
+
+          {/* Status Toggle */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Estado</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setOrderStatus("approved")}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  orderStatus === "approved"
+                    ? "bg-success/20 text-success border-success/50"
+                    : "border-border text-muted hover:text-foreground"
+                }`}
+              >
+                Aprobado
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrderStatus("pending")}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  orderStatus === "pending"
+                    ? "bg-warning/20 text-warning border-warning/50"
+                    : "border-border text-muted hover:text-foreground"
+                }`}
+              >
+                Pendiente
+              </button>
+            </div>
+          </div>
+
+          {/* Summary */}
+          {selectedOption && (
+            <div className="bg-background border border-border rounded-lg p-3 text-sm">
+              <p className="text-muted">
+                Total: <span className="text-foreground font-semibold">{quantity}x ${selectedOption.price.toFixed(2)} = ${(quantity * selectedOption.price).toFixed(2)}</span>
+              </p>
+            </div>
+          )}
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
+          >
+            {submitting ? "Creando..." : "Crear Orden"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 export default function ConcertOrdersPage() {
   const params = useParams();
@@ -137,6 +441,8 @@ export default function ConcertOrdersPage() {
   const [filter, setFilter] = useState<FilterStatus>("all");
   const [ticketTypeFilter, setTicketTypeFilter] = useState<string>("all");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [couponOrderId, setCouponOrderId] = useState<string | null>(null);
 
   const { isLoading, data } = db.useQuery({
     concerts: {
@@ -153,6 +459,7 @@ export default function ConcertOrdersPage() {
       paymentMethods: {
         $: { order: { createdAt: "asc" } },
       },
+      coupons: {},
     },
     exchangeRates: {},
   });
@@ -254,6 +561,37 @@ export default function ConcertOrdersPage() {
     if (confirm("Cancel this ticket? The QR code will no longer work.")) {
       db.transact(db.tx.orders[orderId].update({ status: "cancelled" }));
     }
+  }
+
+  function applyCouponToOrder(orderId: string, code: string, orderPrice: number) {
+    const coupon = (concert.coupons || []).find(
+      (c) => c.code.toUpperCase() === code.trim().toUpperCase(),
+    );
+    if (!coupon) return "Cupon invalido";
+    if (!coupon.active) return "Cupon inactivo";
+
+    if (coupon.maxUses != null) {
+      const usageCount = allOrders.filter(
+        (o) =>
+          o.couponCode === coupon.code &&
+          (o.status === "approved" || o.status === "pending"),
+      ).length;
+      if (usageCount >= coupon.maxUses) return "Cupon agotado";
+    }
+
+    const discount =
+      coupon.discountType === "percentage"
+        ? orderPrice * (coupon.discountValue / 100)
+        : Math.min(coupon.discountValue, orderPrice);
+
+    db.transact(
+      db.tx.orders[orderId].update({
+        couponCode: coupon.code,
+        discountAmount: discount,
+      }),
+    );
+    setCouponOrderId(null);
+    return null;
   }
 
   async function viewProof(path: string) {
@@ -475,7 +813,15 @@ export default function ConcertOrdersPage() {
       {/* Order List */}
       <div className="bg-surface border border-border rounded-xl p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <h2 className="text-lg font-semibold">Order List</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold">Order List</h2>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-medium transition-colors shadow-lg shadow-accent/20"
+            >
+              + Crear Orden
+            </button>
+          </div>
           <div className="flex flex-wrap gap-2">
             <div className="flex gap-1">
               {filters.map((f) => (
@@ -567,14 +913,35 @@ export default function ConcertOrdersPage() {
                 </div>
 
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => viewProof(order.paymentProofPath)}
-                    className="px-3 py-1.5 text-xs border border-border rounded-lg hover:border-accent/50 transition-colors"
-                  >
-                    Proof
-                  </button>
+                  {order.paymentProofPath === "admin-created" ? (
+                    <span className="px-3 py-1.5 text-xs border border-accent/30 bg-accent/10 text-accent-light rounded-lg font-medium">
+                      Admin
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => viewProof(order.paymentProofPath)}
+                      className="px-3 py-1.5 text-xs border border-border rounded-lg hover:border-accent/50 transition-colors"
+                    >
+                      Proof
+                    </button>
+                  )}
                   {order.status === "pending" && (
                     <>
+                      {!order.couponCode && (
+                        couponOrderId === order.id ? (
+                          <CouponInlineInput
+                            onApply={(code) => applyCouponToOrder(order.id, code, order.ticketTypePrice)}
+                            onCancel={() => setCouponOrderId(null)}
+                          />
+                        ) : (
+                          <button
+                            onClick={() => setCouponOrderId(order.id)}
+                            className="px-3 py-1.5 text-xs border border-accent/30 text-accent-light rounded-lg hover:bg-accent/10 transition-colors font-medium"
+                          >
+                            Coupon
+                          </button>
+                        )
+                      )}
                       <button
                         onClick={() => approve(order.id)}
                         className="px-3 py-1.5 text-xs bg-success/10 text-success border border-success/30 rounded-lg hover:bg-success/20 transition-colors font-medium"
@@ -611,6 +978,14 @@ export default function ConcertOrdersPage() {
           </div>
         )}
       </div>
+
+      {/* Create order modal */}
+      {showCreateModal && (
+        <CreateOrderModal
+          concert={concert}
+          onClose={() => setShowCreateModal(false)}
+        />
+      )}
 
       {/* Payment proof preview modal */}
       {previewUrl && (
