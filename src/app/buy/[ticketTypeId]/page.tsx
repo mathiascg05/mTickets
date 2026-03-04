@@ -315,7 +315,7 @@ export default function BuyPage() {
     <div className="min-h-screen">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4">
-          <a href="/" className="text-xl font-bold tracking-wide text-white">mTickets</a>
+          <a href="/" className="text-xl font-bold tracking-wide text-white">maTickets</a>
         </div>
       </header>
 

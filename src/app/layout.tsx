@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "mTickets - Event Ticketing",
+  title: "maTickets - Event Ticketing",
   description: "Professional event ticketing and management platform",
 };
 

@@ -93,7 +93,7 @@ function ExportSection({
         amountBs,
         escapeCsv(order.promoter || ""),
         order.status,
-        new Date(order.createdAt).toLocaleString(),
+        escapeCsv(new Date(order.createdAt).toLocaleString()),
         escapeCsv(order.couponCode || ""),
       ].join(",");
     });
@@ -594,6 +594,15 @@ export default function ConcertOrdersPage() {
     return null;
   }
 
+  function removeCouponFromOrder(orderId: string) {
+    db.transact(
+      db.tx.orders[orderId].update({
+        couponCode: "",
+        discountAmount: 0,
+      }),
+    );
+  }
+
   async function viewProof(path: string) {
     const url = await db.storage.getDownloadUrl(path);
     setPreviewUrl(url);
@@ -801,6 +810,132 @@ export default function ConcertOrdersPage() {
         );
       })}
 
+      {/* Combined Totals Table */}
+      {(() => {
+        const pmNames = (concert.paymentMethods || []).map((pm) => pm.name);
+        const allPmNames = Array.from(
+          new Set([
+            ...pmNames,
+            ...allOrders.map((o) => o.paymentMethod).filter(Boolean),
+          ]),
+        );
+        if (allPmNames.length === 0) return null;
+
+        const statuses = [
+          { key: "approved", label: "Approved", color: "text-success", headerBg: "bg-success/10 border-success/30" },
+          { key: "pending", label: "Pending", color: "text-warning", headerBg: "bg-warning/10 border-warning/30" },
+          { key: "rejected", label: "Rejected", color: "text-danger", headerBg: "bg-danger/10 border-danger/30" },
+        ];
+
+        const cells: Record<string, Record<string, { count: number; amount: number }>> = {};
+        for (const s of statuses) {
+          cells[s.key] = {};
+          for (const pm of allPmNames) {
+            cells[s.key][pm] = { count: 0, amount: 0 };
+          }
+        }
+
+        for (const order of allOrders) {
+          const s = order.status;
+          const pm = order.paymentMethod;
+          const finalPrice = order.ticketTypePrice - (order.discountAmount || 0);
+          if (cells[s]?.[pm]) {
+            cells[s][pm].count += 1;
+            cells[s][pm].amount += finalPrice;
+          }
+        }
+
+        const statusTotals = statuses.map((s) => {
+          const vals = Object.values(cells[s.key]);
+          return {
+            key: s.key,
+            label: s.label,
+            color: s.color,
+            count: vals.reduce((a, v) => a + v.count, 0),
+            amount: vals.reduce((a, v) => a + v.amount, 0),
+          };
+        });
+
+        return (
+          <div className="bg-surface border border-border rounded-xl p-6 mb-6">
+            <h2 className="text-lg font-semibold mb-1">Combined Totals</h2>
+            <p className="text-sm text-muted mb-4">
+              All ticket types &middot; {statusTotals[0].count + statusTotals[1].count} sold total
+            </p>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    {statuses.map((s) => (
+                      <th
+                        key={s.key}
+                        colSpan={allPmNames.length}
+                        className={`text-center py-2 px-2 font-semibold border ${s.headerBg} ${s.color} first:rounded-tl-lg last:rounded-tr-lg`}
+                      >
+                        {s.label}
+                      </th>
+                    ))}
+                  </tr>
+                  <tr className="border-b border-border">
+                    {statuses.map((s) =>
+                      allPmNames.map((pm) => (
+                        <th
+                          key={`${s.key}-${pm}`}
+                          className="text-center py-2 px-2 text-xs font-medium text-muted bg-surface-hover/50"
+                        >
+                          {pm}
+                        </th>
+                      )),
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-border/50">
+                    {statuses.map((s) =>
+                      allPmNames.map((pm) => {
+                        const cell = cells[s.key][pm];
+                        return (
+                          <td key={`${s.key}-${pm}-count`} className="text-center py-2 px-2">
+                            <span className={`font-bold ${s.color}`}>{cell.count}</span>
+                            <span className="text-muted text-xs"> Cant.</span>
+                          </td>
+                        );
+                      }),
+                    )}
+                  </tr>
+                  <tr className="border-b border-border/50">
+                    {statuses.map((s) =>
+                      allPmNames.map((pm) => {
+                        const cell = cells[s.key][pm];
+                        return (
+                          <td key={`${s.key}-${pm}-amount`} className="text-center py-2 px-2 text-muted">
+                            ${cell.amount.toFixed(2)}
+                          </td>
+                        );
+                      }),
+                    )}
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-border">
+                    {statuses.map((st) => (
+                      <td
+                        key={st.key}
+                        colSpan={allPmNames.length}
+                        className={`text-center py-2.5 px-2 font-semibold ${st.color}`}
+                      >
+                        Total {st.label}: ${statusTotals.find((t) => t.key === st.key)!.amount.toFixed(2)}
+                      </td>
+                    ))}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* CSV Export */}
       <ExportSection
         concertName={concert.name}
@@ -927,20 +1062,25 @@ export default function ConcertOrdersPage() {
                   )}
                   {order.status === "pending" && (
                     <>
-                      {!order.couponCode && (
-                        couponOrderId === order.id ? (
-                          <CouponInlineInput
-                            onApply={(code) => applyCouponToOrder(order.id, code, order.ticketTypePrice)}
-                            onCancel={() => setCouponOrderId(null)}
-                          />
-                        ) : (
-                          <button
-                            onClick={() => setCouponOrderId(order.id)}
-                            className="px-3 py-1.5 text-xs border border-accent/30 text-accent-light rounded-lg hover:bg-accent/10 transition-colors font-medium"
-                          >
-                            Coupon
-                          </button>
-                        )
+                      {couponOrderId === order.id ? (
+                        <CouponInlineInput
+                          onApply={(code) => applyCouponToOrder(order.id, code, order.ticketTypePrice)}
+                          onCancel={() => setCouponOrderId(null)}
+                        />
+                      ) : order.couponCode ? (
+                        <button
+                          onClick={() => removeCouponFromOrder(order.id)}
+                          className="px-3 py-1.5 text-xs bg-danger/10 text-danger border border-danger/30 rounded-lg hover:bg-danger/20 transition-colors font-medium"
+                        >
+                          {"✕"} {order.couponCode}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setCouponOrderId(order.id)}
+                          className="px-3 py-1.5 text-xs border border-accent/30 text-accent-light rounded-lg hover:bg-accent/10 transition-colors font-medium"
+                        >
+                          Coupon
+                        </button>
                       )}
                       <button
                         onClick={() => approve(order.id)}

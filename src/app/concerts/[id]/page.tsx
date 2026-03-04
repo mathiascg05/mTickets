@@ -62,7 +62,7 @@ export default function ConcertDetailPage() {
     <div className="min-h-screen">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <span className="text-xl font-bold tracking-wide">mTickets</span>
+          <span className="text-xl font-bold tracking-wide">maTickets</span>
         </div>
       </header>
 
