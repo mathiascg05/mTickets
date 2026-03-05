@@ -254,17 +254,9 @@ function CreateOrderModal({
       });
       await db.transact(txns);
       if (orderStatus === "approved") {
-        for (const oid of orderIds) {
-          sendTicketEmail(oid).then((res) => {
-            if (!res.success) console.error("Email failed for", oid, res.error);
-          });
-        }
+        await Promise.allSettled(orderIds.map((oid) => sendTicketEmail(oid)));
       } else if (orderStatus === "pending") {
-        for (const oid of orderIds) {
-          sendConfirmationEmail(oid).then((res) => {
-            if (!res.success) console.error("Confirmation email failed for", oid, res.error);
-          });
-        }
+        await Promise.allSettled(orderIds.map((oid) => sendConfirmationEmail(oid)));
       }
       onClose();
     } catch (err) {
@@ -586,9 +578,8 @@ export default function ConcertOrdersPage() {
 
   async function approve(orderId: string) {
     await db.transact(db.tx.orders[orderId].update({ status: "approved" }));
-    sendTicketEmail(orderId).then((res) => {
-      if (!res.success) console.error("Email failed:", res.error);
-    });
+    const res = await sendTicketEmail(orderId);
+    if (!res.success) console.error("Email failed:", res.error);
   }
 
   function reject(orderId: string) {

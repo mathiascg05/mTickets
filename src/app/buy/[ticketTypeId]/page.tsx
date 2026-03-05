@@ -467,11 +467,10 @@ export default function BuyPage() {
       // Clear reservation from sessionStorage
       sessionStorage.removeItem(STORAGE_KEY_PREFIX + ticketTypeId);
 
-      for (const oid of orderIds) {
-        sendConfirmationEmail(oid).then((res) => {
-          if (!res.success) console.error("Confirmation email failed for", oid, res.error);
-        });
-      }
+      // Await emails before navigating to ensure requests reach the server
+      await Promise.allSettled(
+        orderIds.map((oid) => sendConfirmationEmail(oid)),
+      );
       router.push(`/ticket/${orderIds[0]}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");

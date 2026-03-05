@@ -5,7 +5,7 @@ import { buildConfirmationEmailHtml, buildConfirmationEmailText } from "@/lib/em
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function queryOrderWithRetry(orderId: string, retries = 3, delayMs = 2000) {
+async function queryOrderWithRetry(orderId: string, retries = 5, delayMs = 2000) {
   for (let i = 0; i < retries; i++) {
     const { orders } = await adminDb.query({
       orders: {
@@ -16,7 +16,16 @@ async function queryOrderWithRetry(orderId: string, retries = 3, delayMs = 2000)
         },
       },
     });
-    if (orders[0]) return orders[0];
+    const order = orders[0];
+    // Admin SDK returns has-one relations as arrays at runtime despite types
+    const rawTT = order?.ticketType as unknown;
+    const ticketType = Array.isArray(rawTT) ? rawTT[0] : rawTT;
+    const rawConcert = ticketType?.concert as unknown;
+    const concert = Array.isArray(rawConcert) ? rawConcert[0] : rawConcert;
+    if (order && ticketType && concert) {
+      return { ...order, ticketType: { ...ticketType, concert, phases: ticketType.phases || [] } };
+    }
+    console.log(`[confirmation-email] Retry ${i + 1}/${retries}: order=${!!order}, ticketType=${!!ticketType}, concert=${!!concert}`);
     if (i < retries - 1) await wait(delayMs);
   }
   return null;
@@ -29,19 +38,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "orderId is required" }, { status: 400 });
     }
 
+    console.log(`[confirmation-email] Processing order ${orderId}`);
+
     const order = await queryOrderWithRetry(orderId);
     if (!order) {
+      console.error(`[confirmation-email] Order ${orderId} not found after retries`);
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    const ticketType = order.ticketType;
-    if (!ticketType) {
-      return NextResponse.json({ error: "Ticket type not found" }, { status: 404 });
-    }
-    const concert = ticketType.concert;
-    if (!concert) {
-      return NextResponse.json({ error: "Concert not found" }, { status: 404 });
-    }
+    const { ticketType } = order;
+    const { concert } = ticketType;
 
     // Calculate display price (phase-aware, discount-aware)
     const phase = (ticketType.phases || []).find(
@@ -86,15 +92,17 @@ export async function POST(req: NextRequest) {
     // Send with one retry on SMTP failure
     try {
       await transporter.sendMail(mailOptions);
+      console.log(`[confirmation-email] Sent to ${order.email} for order ${orderId}`);
     } catch (smtpErr) {
-      console.warn("SMTP send failed, retrying once:", smtpErr);
+      console.warn("[confirmation-email] SMTP send failed, retrying once:", smtpErr);
       await wait(1000);
       await transporter.sendMail({ ...mailOptions, messageId: generateMessageId() });
+      console.log(`[confirmation-email] Sent on retry to ${order.email} for order ${orderId}`);
     }
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("send-confirmation-email error:", err);
+    console.error("[confirmation-email] error:", err);
     return NextResponse.json(
       { error: "Failed to send email" },
       { status: 500 },
