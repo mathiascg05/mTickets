@@ -9,10 +9,10 @@ importers:
   .:
     dependencies:
       '@instantdb/admin':
-        specifier: latest
+        specifier: 0.22.153
         version: 0.22.153
       '@instantdb/react':
-        specifier: latest
+        specifier: 0.22.153
         version: 0.22.153(react@19.1.0)
       html5-qrcode:
         specifier: ^2.3.8
