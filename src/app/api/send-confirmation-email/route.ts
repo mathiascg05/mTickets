@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
-import { transporter } from "@/lib/mailer";
+import { transporter, generateMessageId } from "@/lib/mailer";
 import { buildConfirmationEmailHtml, buildConfirmationEmailText } from "@/lib/emailTemplate";
 
-export async function POST(req: NextRequest) {
-  try {
-    const { orderId } = await req.json();
-    if (!orderId) {
-      return NextResponse.json({ error: "orderId is required" }, { status: 400 });
-    }
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+async function queryOrderWithRetry(orderId: string, retries = 3, delayMs = 2000) {
+  for (let i = 0; i < retries; i++) {
     const { orders } = await adminDb.query({
       orders: {
         $: { where: { id: orderId } },
@@ -19,8 +16,20 @@ export async function POST(req: NextRequest) {
         },
       },
     });
+    if (orders[0]) return orders[0];
+    if (i < retries - 1) await wait(delayMs);
+  }
+  return null;
+}
 
-    const order = orders[0];
+export async function POST(req: NextRequest) {
+  try {
+    const { orderId } = await req.json();
+    if (!orderId) {
+      return NextResponse.json({ error: "orderId is required" }, { status: 400 });
+    }
+
+    const order = await queryOrderWithRetry(orderId);
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
@@ -57,18 +66,31 @@ export async function POST(req: NextRequest) {
     const html = buildConfirmationEmailHtml(emailParams);
     const text = buildConfirmationEmailText(emailParams);
 
-    await transporter.sendMail({
-      from: `"maTickets" <${process.env.GMAIL_USER}>`,
-      replyTo: process.env.GMAIL_USER,
+    const gmailUser = process.env.GMAIL_USER;
+    const mailOptions = {
+      from: `"maTickets" <${gmailUser}>`,
+      replyTo: gmailUser,
       to: order.email,
       subject: `Confirmacion de orden - ${concert.name}`,
       html,
       text,
+      messageId: generateMessageId(),
+      date: new Date(),
+      envelope: { from: gmailUser!, to: order.email },
       headers: {
-        "List-Unsubscribe": `<mailto:${process.env.GMAIL_USER}?subject=unsubscribe>`,
+        "List-Unsubscribe": `<mailto:${gmailUser}?subject=unsubscribe>`,
         "X-Mailer": "maTickets",
       },
-    });
+    };
+
+    // Send with one retry on SMTP failure
+    try {
+      await transporter.sendMail(mailOptions);
+    } catch (smtpErr) {
+      console.warn("SMTP send failed, retrying once:", smtpErr);
+      await wait(1000);
+      await transporter.sendMail({ ...mailOptions, messageId: generateMessageId() });
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {

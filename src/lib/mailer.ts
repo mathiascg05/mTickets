@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { randomUUID } from "crypto";
 
 export const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
@@ -9,3 +10,8 @@ export const transporter = nodemailer.createTransport({
     pass: process.env.GMAIL_APP_PASSWORD,
   },
 });
+
+export function generateMessageId(): string {
+  const domain = (process.env.GMAIL_USER || "matickets.com").split("@")[1] || "matickets.com";
+  return `<${randomUUID()}@${domain}>`;
+}
