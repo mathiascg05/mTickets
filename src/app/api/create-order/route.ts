@@ -32,6 +32,7 @@ type CreateOrderBody = {
   referenceNumber?: string;
   paymentProofPath?: string;
   purchaseGroupId?: string;
+  queueToken?: string;
 };
 
 const MAX_RETRIES = 3;
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest) {
       referenceNumber,
       paymentProofPath,
       purchaseGroupId,
+      queueToken,
     } = body;
 
     // Input validation
@@ -286,9 +288,15 @@ export async function POST(req: NextRequest) {
         lastOrderSeq: newSeq,
       });
 
-      const allTxns = reservationId
-        ? [...orderTxns, seqTxn, adminDb.tx.reservations[reservationId].delete()]
-        : [...orderTxns, seqTxn];
+      const cleanupTxns = [
+        ...(reservationId
+          ? [adminDb.tx.reservations[reservationId].delete()]
+          : []),
+        ...(queueToken
+          ? [adminDb.tx.queueEntries[queueToken].update({ status: "completed" })]
+          : []),
+      ];
+      const allTxns = [...orderTxns, seqTxn, ...cleanupTxns];
 
       try {
         await adminDb.transact(allTxns);

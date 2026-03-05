@@ -73,6 +73,15 @@ const rules = {
     },
     bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
   },
+  queueEntries: {
+    allow: {
+      view: "true",
+      create: "false",
+      update: "isAdmin",
+      delete: "false",
+    },
+    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+  },
   exchangeRates: {
     allow: {
       view: "true",

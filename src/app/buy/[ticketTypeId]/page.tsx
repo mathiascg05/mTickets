@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { getAvailability, getTodayString } from "@/lib/phases";
+import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
 import { id } from "@instantdb/react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -58,6 +59,7 @@ export default function BuyPage() {
   const searchParams = useSearchParams();
   const ticketTypeId = params.ticketTypeId as string;
   const qty = Math.max(1, Math.min(10, Number(searchParams.get("qty")) || 1));
+  const queueToken = searchParams.get("queueToken") || undefined;
 
   const [attendees, setAttendees] = useState<Attendee[]>(() =>
     Array.from({ length: qty }, emptyAttendee),
@@ -105,6 +107,7 @@ export default function BuyPage() {
         $: { order: { sortOrder: "asc" } },
       },
       reservations: {},
+      queueEntries: {},
     },
     exchangeRates: {},
   });
@@ -138,7 +141,7 @@ export default function BuyPage() {
     fetch("/api/create-reservation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticketTypeId, qty }),
+      body: JSON.stringify({ ticketTypeId, qty, queueToken }),
     })
       .then((res) => res.json())
       .then((result) => {
@@ -185,6 +188,31 @@ export default function BuyPage() {
     const concertSlug = data?.ticketTypes?.[0]?.concert?.slug;
     router.push(concertSlug ? `/events/${concertSlug}` : "/");
   }, [timerExpired, reservationId, ticketTypeId, data?.ticketTypes?.[0]?.concert?.slug, router]);
+
+  // Queue gate: if queue is active and user has no valid queueToken, redirect to queue
+  const ticketTypeForGate = data?.ticketTypes?.[0];
+  const queueEntriesForGate = ticketTypeForGate?.queueEntries || [];
+  const nowForQueue = Date.now();
+  const activeWaitersCount = (queueEntriesForGate as { status: string; expiresAt: number }[]).filter(
+    (e) => e.status === "waiting" && e.expiresAt > nowForQueue,
+  ).length;
+  const admittedQueueCount = (queueEntriesForGate as { status: string; expiresAt: number }[]).filter(
+    (e) => e.status === "admitted" && e.expiresAt > nowForQueue,
+  ).length;
+  const reservationsForGate = (ticketTypeForGate?.reservations || []) as { expiresAt: number }[];
+  const activeBuyersForGate = reservationsForGate.filter((r) => r.expiresAt > nowForQueue).length + admittedQueueCount;
+  const queueIsActive = activeBuyersForGate >= QUEUE_THRESHOLD || activeWaitersCount > 0;
+  const hasValidQueueToken = queueToken
+    ? (queueEntriesForGate as { id: string; status: string; expiresAt: number }[]).some(
+        (e) => e.id === queueToken && e.status === "admitted" && e.expiresAt > nowForQueue,
+      )
+    : false;
+
+  useEffect(() => {
+    if (!isLoading && ticketTypeForGate && queueIsActive && !hasValidQueueToken && !reservationId) {
+      router.push(`/queue/${ticketTypeId}?qty=${qty}`);
+    }
+  }, [isLoading, ticketTypeForGate, queueIsActive, hasValidQueueToken, ticketTypeId, qty, router]);
 
   const selectedPmCurrency = data?.ticketTypes?.[0]?.concert?.paymentMethods?.find(
     (pm) => pm.id === selectedPaymentMethod,
@@ -412,6 +440,7 @@ export default function BuyPage() {
           referenceNumber: referenceNumber.trim() || undefined,
           paymentProofPath: filePath || undefined,
           purchaseGroupId,
+          queueToken: queueToken || undefined,
         }),
       });
 

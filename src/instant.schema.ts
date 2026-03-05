@@ -26,6 +26,7 @@ const _schema = i.schema({
       price: i.number(),
       quantity: i.number(),
       description: i.string().optional(),
+      lastQueuePosition: i.number().optional().indexed(),
       createdAt: i.number().indexed(),
     }),
     orders: i.entity({
@@ -83,6 +84,15 @@ const _schema = i.schema({
       quantity: i.number(),
       expiresAt: i.number().indexed(),
       phaseId: i.string().optional(),
+      createdAt: i.number().indexed(),
+    }),
+    queueEntries: i.entity({
+      sessionId: i.string().indexed(),
+      status: i.string().indexed(),
+      position: i.number().indexed(),
+      quantity: i.number(),
+      admittedAt: i.number().optional().indexed(),
+      expiresAt: i.number().indexed(),
       createdAt: i.number().indexed(),
     }),
   },
@@ -176,6 +186,19 @@ const _schema = i.schema({
         on: "ticketTypes",
         has: "many",
         label: "reservations",
+      },
+    },
+    ticketTypeQueueEntries: {
+      forward: {
+        on: "queueEntries",
+        has: "one",
+        label: "ticketType",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "ticketTypes",
+        has: "many",
+        label: "queueEntries",
       },
     },
   },

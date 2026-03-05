@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import type { Phase } from "@/lib/phases";
+import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -32,6 +33,7 @@ export default function ConcertDetailPage() {
           $: { order: { sortOrder: "asc" } },
         },
         reservations: {},
+        queueEntries: {},
       },
     },
   });
@@ -130,21 +132,37 @@ function TicketTypeRow({
     orders: { id: string; status: string; phaseId?: string }[];
     phases: Phase[];
     reservations: { id: string; quantity: number; expiresAt: number; phaseId?: string }[];
+    queueEntries: { id: string; status: string; expiresAt: number }[];
   };
 }) {
   const [qty, setQty] = useState(1);
 
+  const now = Date.now();
   const today = getTodayString();
   const activeReservations = (ticketType.reservations || []).filter(
-    (r) => r.expiresAt > Date.now(),
+    (r) => r.expiresAt > now,
   );
   const { price, available, totalCapacity, activePhase, soldOut } =
     getAvailability(ticketType, ticketType.phases || [], ticketType.orders, today, activeReservations);
   const maxQty = Math.min(available, 10);
 
+  // Queue detection
+  const queueEntries = ticketType.queueEntries || [];
+  const activeWaiters = queueEntries.filter(
+    (e) => e.status === "waiting" && e.expiresAt > now,
+  ).length;
+  const admittedEntries = queueEntries.filter(
+    (e) => e.status === "admitted" && e.expiresAt > now,
+  ).length;
+  const activeBuyers = activeReservations.length + admittedEntries;
+  const queueActive = activeBuyers >= QUEUE_THRESHOLD || activeWaiters > 0;
+
+  const basePath = queueActive
+    ? `/queue/${ticketType.id}`
+    : `/buy/${ticketType.id}`;
   const buyHref = activePhase
-    ? `/buy/${ticketType.id}?qty=${qty}&phaseId=${activePhase.id}`
-    : `/buy/${ticketType.id}?qty=${qty}`;
+    ? `${basePath}?qty=${qty}&phaseId=${activePhase.id}`
+    : `${basePath}?qty=${qty}`;
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 border border-border rounded-xl hover:border-accent/40 transition-colors">
@@ -161,6 +179,11 @@ function TicketTypeRow({
         <p className="text-sm text-muted mt-1">
           {available} of {totalCapacity} available
         </p>
+        {queueActive && activeWaiters > 0 && (
+          <p className="text-xs text-accent-light mt-1 font-medium">
+            Queue active &mdash; {activeWaiters} {activeWaiters === 1 ? "person" : "people"} waiting
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-3">
         <span className="text-2xl font-bold text-accent-light">
@@ -187,7 +210,7 @@ function TicketTypeRow({
               href={buyHref}
               className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors shadow-lg shadow-accent/20"
             >
-              Buy
+              {queueActive ? "Join Queue" : "Buy"}
             </Link>
           </>
         )}

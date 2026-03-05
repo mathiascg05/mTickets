@@ -3,12 +3,13 @@ import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import { isValidUUID, isValidQty } from "@/lib/validation";
+import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
 
 const RESERVATION_DURATION = 25 * 60 * 1000; // 25 minutes
 
 export async function POST(req: NextRequest) {
   try {
-    const { ticketTypeId, qty } = await req.json();
+    const { ticketTypeId, qty, queueToken } = await req.json();
 
     if (!isValidUUID(ticketTypeId)) {
       return NextResponse.json(
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
           $: { order: { sortOrder: "asc" } },
         },
         reservations: {},
+        queueEntries: {},
       },
     });
 
@@ -79,6 +81,40 @@ export async function POST(req: NextRequest) {
         { error: "Not enough tickets available", available },
         { status: 409 },
       );
+    }
+
+    // Queue gate: if queue is active, require a valid queueToken
+    const now = Date.now();
+    const qEntries = ticketType.queueEntries || [];
+    const activeWaiters = qEntries.filter(
+      (e: { status: string; expiresAt: number }) =>
+        e.status === "waiting" && e.expiresAt > now,
+    ).length;
+    const admittedCount = qEntries.filter(
+      (e: { status: string; expiresAt: number }) =>
+        e.status === "admitted" && e.expiresAt > now,
+    ).length;
+    const activeBuyers = activeReservations.length + admittedCount;
+    const queueActive = activeBuyers >= QUEUE_THRESHOLD || activeWaiters > 0;
+
+    if (queueActive && !queueToken) {
+      return NextResponse.json(
+        { error: "Queue is active. Please join the queue first." },
+        { status: 403 },
+      );
+    }
+
+    if (queueToken) {
+      const tokenEntry = qEntries.find(
+        (e: { id: string; status: string; expiresAt: number }) =>
+          e.id === queueToken && e.status === "admitted" && e.expiresAt > now,
+      );
+      if (!tokenEntry) {
+        return NextResponse.json(
+          { error: "Invalid or expired queue token." },
+          { status: 403 },
+        );
+      }
     }
 
     const reservationId = genId();
