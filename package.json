@@ -9,8 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@instantdb/admin": "latest",
-    "@instantdb/react": "latest",
+    "@instantdb/admin": "0.22.153",
+    "@instantdb/react": "0.22.153",
     "html5-qrcode": "^2.3.8",
     "next": "15.4.10",
     "nodemailer": "^8.0.1",

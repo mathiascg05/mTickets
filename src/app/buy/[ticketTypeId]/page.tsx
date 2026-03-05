@@ -85,6 +85,7 @@ export default function BuyPage() {
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [timerExpired, setTimerExpired] = useState(false);
   const reservationCreatedRef = useRef(false);
+  const submittingRef = useRef(false);
 
   const { isLoading, error: queryError, data } = db.useQuery({
     ticketTypes: {
@@ -197,7 +198,7 @@ export default function BuyPage() {
 
   // Handle timer expiry — redirect
   useEffect(() => {
-    if (!timerExpired) return;
+    if (!timerExpired || submittingRef.current) return;
 
     // Clean up reservation
     if (reservationId) {
@@ -326,7 +327,7 @@ export default function BuyPage() {
   const subtotal = effectivePrice * qty;
   const discount = appliedCoupon
     ? appliedCoupon.discountType === "percentage"
-      ? subtotal * (appliedCoupon.discountValue / 100)
+      ? Math.min(subtotal, subtotal * (appliedCoupon.discountValue / 100))
       : Math.min(appliedCoupon.discountValue, subtotal)
     : 0;
   const total = subtotal - discount;
@@ -405,6 +406,7 @@ export default function BuyPage() {
     }
 
     setSubmitting(true);
+    submittingRef.current = true;
     setError(null);
 
     try {
@@ -434,7 +436,13 @@ export default function BuyPage() {
 
       const orderIds: string[] = [];
       const purchaseGroupId = qty > 1 ? id() : undefined;
-      const orderTxns = attendees.map((attendee) => {
+      const trimmedAttendees = attendees.map((a) => ({
+        firstName: a.firstName.trim(),
+        lastName: a.lastName.trim(),
+        email: a.email.trim(),
+        cedula: a.cedula.trim(),
+      }));
+      const orderTxns = trimmedAttendees.map((attendee) => {
         const orderId = id();
         orderIds.push(orderId);
         return db.tx.orders[orderId]
@@ -664,9 +672,11 @@ export default function BuyPage() {
                   </label>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     required
                     value={attendee.cedula}
-                    onChange={(e) => updateAttendee(i, "cedula", e.target.value)}
+                    onChange={(e) => updateAttendee(i, "cedula", e.target.value.replace(/\D/g, ""))}
                     className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                     placeholder="ID number"
                   />

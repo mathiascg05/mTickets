@@ -210,7 +210,7 @@ export default function TicketPage() {
                           <span className="line-through text-muted">
                             ${displayPrice.toFixed(2)}
                           </span>{" "}
-                          ${(displayPrice - order.discountAmount).toFixed(2)}
+                          ${Math.max(0, displayPrice - order.discountAmount).toFixed(2)}
                         </>
                       ) : displayPrice != null ? (
                         `$${displayPrice.toFixed(2)}`

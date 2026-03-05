@@ -584,7 +584,10 @@ export default function ConcertOrdersPage() {
   async function approve(orderId: string) {
     await db.transact(db.tx.orders[orderId].update({ status: "approved" }));
     const res = await sendTicketEmail(orderId);
-    if (!res.success) console.error("Email failed:", res.error);
+    if (!res.success) {
+      console.error("Email failed:", res.error);
+      alert("Order approved but email failed to send. Please notify the customer manually.");
+    }
   }
 
   function reject(orderId: string) {
@@ -615,7 +618,7 @@ export default function ConcertOrdersPage() {
 
     const discount =
       coupon.discountType === "percentage"
-        ? orderPrice * (coupon.discountValue / 100)
+        ? Math.min(orderPrice, orderPrice * (coupon.discountValue / 100))
         : Math.min(coupon.discountValue, orderPrice);
 
     db.transact(

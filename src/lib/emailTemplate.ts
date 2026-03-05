@@ -1,3 +1,12 @@
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function buildConfirmationEmailHtml(params: {
   firstName: string;
   lastName: string;
@@ -9,7 +18,15 @@ export function buildConfirmationEmailHtml(params: {
   orderUrl: string;
   orderNumber?: string;
 }) {
-  const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, orderUrl, orderNumber } = params;
+  const firstName = escapeHtml(params.firstName);
+  const lastName = escapeHtml(params.lastName);
+  const eventName = escapeHtml(params.eventName);
+  const eventDate = escapeHtml(params.eventDate);
+  const venue = escapeHtml(params.venue);
+  const ticketTypeName = escapeHtml(params.ticketTypeName);
+  const price = escapeHtml(params.price);
+  const orderUrl = escapeHtml(params.orderUrl);
+  const orderNumber = params.orderNumber ? escapeHtml(params.orderNumber) : undefined;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -187,7 +204,15 @@ export function buildTicketEmailHtml(params: {
   ticketUrl: string;
   orderNumber?: string;
 }) {
-  const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, ticketUrl, orderNumber } = params;
+  const firstName = escapeHtml(params.firstName);
+  const lastName = escapeHtml(params.lastName);
+  const eventName = escapeHtml(params.eventName);
+  const eventDate = escapeHtml(params.eventDate);
+  const venue = escapeHtml(params.venue);
+  const ticketTypeName = escapeHtml(params.ticketTypeName);
+  const price = escapeHtml(params.price);
+  const ticketUrl = escapeHtml(params.ticketUrl);
+  const orderNumber = params.orderNumber ? escapeHtml(params.orderNumber) : undefined;
 
   return `<!DOCTYPE html>
 <html lang="en">

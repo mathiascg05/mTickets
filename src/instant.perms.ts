@@ -64,11 +64,20 @@ const rules = {
     },
     bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
   },
-  exchangeRates: {
+  reservations: {
     allow: {
       view: "true",
       create: "true",
-      update: "true",
+      update: "isAdmin",
+      delete: "true",
+    },
+    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+  },
+  exchangeRates: {
+    allow: {
+      view: "true",
+      create: "isAdmin",
+      update: "isAdmin",
       delete: "isAdmin",
     },
     bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
