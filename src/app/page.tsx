@@ -9,7 +9,7 @@ export default function HomePage() {
       <header className="bg-accent text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <span className="text-2xl font-bold tracking-wide">
-            m<span className="text-white/80">Tickets</span>
+            ma<span className="text-white/60">Tickets</span>
           </span>
           <Link
             href="/admin"
@@ -86,7 +86,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="bg-accent text-white/60 py-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center text-sm">
-          <p className="font-semibold text-white mb-1">maTickets</p>
+          <p className="font-semibold text-white mb-1">ma<span className="text-white/60">Tickets</span></p>
           <p>Professional event ticketing platform</p>
         </div>
       </footer>

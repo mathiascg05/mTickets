@@ -21,7 +21,7 @@ export function buildConfirmationEmailHtml(params: {
         <!-- Header -->
         <tr>
           <td style="background-color:#1a2b4a;padding:24px 32px;text-align:center;">
-            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">maTickets</h1>
+            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">ma<span style="color:rgba(255,255,255,0.6);">Tickets</span></h1>
           </td>
         </tr>
         <!-- Greeting -->
@@ -199,7 +199,7 @@ export function buildTicketEmailHtml(params: {
         <!-- Header -->
         <tr>
           <td style="background-color:#1a2b4a;padding:24px 32px;text-align:center;">
-            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">maTickets</h1>
+            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">ma<span style="color:rgba(255,255,255,0.6);">Tickets</span></h1>
           </td>
         </tr>
         <!-- Greeting -->

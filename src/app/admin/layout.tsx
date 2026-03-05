@@ -38,7 +38,7 @@ function LoginForm() {
     <div className="min-h-screen flex items-center justify-center px-4 bg-background">
       <div className="bg-surface border border-border rounded-2xl p-8 w-full max-w-sm shadow-lg">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-accent">maTickets</h1>
+          <h1 className="text-2xl font-bold text-accent">ma<span className="text-accent/60">Tickets</span></h1>
           <p className="text-sm text-muted mt-1">Admin Login</p>
         </div>
 
@@ -140,7 +140,7 @@ export default function AdminLayout({
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-0 flex items-center justify-between">
           <div className="flex items-center gap-8">
             <Link href="/admin" className="text-xl font-bold tracking-wide py-4">
-              maTickets
+              ma<span className="text-white/60">Tickets</span>
             </Link>
             <nav className="hidden sm:flex items-center gap-1">
               {navItems.map((item) => (

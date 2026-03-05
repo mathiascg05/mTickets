@@ -268,7 +268,7 @@ export default function ScanPage() {
     <div className="min-h-screen">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-md mx-auto px-4 py-4 flex items-center justify-between">
-          <a href="/admin" className="text-xl font-bold tracking-wide text-white">maTickets</a>
+          <a href="/admin" className="text-xl font-bold tracking-wide text-white">ma<span className="text-white/60">Tickets</span></a>
           <span className="text-sm text-white/60">Scanner</span>
         </div>
       </header>
