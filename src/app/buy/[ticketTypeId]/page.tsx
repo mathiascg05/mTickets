@@ -207,9 +207,9 @@ export default function BuyPage() {
       db.transact(db.tx.reservations[reservationId].delete());
     }
 
-    const concertId = data?.ticketTypes?.[0]?.concert?.id;
-    router.push(concertId ? `/concerts/${concertId}` : "/");
-  }, [timerExpired, reservationId, ticketTypeId, data?.ticketTypes?.[0]?.concert?.id, router]);
+    const concertSlug = data?.ticketTypes?.[0]?.concert?.slug;
+    router.push(concertSlug ? `/events/${concertSlug}` : "/");
+  }, [timerExpired, reservationId, ticketTypeId, data?.ticketTypes?.[0]?.concert?.slug, router]);
 
   const selectedPmCurrency = data?.ticketTypes?.[0]?.concert?.paymentMethods?.find(
     (pm) => pm.id === selectedPaymentMethod,
@@ -314,7 +314,7 @@ export default function BuyPage() {
             Only {available} ticket{available !== 1 ? "s" : ""} remaining for {ticketType.name}.
           </p>
           <a
-            href={concert ? `/concerts/${concert.id}` : "/"}
+            href={concert ? `/events/${concert.slug}` : "/"}
             className="text-accent-light hover:underline text-sm"
           >
             &larr; Back to event
@@ -511,7 +511,7 @@ export default function BuyPage() {
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
         <a
-          href={concert ? `/concerts/${concert.id}` : "/"}
+          href={concert ? `/events/${concert.slug}` : "/"}
           className="text-sm text-muted hover:text-accent-light transition-colors mb-6 inline-block"
         >
           &larr; Back to event

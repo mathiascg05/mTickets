@@ -45,7 +45,7 @@ export default function AdminConcertEditPage() {
   return (
     <div>
       <h1 className="text-3xl font-bold mb-2">{concert.name}</h1>
-      <EventLink concertId={concertId} />
+      <EventLink slug={concert.slug} />
 
       <div className="grid lg:grid-cols-2 gap-6 mt-6">
         <div className="space-y-6">
@@ -73,12 +73,12 @@ export default function AdminConcertEditPage() {
   );
 }
 
-function EventLink({ concertId }: { concertId: string }) {
+function EventLink({ slug }: { slug: string }) {
   const [copied, setCopied] = useState(false);
   const url =
     typeof window !== "undefined"
-      ? `${window.location.origin}/concerts/${concertId}`
-      : `/concerts/${concertId}`;
+      ? `${window.location.origin}/events/${slug}`
+      : `/events/${slug}`;
 
   function handleCopy() {
     navigator.clipboard.writeText(url);

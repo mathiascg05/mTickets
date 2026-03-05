@@ -1,9 +1,10 @@
 "use client";
 
 import { db } from "@/lib/db";
+import { toSlug } from "@/lib/slug";
 import { id } from "@instantdb/react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function AdminConcertsPage() {
   const [showForm, setShowForm] = useState(false);
@@ -19,6 +20,17 @@ export default function AdminConcertsPage() {
     },
   });
 
+  // Backfill slugs for existing concerts missing them
+  useEffect(() => {
+    if (!data?.concerts) return;
+    const missing = data.concerts.filter((c) => !c.slug);
+    if (missing.length === 0) return;
+    const txns = missing.map((c) =>
+      db.tx.concerts[c.id].update({ slug: toSlug(c.name) }),
+    );
+    db.transact(txns);
+  }, [data?.concerts]);
+
   if (isLoading || !data) {
     return <div className="animate-pulse text-muted">Loading...</div>;
   }
@@ -28,6 +40,7 @@ export default function AdminConcertsPage() {
     db.transact(
       db.tx.concerts[id()].update({
         name,
+        slug: toSlug(name),
         date,
         venue,
         description,

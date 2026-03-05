@@ -13,6 +13,7 @@ const _schema = i.schema({
     }),
     concerts: i.entity({
       name: i.string(),
+      slug: i.string().unique().indexed(),
       date: i.string(),
       venue: i.string().optional(),
       description: i.string().optional(),

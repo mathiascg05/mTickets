@@ -19,11 +19,11 @@ function formatDate(dateStr: string) {
 
 export default function ConcertDetailPage() {
   const params = useParams();
-  const concertId = params.id as string;
+  const slugParam = params.slug as string;
 
   const { isLoading, error, data } = db.useQuery({
     concerts: {
-      $: { where: { id: concertId } },
+      $: { where: { slug: slugParam } },
       ticketTypes: {
         orders: {},
         phases: {
@@ -54,7 +54,7 @@ export default function ConcertDetailPage() {
   if (!concert) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted">Concert not found</div>
+        <div className="text-muted">Event not found</div>
       </div>
     );
   }
