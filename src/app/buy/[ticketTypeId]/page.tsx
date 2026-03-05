@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { getAvailability, getTodayString } from "@/lib/phases";
+import { sendConfirmationEmail } from "@/lib/sendTicketEmail";
 import { id } from "@instantdb/react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -304,6 +305,11 @@ export default function BuyPage() {
       });
 
       await db.transact(txns);
+      for (const oid of orderIds) {
+        sendConfirmationEmail(oid).then((res) => {
+          if (!res.success) console.error("Confirmation email failed for", oid, res.error);
+        });
+      }
       router.push(`/ticket/${orderIds[0]}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");

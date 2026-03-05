@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { getAvailability, getTodayString } from "@/lib/phases";
+import { sendTicketEmail, sendConfirmationEmail } from "@/lib/sendTicketEmail";
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -228,8 +229,10 @@ function CreateOrderModal({
         filePath = storagePath;
       }
 
+      const orderIds: string[] = [];
       const txns = Array.from({ length: quantity }, () => {
         const orderId = id();
+        orderIds.push(orderId);
         return db.tx.orders[orderId]
           .update({
             firstName,
@@ -248,6 +251,19 @@ function CreateOrderModal({
           .link({ ticketType: selectedTicketTypeId });
       });
       await db.transact(txns);
+      if (orderStatus === "approved") {
+        for (const oid of orderIds) {
+          sendTicketEmail(oid).then((res) => {
+            if (!res.success) console.error("Email failed for", oid, res.error);
+          });
+        }
+      } else if (orderStatus === "pending") {
+        for (const oid of orderIds) {
+          sendConfirmationEmail(oid).then((res) => {
+            if (!res.success) console.error("Confirmation email failed for", oid, res.error);
+          });
+        }
+      }
       onClose();
     } catch (err) {
       console.error("Failed to create order:", err);
@@ -443,6 +459,7 @@ export default function ConcertOrdersPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [couponOrderId, setCouponOrderId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { isLoading, data } = db.useQuery({
     concerts: {
@@ -510,6 +527,22 @@ export default function ConcertOrdersPage() {
   const filteredOrders = allOrders.filter((o) => {
     if (filter !== "all" && o.status !== filter) return false;
     if (ticketTypeFilter !== "all" && o.ticketTypeName !== ticketTypeFilter) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const fields = [
+        o.firstName,
+        o.lastName,
+        `${o.firstName} ${o.lastName}`,
+        o.email,
+        o.cedula,
+        o.paymentMethod,
+        o.ticketTypeName,
+        o.promoter,
+        o.couponCode,
+        String(orderNumberMap[o.id] ?? ""),
+      ];
+      if (!fields.some((f) => f && f.toLowerCase().includes(q))) return false;
+    }
     return true;
   });
 
@@ -549,8 +582,11 @@ export default function ConcertOrdersPage() {
 
   const totalTicketsIssued = ticketBreakdown.reduce((s, t) => s + t.approved, 0);
 
-  function approve(orderId: string) {
-    db.transact(db.tx.orders[orderId].update({ status: "approved" }));
+  async function approve(orderId: string) {
+    await db.transact(db.tx.orders[orderId].update({ status: "approved" }));
+    sendTicketEmail(orderId).then((res) => {
+      if (!res.success) console.error("Email failed:", res.error);
+    });
   }
 
   function reject(orderId: string) {
@@ -936,6 +972,66 @@ export default function ConcertOrdersPage() {
         );
       })()}
 
+      {/* Scanned Codes */}
+      {(() => {
+        const scannedOrders = allOrders
+          .filter((o) => o.visited)
+          .sort((a, b) => b.createdAt - a.createdAt);
+
+        return (
+          <div className="bg-surface border border-border rounded-xl p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold">Scanned Codes</h2>
+                <p className="text-sm text-muted">
+                  {scannedOrders.length} of {allOrders.filter((o) => o.status === "approved").length} approved tickets scanned
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-3xl font-bold text-success">{scannedOrders.length}</p>
+                <p className="text-xs text-muted">scanned</p>
+              </div>
+            </div>
+
+            {scannedOrders.length === 0 ? (
+              <p className="text-muted text-center py-6 text-sm">
+                No tickets have been scanned yet.
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {scannedOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="flex items-center justify-between gap-3 p-3 border border-success/20 bg-success/5 rounded-lg"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-success text-lg">{"✓"}</span>
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">
+                          <span className="text-xs font-mono text-accent-light mr-2">
+                            #{orderNumberMap[order.id]}
+                          </span>
+                          {order.firstName} {order.lastName}
+                        </p>
+                        <p className="text-xs text-muted truncate">
+                          {order.email} &middot; {order.cedula}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-medium text-muted">{order.ticketTypeName}</p>
+                      <p className="text-xs text-muted">
+                        {new Date(order.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* CSV Export */}
       <ExportSection
         concertName={concert.name}
@@ -957,7 +1053,7 @@ export default function ConcertOrdersPage() {
               + Crear Orden
             </button>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
             <div className="flex gap-1">
               {filters.map((f) => (
                 <button
@@ -1003,9 +1099,30 @@ export default function ConcertOrdersPage() {
           </div>
         </div>
 
+        <div className="relative mb-4">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by name, email, cedula, promoter, coupon..."
+            className="w-full px-4 py-2.5 pl-10 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent-light transition-colors"
+          />
+          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors"
+            >
+              {"✕"}
+            </button>
+          )}
+        </div>
+
         {filteredOrders.length === 0 ? (
           <p className="text-muted text-center py-8">
-            No {filter === "all" ? "" : filter} orders for this event.
+            No {filter === "all" ? "" : filter} orders{searchQuery ? ` matching "${searchQuery}"` : ""} for this event.
           </p>
         ) : (
           <div className="space-y-2">
