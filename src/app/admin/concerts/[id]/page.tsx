@@ -226,6 +226,8 @@ type PaymentMethodData = {
   name: string;
   instructions: string;
   convertCurrency?: string;
+  requireScreenshot?: boolean;
+  requireReferenceNumber?: boolean;
 };
 
 function PaymentMethodsSection({
@@ -239,10 +241,14 @@ function PaymentMethodsSection({
   const [name, setName] = useState("");
   const [instructions, setInstructions] = useState("");
   const [convertCurrency, setConvertCurrency] = useState("");
+  const [requireScreenshot, setRequireScreenshot] = useState(true);
+  const [requireReferenceNumber, setRequireReferenceNumber] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editInstructions, setEditInstructions] = useState("");
   const [editConvertCurrency, setEditConvertCurrency] = useState("");
+  const [editRequireScreenshot, setEditRequireScreenshot] = useState(true);
+  const [editRequireReferenceNumber, setEditRequireReferenceNumber] = useState(false);
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -252,6 +258,8 @@ function PaymentMethodsSection({
           name,
           instructions,
           convertCurrency: convertCurrency || undefined,
+          requireScreenshot,
+          requireReferenceNumber,
           createdAt: Date.now(),
         })
         .link({ concert: concertId }),
@@ -259,6 +267,8 @@ function PaymentMethodsSection({
     setName("");
     setInstructions("");
     setConvertCurrency("");
+    setRequireScreenshot(true);
+    setRequireReferenceNumber(false);
     setShowForm(false);
   }
 
@@ -267,6 +277,8 @@ function PaymentMethodsSection({
     setEditName(pm.name);
     setEditInstructions(pm.instructions);
     setEditConvertCurrency(pm.convertCurrency || "");
+    setEditRequireScreenshot(pm.requireScreenshot !== false);
+    setEditRequireReferenceNumber(pm.requireReferenceNumber === true);
   }
 
   function saveEdit() {
@@ -276,6 +288,8 @@ function PaymentMethodsSection({
         name: editName,
         instructions: editInstructions,
         convertCurrency: editConvertCurrency || undefined,
+        requireScreenshot: editRequireScreenshot,
+        requireReferenceNumber: editRequireReferenceNumber,
       }),
     );
     setEditingId(null);
@@ -385,6 +399,29 @@ function PaymentMethodsSection({
               <option value="EUR">EUR &rarr; Bs</option>
             </select>
           </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Required Proof Fields</label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={requireScreenshot}
+                  onChange={(e) => setRequireScreenshot(e.target.checked)}
+                  className="accent-accent-light"
+                />
+                <span className="text-sm">Require screenshot upload</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={requireReferenceNumber}
+                  onChange={(e) => setRequireReferenceNumber(e.target.checked)}
+                  className="accent-accent-light"
+                />
+                <span className="text-sm">Require reference number</span>
+              </label>
+            </div>
+          </div>
           <button
             type="submit"
             className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
@@ -439,6 +476,29 @@ function PaymentMethodsSection({
                     <option value="EUR">EUR &rarr; Bs</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Required Proof Fields</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editRequireScreenshot}
+                        onChange={(e) => setEditRequireScreenshot(e.target.checked)}
+                        className="accent-accent-light"
+                      />
+                      <span className="text-sm">Require screenshot upload</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editRequireReferenceNumber}
+                        onChange={(e) => setEditRequireReferenceNumber(e.target.checked)}
+                        className="accent-accent-light"
+                      />
+                      <span className="text-sm">Require reference number</span>
+                    </label>
+                  </div>
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={saveEdit}
@@ -460,11 +520,21 @@ function PaymentMethodsSection({
                 className="flex items-start justify-between p-4 border border-border rounded-lg"
               >
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-medium">{pm.name}</p>
                     {pm.convertCurrency && (
                       <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent/15 text-accent-light">
                         {pm.convertCurrency} &rarr; Bs
+                      </span>
+                    )}
+                    {pm.requireScreenshot !== false && (
+                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-success/15 text-success">
+                        Screenshot
+                      </span>
+                    )}
+                    {pm.requireReferenceNumber && (
+                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-warning/15 text-warning">
+                        Ref. #
                       </span>
                     )}
                   </div>

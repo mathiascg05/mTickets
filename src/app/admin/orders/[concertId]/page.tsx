@@ -33,6 +33,8 @@ type FlatOrder = {
   paymentMethod: string;
   promoter?: string;
   status: string;
+  paymentProofPath?: string;
+  proofReferenceNumber?: string;
   couponCode?: string;
   discountAmount?: number;
   createdAt: number;
@@ -1169,13 +1171,18 @@ export default function ConcertOrdersPage() {
                     <span className="px-3 py-1.5 text-xs border border-accent/30 bg-accent/10 text-accent-light rounded-lg font-medium">
                       Admin
                     </span>
-                  ) : (
+                  ) : order.paymentProofPath ? (
                     <button
-                      onClick={() => viewProof(order.paymentProofPath)}
+                      onClick={() => viewProof(order.paymentProofPath!)}
                       className="px-3 py-1.5 text-xs border border-border rounded-lg hover:border-accent/50 transition-colors"
                     >
                       Proof
                     </button>
+                  ) : null}
+                  {order.proofReferenceNumber && (
+                    <span className="px-3 py-1.5 text-xs border border-warning/30 bg-warning/10 text-warning rounded-lg font-medium truncate max-w-[140px]" title={`Ref: ${order.proofReferenceNumber}`}>
+                      Ref: {order.proofReferenceNumber}
+                    </span>
                   )}
                   {order.status === "pending" && (
                     <>
@@ -1263,12 +1270,19 @@ export default function ConcertOrdersPage() {
                 {"✕"}
               </button>
             </div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={previewUrl}
-              alt="Payment proof"
-              className="max-w-full rounded-lg"
-            />
+            {previewUrl.startsWith("ref:") ? (
+              <div className="bg-background border border-border rounded-lg p-6 text-center">
+                <p className="text-sm text-muted mb-1">Reference Number</p>
+                <p className="text-xl font-mono font-bold">{previewUrl.slice(4)}</p>
+              </div>
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={previewUrl}
+                alt="Payment proof"
+                className="max-w-full rounded-lg"
+              />
+            )}
           </div>
         </div>
       )}

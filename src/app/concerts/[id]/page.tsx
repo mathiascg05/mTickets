@@ -29,6 +29,7 @@ export default function ConcertDetailPage() {
         phases: {
           $: { order: { sortOrder: "asc" } },
         },
+        reservations: {},
       },
     },
   });
@@ -126,13 +127,17 @@ function TicketTypeRow({
     description?: string;
     orders: { id: string; status: string; phaseId?: string }[];
     phases: Phase[];
+    reservations: { id: string; quantity: number; expiresAt: number; phaseId?: string }[];
   };
 }) {
   const [qty, setQty] = useState(1);
 
   const today = getTodayString();
+  const activeReservations = (ticketType.reservations || []).filter(
+    (r) => r.expiresAt > Date.now(),
+  );
   const { price, available, totalCapacity, activePhase, soldOut } =
-    getAvailability(ticketType, ticketType.phases || [], ticketType.orders, today);
+    getAvailability(ticketType, ticketType.phases || [], ticketType.orders, today, activeReservations);
   const maxQty = Math.min(available, 10);
 
   const buyHref = activePhase

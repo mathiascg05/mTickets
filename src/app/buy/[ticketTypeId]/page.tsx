@@ -5,7 +5,10 @@ import { getAvailability, getTodayString } from "@/lib/phases";
 import { sendConfirmationEmail } from "@/lib/sendTicketEmail";
 import { id } from "@instantdb/react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+const RESERVATION_DURATION = 25 * 60 * 1000; // 25 minutes
+const STORAGE_KEY_PREFIX = "reservation_";
 
 type Attendee = {
   firstName: string;
@@ -16,6 +19,12 @@ type Attendee = {
 
 function emptyAttendee(): Attendee {
   return { firstName: "", lastName: "", email: "", cedula: "" };
+}
+
+function formatTime(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 /** Returns the timestamp of the most recent 9am or 1pm VET (UTC-4) schedule window. */
@@ -57,6 +66,7 @@ export default function BuyPage() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
   const [selectedPromoter, setSelectedPromoter] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [referenceNumber, setReferenceNumber] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +78,13 @@ export default function BuyPage() {
     discountValue: number;
   } | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
+
+  // Reservation & timer state
+  const [reservationId, setReservationId] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const [timerExpired, setTimerExpired] = useState(false);
+  const reservationCreatedRef = useRef(false);
 
   const { isLoading, error: queryError, data } = db.useQuery({
     ticketTypes: {
@@ -87,9 +104,111 @@ export default function BuyPage() {
       phases: {
         $: { order: { sortOrder: "asc" } },
       },
+      reservations: {},
     },
     exchangeRates: {},
   });
+
+  // Create reservation on first data load
+  useEffect(() => {
+    if (isLoading || !data?.ticketTypes?.[0] || reservationCreatedRef.current) return;
+    reservationCreatedRef.current = true;
+
+    const storageKey = STORAGE_KEY_PREFIX + ticketTypeId;
+    const stored = sessionStorage.getItem(storageKey);
+
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed.expiresAt > Date.now()) {
+          // Resume existing reservation
+          setReservationId(parsed.id);
+          setExpiresAt(parsed.expiresAt);
+          return;
+        } else {
+          // Expired — clean up
+          sessionStorage.removeItem(storageKey);
+          db.transact(db.tx.reservations[parsed.id].delete());
+        }
+      } catch {
+        sessionStorage.removeItem(storageKey);
+      }
+    }
+
+    // Create new reservation
+    const ticketType = data.ticketTypes[0];
+    const phases = ticketType.phases || [];
+    const allOrders = ticketType.orders;
+    const allReservations = (ticketType.reservations || []) as {
+      id: string;
+      quantity: number;
+      expiresAt: number;
+      phaseId?: string;
+    }[];
+    const activeReservations = allReservations.filter((r) => r.expiresAt > Date.now());
+    const { activePhase, available } = getAvailability(
+      ticketType,
+      phases,
+      allOrders,
+      getTodayString(),
+      activeReservations,
+    );
+
+    if (available < qty) {
+      // Not enough tickets even to reserve — don't create reservation
+      return;
+    }
+
+    const newId = id();
+    const newExpiresAt = Date.now() + RESERVATION_DURATION;
+
+    db.transact(
+      db.tx.reservations[newId]
+        .update({
+          quantity: qty,
+          expiresAt: newExpiresAt,
+          createdAt: Date.now(),
+          ...(activePhase ? { phaseId: activePhase.id } : {}),
+        })
+        .link({ ticketType: ticketTypeId }),
+    );
+
+    sessionStorage.setItem(storageKey, JSON.stringify({ id: newId, expiresAt: newExpiresAt }));
+    setReservationId(newId);
+    setExpiresAt(newExpiresAt);
+  }, [isLoading, data?.ticketTypes?.[0]?.id, ticketTypeId, qty]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (!expiresAt) return;
+
+    const tick = () => {
+      const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+      if (remaining <= 0) {
+        setTimerExpired(true);
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [expiresAt]);
+
+  // Handle timer expiry — redirect
+  useEffect(() => {
+    if (!timerExpired) return;
+
+    // Clean up reservation
+    if (reservationId) {
+      const storageKey = STORAGE_KEY_PREFIX + ticketTypeId;
+      sessionStorage.removeItem(storageKey);
+      db.transact(db.tx.reservations[reservationId].delete());
+    }
+
+    const concertId = data?.ticketTypes?.[0]?.concert?.id;
+    router.push(concertId ? `/concerts/${concertId}` : "/");
+  }, [timerExpired, reservationId, ticketTypeId, data?.ticketTypes?.[0]?.concert?.id, router]);
 
   const selectedPmCurrency = data?.ticketTypes?.[0]?.concert?.paymentMethods?.find(
     (pm) => pm.id === selectedPaymentMethod,
@@ -171,14 +290,24 @@ export default function BuyPage() {
 
   const today = getTodayString();
   const phases = ticketType.phases || [];
+  const allReservations = (ticketType.reservations || []) as {
+    id: string;
+    quantity: number;
+    expiresAt: number;
+    phaseId?: string;
+  }[];
+  // Exclude own reservation so our hold doesn't reduce our own displayed availability
+  const otherReservations = allReservations.filter(
+    (r) => r.id !== reservationId && r.expiresAt > Date.now(),
+  );
   const { price: effectivePrice, available, activePhase } =
-    getAvailability(ticketType, phases, allOrders, today);
+    getAvailability(ticketType, phases, allOrders, today, otherReservations);
 
   if (available < qty) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="bg-surface border border-border rounded-2xl p-8 text-center max-w-md">
-          <div className="text-5xl mb-4">{"😔"}</div>
+          <div className="text-5xl mb-4">{"\uD83D\uDE14"}</div>
           <h1 className="text-2xl font-bold mb-2">Not Enough Tickets</h1>
           <p className="text-muted mb-4">
             Only {available} ticket{available !== 1 ? "s" : ""} remaining for {ticketType.name}.
@@ -251,12 +380,23 @@ export default function BuyPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
+    if (timerExpired) {
+      setError("Your reservation has expired. Please go back and try again.");
+      return;
+    }
+
     if (!selectedPaymentMethod) {
       setError("Please select a payment method.");
       return;
     }
-    if (!file) {
+    const needsScreenshot = selectedPm?.requireScreenshot !== false;
+    const needsReference = selectedPm?.requireReferenceNumber === true;
+    if (needsScreenshot && !file) {
       setError("Please upload your payment proof screenshot.");
+      return;
+    }
+    if (needsReference && !referenceNumber.trim()) {
+      setError("Please enter the payment reference number.");
       return;
     }
     if (!acceptedTerms) {
@@ -268,11 +408,23 @@ export default function BuyPage() {
     setError(null);
 
     try {
-      const filePath = `payment-proofs/${Date.now()}-${file.name}`;
-      await db.storage.upload(filePath, file);
+      let filePath = "";
+      if (file) {
+        filePath = `payment-proofs/${Date.now()}-${file.name}`;
+        await db.storage.upload(filePath, file);
+      }
 
       // Re-derive active phase from live data to guard against race conditions
-      const liveAvail = getAvailability(ticketType, phases, allOrders, getTodayString());
+      const liveReservations = allReservations.filter(
+        (r) => r.id !== reservationId && r.expiresAt > Date.now(),
+      );
+      const liveAvail = getAvailability(
+        ticketType,
+        phases,
+        allOrders,
+        getTodayString(),
+        liveReservations,
+      );
       if (liveAvail.available < qty) {
         setError("Tickets are no longer available. Please go back and try again.");
         setSubmitting(false);
@@ -281,7 +433,7 @@ export default function BuyPage() {
       const livePhase = liveAvail.activePhase;
 
       const orderIds: string[] = [];
-      const txns = attendees.map((attendee) => {
+      const orderTxns = attendees.map((attendee) => {
         const orderId = id();
         orderIds.push(orderId);
         return db.tx.orders[orderId]
@@ -292,9 +444,10 @@ export default function BuyPage() {
             cedula: attendee.cedula,
             paymentMethod: selectedPm?.name || "",
             status: "pending",
-            paymentProofPath: filePath,
             visited: false,
             createdAt: Date.now(),
+            ...(filePath ? { paymentProofPath: filePath } : {}),
+            ...(referenceNumber.trim() ? { proofReferenceNumber: referenceNumber.trim() } : {}),
             ...(selectedPromoter ? { promoter: selectedPromoter } : {}),
             ...(appliedCoupon
               ? { couponCode: appliedCoupon.code, discountAmount: discount }
@@ -304,7 +457,16 @@ export default function BuyPage() {
           .link({ ticketType: ticketTypeId });
       });
 
-      await db.transact(txns);
+      // Combine order creation + reservation cleanup in one transaction
+      const allTxns = reservationId
+        ? [...orderTxns, db.tx.reservations[reservationId].delete()]
+        : orderTxns;
+
+      await db.transact(allTxns);
+
+      // Clear reservation from sessionStorage
+      sessionStorage.removeItem(STORAGE_KEY_PREFIX + ticketTypeId);
+
       for (const oid of orderIds) {
         sendConfirmationEmail(oid).then((res) => {
           if (!res.success) console.error("Confirmation email failed for", oid, res.error);
@@ -317,12 +479,25 @@ export default function BuyPage() {
     }
   }
 
+  // Timer color classes
+  const timerClasses =
+    secondsLeft !== null && secondsLeft <= 60
+      ? "bg-danger text-white animate-pulse"
+      : secondsLeft !== null && secondsLeft <= 300
+        ? "bg-warning text-white"
+        : "bg-accent-dark text-white/90";
+
   return (
     <div className="min-h-screen">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4">
           <a href="/" className="text-xl font-bold tracking-wide text-white">maTickets</a>
         </div>
+        {secondsLeft !== null && (
+          <div className={`text-center py-2 text-sm font-semibold tracking-wide border-t border-white/10 ${timerClasses}`}>
+            Time remaining to complete your purchase: {formatTime(secondsLeft)}
+          </div>
+        )}
       </header>
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
@@ -591,19 +766,38 @@ export default function BuyPage() {
               </div>
             )}
 
-            {/* Payment proof upload */}
-            <div>
-              <label className="block text-sm font-medium mb-1.5">
-                Payment Proof Screenshot
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                required
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-accent/20 file:text-accent-light file:font-medium file:cursor-pointer"
-              />
-            </div>
+            {/* Payment proof fields — conditional on selected payment method */}
+            {selectedPm && (selectedPm.requireScreenshot !== false || selectedPm.requireReferenceNumber) && (
+              <div className="space-y-4">
+                {selectedPm.requireScreenshot !== false && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">
+                      Payment Proof Screenshot
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setFile(e.target.files?.[0] || null)}
+                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-accent/20 file:text-accent-light file:font-medium file:cursor-pointer"
+                    />
+                  </div>
+                )}
+                {selectedPm.requireReferenceNumber && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">
+                      Payment Reference Number
+                    </label>
+                    <input
+                      type="text"
+                      value={referenceNumber}
+                      onChange={(e) => setReferenceNumber(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                      placeholder="Enter your payment reference number"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Terms & conditions */}
             <label className="flex items-start gap-3 cursor-pointer">
@@ -628,7 +822,7 @@ export default function BuyPage() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || timerExpired}
               className="w-full py-3 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-semibold transition-colors shadow-lg shadow-accent/20"
             >
               {submitting ? "Submitting..." : "Submit Order"}

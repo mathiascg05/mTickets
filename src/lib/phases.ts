@@ -13,10 +13,27 @@ type OrderForPhase = {
   phaseId?: string;
 };
 
+type ReservationForPhase = {
+  quantity: number;
+  expiresAt: number;
+  phaseId?: string;
+};
+
+function activeReservedQty(
+  reservations: ReservationForPhase[],
+  phaseId?: string,
+): number {
+  const now = Date.now();
+  return reservations
+    .filter((r) => r.expiresAt > now && (phaseId ? r.phaseId === phaseId : true))
+    .reduce((sum, r) => sum + r.quantity, 0);
+}
+
 export function getActivePhase(
   phases: Phase[],
   allOrders: OrderForPhase[],
   today: string, // "YYYY-MM-DD"
+  reservations: ReservationForPhase[] = [],
 ): Phase | null {
   const sorted = [...phases].sort((a, b) => a.sortOrder - b.sortOrder);
   for (const phase of sorted) {
@@ -25,7 +42,8 @@ export function getActivePhase(
         o.phaseId === phase.id &&
         (o.status === "approved" || o.status === "pending"),
     ).length;
-    if (sold >= phase.quantity) continue;
+    const reserved = activeReservedQty(reservations, phase.id);
+    if (sold + reserved >= phase.quantity) continue;
     if (phase.endDate && today > phase.endDate) continue;
     return phase;
   }
@@ -45,12 +63,14 @@ export function getAvailability(
   phases: Phase[],
   allOrders: OrderForPhase[],
   today: string,
+  reservations: ReservationForPhase[] = [],
 ): Availability {
   if (!phases || phases.length === 0) {
     const approvedOrPending = allOrders.filter(
       (o) => o.status === "approved" || o.status === "pending",
     ).length;
-    const available = ticketType.quantity - approvedOrPending;
+    const reserved = activeReservedQty(reservations);
+    const available = ticketType.quantity - approvedOrPending - reserved;
     return {
       price: ticketType.price,
       available,
@@ -60,7 +80,7 @@ export function getAvailability(
     };
   }
 
-  const activePhase = getActivePhase(phases, allOrders, today);
+  const activePhase = getActivePhase(phases, allOrders, today, reservations);
   if (!activePhase) {
     return {
       price: ticketType.price,
@@ -76,10 +96,11 @@ export function getAvailability(
       o.phaseId === activePhase.id &&
       (o.status === "approved" || o.status === "pending"),
   ).length;
+  const reserved = activeReservedQty(reservations, activePhase.id);
 
   return {
     price: activePhase.price,
-    available: activePhase.quantity - sold,
+    available: activePhase.quantity - sold - reserved,
     totalCapacity: phases.reduce((s, p) => s + p.quantity, 0),
     activePhase,
     soldOut: false,
