@@ -179,11 +179,6 @@ function TicketTypeRow({
         <p className="text-sm text-muted mt-1">
           {available} of {totalCapacity} available
         </p>
-        {queueActive && activeWaiters > 0 && (
-          <p className="text-xs text-accent-light mt-1 font-medium">
-            Queue active &mdash; {activeWaiters} {activeWaiters === 1 ? "person" : "people"} waiting
-          </p>
-        )}
       </div>
       <div className="flex items-center gap-3">
         <span className="text-2xl font-bold text-accent-light">
@@ -210,7 +205,7 @@ function TicketTypeRow({
               href={buyHref}
               className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors shadow-lg shadow-accent/20"
             >
-              {queueActive ? "Join Queue" : "Buy"}
+              Buy
             </Link>
           </>
         )}

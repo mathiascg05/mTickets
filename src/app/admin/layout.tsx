@@ -11,26 +11,75 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [sentTo, setSentTo] = useState("");
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSending(true);
     try {
-      await db.auth.sendMagicCode({ email });
-      setSentTo(email);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send code");
+      const res = await fetch("/api/admin-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to send code");
+      } else {
+        setSentTo(email.trim());
+      }
+    } catch {
+      setError("Failed to send code. Please try again.");
+    } finally {
+      setSending(false);
     }
   }
 
   async function handleVerifyCode(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setVerifying(true);
     try {
-      await db.auth.signInWithMagicCode({ email: sentTo, code });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Invalid code");
+      const res = await fetch("/api/admin-auth", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: sentTo, code: code.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Invalid code");
+      } else {
+        // Sign in with the InstantDB token
+        db.auth.signInWithToken(data.token);
+      }
+    } catch {
+      setError("Verification failed. Please try again.");
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  async function handleResendCode() {
+    setError(null);
+    setCode("");
+    setSending(true);
+    try {
+      const res = await fetch("/api/admin-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: sentTo }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Failed to resend code");
+      }
+    } catch {
+      setError("Failed to resend code");
+    } finally {
+      setSending(false);
     }
   }
 
@@ -60,9 +109,10 @@ function LoginForm() {
             {error && <p className="text-danger text-sm">{error}</p>}
             <button
               type="submit"
-              className="w-full py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors"
+              disabled={sending}
+              className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
-              Send Login Code
+              {sending ? "Sending..." : "Send Login Code"}
             </button>
           </form>
         ) : (
@@ -86,15 +136,24 @@ function LoginForm() {
             {error && <p className="text-danger text-sm">{error}</p>}
             <button
               type="submit"
-              className="w-full py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors"
+              disabled={verifying}
+              className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
-              Verify
+              {verifying ? "Verifying..." : "Verify"}
+            </button>
+            <button
+              type="button"
+              onClick={handleResendCode}
+              className="w-full py-2 text-sm text-accent-light hover:text-accent transition-colors font-medium"
+            >
+              Resend Code
             </button>
             <button
               type="button"
               onClick={() => {
                 setSentTo("");
                 setCode("");
+                setError(null);
               }}
               className="w-full py-2 text-sm text-muted hover:text-foreground transition-colors"
             >
