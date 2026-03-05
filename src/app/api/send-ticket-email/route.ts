@@ -35,6 +35,17 @@ async function queryApprovedOrderWithRetry(orderId: string, retries = 5, delayMs
 
 export async function POST(req: NextRequest) {
   try {
+    // Verify caller is authenticated admin
+    const authToken = req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!authToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+    const user = await adminDb.auth.verifyToken(authToken);
+    if (!user || !adminEmail || user.email !== adminEmail) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { orderId } = await req.json();
     if (!orderId) {
       return NextResponse.json({ error: "orderId is required" }, { status: 400 });

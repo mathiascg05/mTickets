@@ -6,7 +6,7 @@ import { assignOrderNumber } from "@/lib/orderNumber";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function queryOrderWithRetry(orderId: string, retries = 5, delayMs = 2000) {
+async function queryOrderWithRetry(orderId: string, retries = 3, delayMs = 500) {
   for (let i = 0; i < retries; i++) {
     const { orders } = await adminDb.query({
       orders: {
@@ -34,6 +34,17 @@ async function queryOrderWithRetry(orderId: string, retries = 5, delayMs = 2000)
 
 export async function POST(req: NextRequest) {
   try {
+    // Verify caller is authenticated admin
+    const authToken = req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!authToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+    const user = await adminDb.auth.verifyToken(authToken);
+    if (!user || !adminEmail || user.email !== adminEmail) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { orderId } = await req.json();
     if (!orderId) {
       return NextResponse.json({ error: "orderId is required" }, { status: 400 });

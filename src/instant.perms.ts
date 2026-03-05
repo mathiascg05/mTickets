@@ -22,7 +22,7 @@ const rules = {
   orders: {
     allow: {
       view: "true",
-      create: "true",
+      create: "false",
       update: "isAdmin",
       delete: "isAdmin",
     },
@@ -67,9 +67,9 @@ const rules = {
   reservations: {
     allow: {
       view: "true",
-      create: "true",
+      create: "false",
       update: "isAdmin",
-      delete: "true",
+      delete: "false",
     },
     bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
   },
@@ -84,7 +84,7 @@ const rules = {
   },
   $files: {
     allow: {
-      view: "true",
+      view: "auth.email == 'mcarstensg@gmail.com'",
       create: "true",
     },
   },

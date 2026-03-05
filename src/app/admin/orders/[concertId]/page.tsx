@@ -180,7 +180,9 @@ type FilterStatus = "all" | "pending" | "approved" | "rejected" | "cancelled";
 function CreateOrderModal({
   concert,
   onClose,
+  refreshToken,
 }: {
+  refreshToken: string;
   concert: {
     ticketTypes: {
       id: string;
@@ -265,9 +267,9 @@ function CreateOrderModal({
         ),
       );
       if (orderStatus === "approved") {
-        await Promise.allSettled(orderIds.map((oid) => sendTicketEmail(oid)));
+        await Promise.allSettled(orderIds.map((oid) => sendTicketEmail(oid, refreshToken)));
       } else if (orderStatus === "pending") {
-        await Promise.allSettled(orderIds.map((oid) => sendConfirmationEmail(oid)));
+        await Promise.allSettled(orderIds.map((oid) => sendConfirmationEmail(oid, refreshToken)));
       }
       onClose();
     } catch (err) {
@@ -459,6 +461,8 @@ function CreateOrderModal({
 export default function ConcertOrdersPage() {
   const params = useParams();
   const concertId = params.concertId as string;
+  const { user } = db.useAuth();
+  const refreshToken = user?.refresh_token || "";
   const [filter, setFilter] = useState<FilterStatus>("all");
   const [ticketTypeFilter, setTicketTypeFilter] = useState<string>("all");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -583,7 +587,7 @@ export default function ConcertOrdersPage() {
 
   async function approve(orderId: string) {
     await db.transact(db.tx.orders[orderId].update({ status: "approved" }));
-    const res = await sendTicketEmail(orderId);
+    const res = await sendTicketEmail(orderId, refreshToken);
     if (!res.success) {
       console.error("Email failed:", res.error);
       alert("Order approved but email failed to send. Please notify the customer manually.");
@@ -1281,6 +1285,7 @@ export default function ConcertOrdersPage() {
         <CreateOrderModal
           concert={concert}
           onClose={() => setShowCreateModal(false)}
+          refreshToken={refreshToken}
         />
       )}
 

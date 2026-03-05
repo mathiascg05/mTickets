@@ -4,6 +4,9 @@ import { db } from "@/lib/db";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
+import { useState, useEffect } from "react";
+
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -21,9 +24,119 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function EmailGate({
+  orderId,
+  onVerified,
+}: {
+  orderId: string;
+  onVerified: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
+  const [checking, setChecking] = useState(false);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setChecking(true);
+
+    // We need to verify against the order's email via the API
+    fetch(`/api/verify-ticket-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId, email: email.trim() }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.verified) {
+          sessionStorage.setItem(`ticket-verified-${orderId}`, "true");
+          onVerified();
+        } else {
+          setError(
+            "If this email matches the order, details will be shown. Please check and try again.",
+          );
+        }
+      })
+      .catch(() => {
+        setError("Something went wrong. Please try again.");
+      })
+      .finally(() => setChecking(false));
+  }
+
+  return (
+    <div className="min-h-screen">
+      <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4">
+          <a href="/" className="text-xl font-bold tracking-wide text-white">
+            ma<span className="text-white/60">Tickets</span>
+          </a>
+        </div>
+      </header>
+
+      <main className="max-w-md mx-auto px-4 sm:px-6 py-12">
+        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8">
+          <div className="text-center mb-6">
+            <div className="text-4xl mb-3">{"🎫"}</div>
+            <h1 className="text-xl font-bold">View Your Ticket</h1>
+            <p className="text-muted text-sm mt-2">
+              Enter the email address you used when purchasing to view your
+              ticket details.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1.5">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
+                placeholder="your@email.com"
+              />
+            </div>
+            {error && (
+              <p className="text-danger text-sm bg-danger/5 border border-danger/20 rounded-lg p-3">
+                {error}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={checking}
+              className="w-full py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+            >
+              {checking ? "Verifying..." : "View Ticket"}
+            </button>
+          </form>
+        </div>
+      </main>
+    </div>
+  );
+}
+
 export default function TicketPage() {
   const params = useParams();
   const orderId = params.orderId as string;
+
+  const [verified, setVerified] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  // Check sessionStorage and admin auth on mount
+  const { user } = db.useAuth();
+
+  useEffect(() => {
+    const isAdmin =
+      ADMIN_EMAIL && user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    const sessionVerified =
+      sessionStorage.getItem(`ticket-verified-${orderId}`) === "true";
+    if (isAdmin || sessionVerified) {
+      setVerified(true);
+    }
+    setCheckingSession(false);
+  }, [orderId, user]);
 
   const { isLoading, error, data } = db.useQuery({
     orders: {
@@ -50,7 +163,7 @@ export default function TicketPage() {
       : { orders: { $: { where: { id: "___none___" } } } },
   );
 
-  if (isLoading) {
+  if (checkingSession || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted">Loading ticket...</div>
@@ -71,6 +184,13 @@ export default function TicketPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-muted">Ticket not found</div>
       </div>
+    );
+  }
+
+  // Show email gate if not verified — only show status + event name
+  if (!verified) {
+    return (
+      <EmailGate orderId={orderId} onVerified={() => setVerified(true)} />
     );
   }
 

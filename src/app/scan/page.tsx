@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { useEffect, useRef, useState, useCallback } from "react";
 
-const ADMIN_EMAIL = "mcarstensg@gmail.com";
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 
 function extractOrderId(text: string): string | null {
   const urlMatch = text.match(/\/ticket\/([a-zA-Z0-9-]+)/);
@@ -93,10 +93,13 @@ function ScannerView({ onScan }: { onScan: (orderId: string) => void }) {
 function TicketInfo({
   orderId,
   onReset,
+  userEmail,
 }: {
   orderId: string;
   onReset: () => void;
+  userEmail: string;
 }) {
+  const [marking, setMarking] = useState(false);
   const { isLoading, data } = db.useQuery({
     orders: {
       $: { where: { id: orderId } },
@@ -132,8 +135,19 @@ function TicketInfo({
   const ticketType = order.ticketType;
   const concert = ticketType?.concert;
 
-  function markVisited() {
-    db.transact(db.tx.orders[orderId].update({ visited: true }));
+  async function markVisited() {
+    setMarking(true);
+    try {
+      await fetch("/api/mark-visited", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, userEmail }),
+      });
+    } catch (err) {
+      console.error("Failed to mark visited:", err);
+    } finally {
+      setMarking(false);
+    }
   }
 
   const isApproved = order.status === "approved";
@@ -209,9 +223,10 @@ function TicketInfo({
         {isApproved && !isVisited && (
           <button
             onClick={markVisited}
-            className="flex-1 py-3 bg-success hover:bg-success/80 text-white rounded-lg font-semibold transition-colors"
+            disabled={marking}
+            className="flex-1 py-3 bg-success hover:bg-success/80 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
           >
-            Mark as Visited
+            {marking ? "Marking..." : "Mark as Visited"}
           </button>
         )}
         <button
@@ -282,6 +297,7 @@ export default function ScanPage() {
           <TicketInfo
             orderId={scannedOrderId}
             onReset={() => setScannedOrderId(null)}
+            userEmail={user.email || ""}
           />
         ) : (
           <div className="space-y-6">
