@@ -95,6 +95,78 @@ export function buildConfirmationEmailHtml(params: {
 </html>`;
 }
 
+export function buildConfirmationEmailText(params: {
+  firstName: string;
+  lastName: string;
+  eventName: string;
+  eventDate: string;
+  venue: string;
+  ticketTypeName: string;
+  price: string;
+  orderUrl: string;
+}) {
+  const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, orderUrl } = params;
+
+  return `maTickets
+========
+
+Hola ${firstName} ${lastName},
+
+Tu orden ha sido recibida. Estamos revisando tu comprobante de pago.
+
+--- Detalles del evento ---
+
+Evento: ${eventName}
+Fecha: ${eventDate}
+Lugar: ${venue}
+Tipo de Entrada: ${ticketTypeName}
+Precio: ${price}
+
+---
+
+Ver estado de tu orden: ${orderUrl}
+
+maTickets - Sistema de boletos digitales
+`;
+}
+
+export function buildTicketEmailText(params: {
+  firstName: string;
+  lastName: string;
+  eventName: string;
+  eventDate: string;
+  venue: string;
+  ticketTypeName: string;
+  price: string;
+  ticketUrl: string;
+}) {
+  const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, ticketUrl } = params;
+
+  return `maTickets
+========
+
+Hola ${firstName} ${lastName},
+
+Tu entrada ha sido aprobada. Presenta el codigo QR adjunto en la entrada del evento.
+
+--- Detalles del evento ---
+
+Evento: ${eventName}
+Fecha: ${eventDate}
+Lugar: ${venue}
+Tipo de Entrada: ${ticketTypeName}
+Precio: ${price}
+
+---
+
+Ver tu ticket online: ${ticketUrl}
+
+Si no puedes ver el codigo QR en el cuerpo del correo, lo encontraras como archivo adjunto (ticket-qr.png).
+
+maTickets - Sistema de boletos digitales
+`;
+}
+
 export function buildTicketEmailHtml(params: {
   firstName: string;
   lastName: string;

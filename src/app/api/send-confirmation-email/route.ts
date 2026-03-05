@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { transporter } from "@/lib/mailer";
-import { buildConfirmationEmailHtml } from "@/lib/emailTemplate";
+import { buildConfirmationEmailHtml, buildConfirmationEmailText } from "@/lib/emailTemplate";
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const orderUrl = `${appUrl}/ticket/${orderId}`;
 
-    const html = buildConfirmationEmailHtml({
+    const emailParams = {
       firstName: order.firstName,
       lastName: order.lastName,
       eventName: concert.name,
@@ -53,13 +53,21 @@ export async function POST(req: NextRequest) {
       ticketTypeName: ticketType.name,
       price: `$${finalPrice.toFixed(2)}`,
       orderUrl,
-    });
+    };
+    const html = buildConfirmationEmailHtml(emailParams);
+    const text = buildConfirmationEmailText(emailParams);
 
     await transporter.sendMail({
       from: `"maTickets" <${process.env.GMAIL_USER}>`,
+      replyTo: process.env.GMAIL_USER,
       to: order.email,
       subject: `Confirmacion de orden - ${concert.name}`,
       html,
+      text,
+      headers: {
+        "List-Unsubscribe": `<mailto:${process.env.GMAIL_USER}?subject=unsubscribe>`,
+        "X-Mailer": "maTickets",
+      },
     });
 
     return NextResponse.json({ success: true });

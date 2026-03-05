@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { adminDb } from "@/lib/adminDb";
 import { transporter } from "@/lib/mailer";
-import { buildTicketEmailHtml } from "@/lib/emailTemplate";
+import { buildTicketEmailHtml, buildTicketEmailText } from "@/lib/emailTemplate";
 
 export async function POST(req: NextRequest) {
   try {
@@ -57,8 +57,8 @@ export async function POST(req: NextRequest) {
       color: { dark: "#1a2b4a", light: "#ffffff" },
     });
 
-    // Build email HTML
-    const html = buildTicketEmailHtml({
+    // Build email HTML and plain text
+    const emailParams = {
       firstName: order.firstName,
       lastName: order.lastName,
       eventName: concert.name,
@@ -67,19 +67,32 @@ export async function POST(req: NextRequest) {
       ticketTypeName: ticketType.name,
       price: `$${finalPrice.toFixed(2)}`,
       ticketUrl,
-    });
+    };
+    const html = buildTicketEmailHtml(emailParams);
+    const text = buildTicketEmailText(emailParams);
 
     // Send email
     await transporter.sendMail({
       from: `"maTickets" <${process.env.GMAIL_USER}>`,
+      replyTo: process.env.GMAIL_USER,
       to: order.email,
       subject: `Tu entrada para ${concert.name}`,
       html,
+      text,
+      headers: {
+        "List-Unsubscribe": `<mailto:${process.env.GMAIL_USER}?subject=unsubscribe>`,
+        "X-Mailer": "maTickets",
+      },
       attachments: [
         {
           filename: "ticket-qr.png",
           content: qrBuffer,
           cid: "qr-code@matickets",
+        },
+        {
+          filename: "ticket-qr.png",
+          content: qrBuffer,
+          contentType: "image/png",
         },
       ],
     });
