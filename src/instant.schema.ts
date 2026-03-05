@@ -18,6 +18,7 @@ const _schema = i.schema({
       venue: i.string().optional(),
       description: i.string().optional(),
       status: i.string().indexed(),
+      lastOrderSeq: i.number().optional().indexed(),
       createdAt: i.number().indexed(),
     }),
     ticketTypes: i.entity({

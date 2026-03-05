@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const res = await fetch(URLS[currency], { next: { revalidate: 0 } });
+  const res = await fetch(URLS[currency], { next: { revalidate: 3600 } });
 
   if (!res.ok) {
     return NextResponse.json(

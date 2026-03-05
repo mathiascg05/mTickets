@@ -2,7 +2,6 @@
 
 import { db } from "@/lib/db";
 import { getAvailability, getTodayString } from "@/lib/phases";
-import { sendConfirmationEmail } from "@/lib/sendTicketEmail";
 import { id } from "@instantdb/react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -110,7 +109,7 @@ export default function BuyPage() {
     exchangeRates: {},
   });
 
-  // Create reservation on first data load
+  // Create reservation on first data load (server-side)
   useEffect(() => {
     if (isLoading || !data?.ticketTypes?.[0] || reservationCreatedRef.current) return;
     reservationCreatedRef.current = true;
@@ -127,56 +126,34 @@ export default function BuyPage() {
           setExpiresAt(parsed.expiresAt);
           return;
         } else {
-          // Expired — clean up
+          // Expired — clean up (cron will delete server-side)
           sessionStorage.removeItem(storageKey);
-          db.transact(db.tx.reservations[parsed.id].delete());
         }
       } catch {
         sessionStorage.removeItem(storageKey);
       }
     }
 
-    // Create new reservation
-    const ticketType = data.ticketTypes[0];
-    const phases = ticketType.phases || [];
-    const allOrders = ticketType.orders;
-    const allReservations = (ticketType.reservations || []) as {
-      id: string;
-      quantity: number;
-      expiresAt: number;
-      phaseId?: string;
-    }[];
-    const activeReservations = allReservations.filter((r) => r.expiresAt > Date.now());
-    const { activePhase, available } = getAvailability(
-      ticketType,
-      phases,
-      allOrders,
-      getTodayString(),
-      activeReservations,
-    );
-
-    if (available < qty) {
-      // Not enough tickets even to reserve — don't create reservation
-      return;
-    }
-
-    const newId = id();
-    const newExpiresAt = Date.now() + RESERVATION_DURATION;
-
-    db.transact(
-      db.tx.reservations[newId]
-        .update({
-          quantity: qty,
-          expiresAt: newExpiresAt,
-          createdAt: Date.now(),
-          ...(activePhase ? { phaseId: activePhase.id } : {}),
-        })
-        .link({ ticketType: ticketTypeId }),
-    );
-
-    sessionStorage.setItem(storageKey, JSON.stringify({ id: newId, expiresAt: newExpiresAt }));
-    setReservationId(newId);
-    setExpiresAt(newExpiresAt);
+    // Create new reservation via server
+    fetch("/api/create-reservation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticketTypeId, qty }),
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        if (result.reservationId) {
+          sessionStorage.setItem(
+            storageKey,
+            JSON.stringify({ id: result.reservationId, expiresAt: result.expiresAt }),
+          );
+          setReservationId(result.reservationId);
+          setExpiresAt(result.expiresAt);
+        }
+      })
+      .catch(() => {
+        // Reservation failed — user can still try to buy, just without a hold
+      });
   }, [isLoading, data?.ticketTypes?.[0]?.id, ticketTypeId, qty]);
 
   // Countdown timer
@@ -196,15 +173,13 @@ export default function BuyPage() {
     return () => clearInterval(interval);
   }, [expiresAt]);
 
-  // Handle timer expiry — redirect
+  // Handle timer expiry — redirect (cron handles reservation cleanup)
   useEffect(() => {
     if (!timerExpired || submittingRef.current) return;
 
-    // Clean up reservation
     if (reservationId) {
       const storageKey = STORAGE_KEY_PREFIX + ticketTypeId;
       sessionStorage.removeItem(storageKey);
-      db.transact(db.tx.reservations[reservationId].delete());
     }
 
     const concertSlug = data?.ticketTypes?.[0]?.concert?.slug;
@@ -416,72 +391,47 @@ export default function BuyPage() {
         await db.storage.upload(filePath, file);
       }
 
-      // Re-derive active phase from live data to guard against race conditions
-      const liveReservations = allReservations.filter(
-        (r) => r.id !== reservationId && r.expiresAt > Date.now(),
-      );
-      const liveAvail = getAvailability(
-        ticketType,
-        phases,
-        allOrders,
-        getTodayString(),
-        liveReservations,
-      );
-      if (liveAvail.available < qty) {
-        setError("Tickets are no longer available. Please go back and try again.");
+      const purchaseGroupId = qty > 1 ? id() : undefined;
+
+      const res = await fetch("/api/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticketTypeId,
+          qty,
+          attendees: attendees.map((a) => ({
+            firstName: a.firstName.trim(),
+            lastName: a.lastName.trim(),
+            email: a.email.trim(),
+            cedula: a.cedula.trim(),
+          })),
+          paymentMethodName: selectedPm?.name || "",
+          promoter: selectedPromoter || undefined,
+          couponCode: appliedCoupon?.code || undefined,
+          reservationId: reservationId || undefined,
+          referenceNumber: referenceNumber.trim() || undefined,
+          paymentProofPath: filePath || undefined,
+          purchaseGroupId,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 409) {
+          setError("Tickets are no longer available. Please go back and try again.");
+        } else {
+          setError(result.error || "Something went wrong.");
+        }
         setSubmitting(false);
         return;
       }
-      const livePhase = liveAvail.activePhase;
-
-      const orderIds: string[] = [];
-      const purchaseGroupId = qty > 1 ? id() : undefined;
-      const trimmedAttendees = attendees.map((a) => ({
-        firstName: a.firstName.trim(),
-        lastName: a.lastName.trim(),
-        email: a.email.trim(),
-        cedula: a.cedula.trim(),
-      }));
-      const orderTxns = trimmedAttendees.map((attendee) => {
-        const orderId = id();
-        orderIds.push(orderId);
-        return db.tx.orders[orderId]
-          .update({
-            firstName: attendee.firstName,
-            lastName: attendee.lastName,
-            email: attendee.email,
-            cedula: attendee.cedula,
-            paymentMethod: selectedPm?.name || "",
-            status: "pending",
-            visited: false,
-            createdAt: Date.now(),
-            ...(filePath ? { paymentProofPath: filePath } : {}),
-            ...(referenceNumber.trim() ? { proofReferenceNumber: referenceNumber.trim() } : {}),
-            ...(selectedPromoter ? { promoter: selectedPromoter } : {}),
-            ...(appliedCoupon
-              ? { couponCode: appliedCoupon.code, discountAmount: discount }
-              : {}),
-            ...(livePhase ? { phaseId: livePhase.id } : {}),
-            ...(purchaseGroupId ? { purchaseGroupId } : {}),
-          })
-          .link({ ticketType: ticketTypeId });
-      });
-
-      // Combine order creation + reservation cleanup in one transaction
-      const allTxns = reservationId
-        ? [...orderTxns, db.tx.reservations[reservationId].delete()]
-        : orderTxns;
-
-      await db.transact(allTxns);
 
       // Clear reservation from sessionStorage
       sessionStorage.removeItem(STORAGE_KEY_PREFIX + ticketTypeId);
 
-      // Await emails before navigating to ensure requests reach the server
-      await Promise.allSettled(
-        orderIds.map((oid) => sendConfirmationEmail(oid)),
-      );
-      router.push(`/ticket/${orderIds[0]}`);
+      // Emails are sent in the background by the server — redirect immediately
+      router.push(`/ticket/${result.orderIds[0]}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setSubmitting(false);

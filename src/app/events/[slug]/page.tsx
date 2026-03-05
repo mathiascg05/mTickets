@@ -25,7 +25,9 @@ export default function ConcertDetailPage() {
     concerts: {
       $: { where: { slug: slugParam } },
       ticketTypes: {
-        orders: {},
+        orders: {
+          $: { where: { or: [{ status: "approved" }, { status: "pending" }] } },
+        },
         phases: {
           $: { order: { sortOrder: "asc" } },
         },

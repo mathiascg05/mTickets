@@ -32,6 +32,7 @@ export function formatOrderNumber(prefix: string, seq: number): string {
 
 /**
  * Assign a sequential order number to an order within its concert.
+ * Uses the atomic lastOrderSeq counter on the concert entity.
  * Skips if the order already has one.
  */
 export async function assignOrderNumber(
@@ -53,13 +54,10 @@ export async function assignOrderNumber(
 
   const prefix = generatePrefix(concertName);
 
-  // Query all orders for this concert to find the max sequence
+  // Read current lastOrderSeq from concert
   const { concerts } = await db.query({
     concerts: {
       $: { where: { id: concertId } },
-      ticketTypes: {
-        orders: {},
-      },
     },
   });
 
@@ -68,27 +66,14 @@ export async function assignOrderNumber(
     throw new Error(`Concert ${concertId} not found`);
   }
 
-  // Collect all existing order numbers for this concert
-  let maxSeq = 0;
-  const ticketTypes = concert.ticketTypes as { orders: { orderNumber?: string }[] }[];
-  for (const tt of ticketTypes) {
-    for (const order of tt.orders) {
-      if (order.orderNumber) {
-        const match = order.orderNumber.match(/-(\d+)$/);
-        if (match) {
-          const seq = parseInt(match[1], 10);
-          if (seq > maxSeq) maxSeq = seq;
-        }
-      }
-    }
-  }
-
-  const newSeq = maxSeq + 1;
+  const currentSeq = (concert as { lastOrderSeq?: number }).lastOrderSeq || 0;
+  const newSeq = currentSeq + 1;
   const orderNumber = formatOrderNumber(prefix, newSeq);
 
-  await db.transact(
+  await db.transact([
     db.tx.orders[orderId].update({ orderNumber }),
-  );
+    db.tx.concerts[concertId].update({ lastOrderSeq: newSeq }),
+  ]);
 
   return orderNumber;
 }
