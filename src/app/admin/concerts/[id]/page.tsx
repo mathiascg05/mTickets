@@ -103,8 +103,8 @@ type ConcertData = {
   id: string;
   name: string;
   date: string;
-  venue: string;
-  description: string;
+  venue?: string;
+  description?: string;
   status: string;
 };
 

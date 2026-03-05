@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { transporter, generateMessageId } from "@/lib/mailer";
 import { buildConfirmationEmailHtml, buildConfirmationEmailText } from "@/lib/emailTemplate";
+import { assignOrderNumber } from "@/lib/orderNumber";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -49,6 +50,9 @@ export async function POST(req: NextRequest) {
     const { ticketType } = order;
     const { concert } = ticketType;
 
+    // Assign order number if not already set
+    const orderNumber = await assignOrderNumber(adminDb, orderId, concert.id, concert.name);
+
     // Calculate display price (phase-aware, discount-aware)
     const phase = (ticketType.phases || []).find(
       (p: { id: string }) => p.id === order.phaseId,
@@ -68,6 +72,7 @@ export async function POST(req: NextRequest) {
       ticketTypeName: ticketType.name,
       price: `$${finalPrice.toFixed(2)}`,
       orderUrl,
+      orderNumber,
     };
     const html = buildConfirmationEmailHtml(emailParams);
     const text = buildConfirmationEmailText(emailParams);
@@ -77,7 +82,7 @@ export async function POST(req: NextRequest) {
       from: `"maTickets" <${gmailUser}>`,
       replyTo: gmailUser,
       to: order.email,
-      subject: `Confirmacion de orden - ${concert.name}`,
+      subject: `Order ${orderNumber} - ${concert.name}`,
       html,
       text,
       messageId: generateMessageId(),

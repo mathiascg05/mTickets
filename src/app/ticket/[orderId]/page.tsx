@@ -1,19 +1,16 @@
 "use client";
 
 import { db } from "@/lib/db";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    pending:
-      "bg-warning/10 text-warning border-warning/30",
-    approved:
-      "bg-success/10 text-success border-success/30",
-    rejected:
-      "bg-danger/10 text-danger border-danger/30",
-    cancelled:
-      "bg-muted/10 text-muted border-muted/30",
+    pending: "bg-warning/10 text-warning border-warning/30",
+    approved: "bg-success/10 text-success border-success/30",
+    rejected: "bg-danger/10 text-danger border-danger/30",
+    cancelled: "bg-muted/10 text-muted border-muted/30",
   };
   return (
     <span
@@ -38,6 +35,21 @@ export default function TicketPage() {
     },
   });
 
+  const order = data?.orders?.[0];
+  const purchaseGroupId = order?.purchaseGroupId;
+
+  // Always call useQuery (rules of hooks) — use dummy query when no group ID
+  const { data: siblingData } = db.useQuery(
+    purchaseGroupId
+      ? {
+          orders: {
+            $: { where: { purchaseGroupId } },
+            ticketType: { phases: {} },
+          },
+        }
+      : { orders: { $: { where: { id: "___none___" } } } },
+  );
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -54,7 +66,6 @@ export default function TicketPage() {
     );
   }
 
-  const order = data.orders[0];
   if (!order) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -68,31 +79,43 @@ export default function TicketPage() {
   const phase = order.phaseId
     ? (ticketType?.phases || []).find((p: { id: string }) => p.id === order.phaseId)
     : null;
-  const displayPrice = phase ? phase.price : ticketType?.price;
+  const displayPrice = phase ? (phase as { price: number }).price : ticketType?.price;
   const ticketUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/ticket/${orderId}`
+      ? `${window.location.origin}/ticket/${order.id}`
       : "";
+
+  // Filter siblings (same purchase group, different order)
+  const siblings = (siblingData?.orders || [])
+    .filter((o) => o.id !== orderId)
+    .sort((a, b) => a.createdAt - b.createdAt);
 
   return (
     <div className="min-h-screen">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4">
-          <a href="/" className="text-xl font-bold tracking-wide text-white">maTickets</a>
+          <a href="/" className="text-xl font-bold tracking-wide text-white">
+            maTickets
+          </a>
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-12 space-y-6">
+        {/* Main ticket card */}
         <div className="bg-surface border border-border rounded-2xl overflow-hidden">
           <div className="p-6 sm:p-8 text-center">
             <StatusBadge status={order.status} />
 
-            <h1 className="text-2xl font-bold mt-4 mb-1">
+            {order.orderNumber && (
+              <p className="mt-3 text-sm font-mono font-bold text-accent-light tracking-wide">
+                {order.orderNumber}
+              </p>
+            )}
+
+            <h1 className="text-2xl font-bold mt-3 mb-1">
               {concert?.name || "Event"}
             </h1>
-            <p className="text-muted mb-6">
-              {ticketType?.name || "Ticket"}
-            </p>
+            <p className="text-muted mb-6">{ticketType?.name || "Ticket"}</p>
 
             {order.status === "approved" ? (
               <div className="space-y-6">
@@ -118,8 +141,8 @@ export default function TicketPage() {
                 <div className="text-5xl mb-4">{"⏳"}</div>
                 <p className="text-lg font-medium">Awaiting Approval</p>
                 <p className="text-muted text-sm mt-2">
-                  Your payment is being reviewed. You&apos;ll see your QR
-                  code here once approved.
+                  Your payment is being reviewed. You will receive your QR code
+                  via email once approved.
                 </p>
               </div>
             ) : order.status === "cancelled" ? (
@@ -151,7 +174,9 @@ export default function TicketPage() {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-muted">Name</p>
-                <p className="font-medium">{order.firstName} {order.lastName}</p>
+                <p className="font-medium">
+                  {order.firstName} {order.lastName}
+                </p>
               </div>
               <div>
                 <p className="text-muted">Email</p>
@@ -180,20 +205,26 @@ export default function TicketPage() {
                   <div>
                     <p className="text-muted">Price</p>
                     <p className="font-medium">
-                      {order.discountAmount && displayPrice != null
-                        ? <>
-                            <span className="line-through text-muted">${displayPrice.toFixed(2)}</span>{" "}
-                            ${(displayPrice - order.discountAmount).toFixed(2)}
-                          </>
-                        : displayPrice != null
-                          ? `$${displayPrice.toFixed(2)}`
-                          : "N/A"}
+                      {order.discountAmount && displayPrice != null ? (
+                        <>
+                          <span className="line-through text-muted">
+                            ${displayPrice.toFixed(2)}
+                          </span>{" "}
+                          ${(displayPrice - order.discountAmount).toFixed(2)}
+                        </>
+                      ) : displayPrice != null ? (
+                        `$${displayPrice.toFixed(2)}`
+                      ) : (
+                        "N/A"
+                      )}
                     </p>
                   </div>
                   {order.couponCode && (
                     <div>
                       <p className="text-muted">Coupon</p>
-                      <p className="font-medium text-success">{order.couponCode}</p>
+                      <p className="font-medium text-success">
+                        {order.couponCode}
+                      </p>
                     </div>
                   )}
                 </>
@@ -202,9 +233,74 @@ export default function TicketPage() {
           </div>
         </div>
 
-        <p className="text-center text-sm text-muted mt-6">
-          Bookmark this page to access your ticket later.
-        </p>
+        {/* Sibling tickets from the same purchase */}
+        {siblings.length > 0 && (
+          <>
+            <h2 className="text-lg font-semibold text-center">
+              Other tickets in this purchase ({siblings.length})
+            </h2>
+            <div className="space-y-3">
+              {siblings.map((sibling) => {
+                const sibPhase = sibling.phaseId
+                  ? (sibling.ticketType?.phases || []).find(
+                      (p: { id: string }) => p.id === sibling.phaseId,
+                    )
+                  : null;
+                const sibTicketUrl =
+                  typeof window !== "undefined"
+                    ? `${window.location.origin}/ticket/${sibling.id}`
+                    : "";
+
+                return (
+                  <div
+                    key={sibling.id}
+                    className="bg-surface border border-border rounded-xl p-4 sm:p-5"
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div>
+                        <p className="font-medium">
+                          {sibling.firstName} {sibling.lastName}
+                        </p>
+                        {sibling.orderNumber && (
+                          <p className="text-xs font-mono text-accent-light">
+                            {sibling.orderNumber}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted mt-0.5">
+                          {sibling.ticketType?.name}
+                          {sibPhase
+                            ? ` · ${(sibPhase as { name: string }).name}`
+                            : ""}
+                        </p>
+                      </div>
+                      <StatusBadge status={sibling.status} />
+                    </div>
+
+                    {sibling.status === "approved" && (
+                      <div className="flex justify-center my-3">
+                        <div className="p-2 bg-white rounded-xl">
+                          <QRCodeSVG
+                            value={sibTicketUrl}
+                            size={140}
+                            level="H"
+                            fgColor="#1a2b4a"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <Link
+                      href={`/ticket/${sibling.id}`}
+                      className="block text-center text-sm text-accent-light hover:underline mt-2"
+                    >
+                      View full ticket
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </main>
     </div>
   );

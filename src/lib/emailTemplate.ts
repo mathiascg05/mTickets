@@ -7,11 +7,12 @@ export function buildConfirmationEmailHtml(params: {
   ticketTypeName: string;
   price: string;
   orderUrl: string;
+  orderNumber?: string;
 }) {
-  const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, orderUrl } = params;
+  const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, orderUrl, orderNumber } = params;
 
   return `<!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
 <body style="margin:0;padding:0;background-color:#f5f7fa;font-family:system-ui,-apple-system,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;padding:32px 16px;">
@@ -26,8 +27,8 @@ export function buildConfirmationEmailHtml(params: {
         <!-- Greeting -->
         <tr>
           <td style="padding:32px 32px 16px;">
-            <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">Hola ${firstName} ${lastName},</p>
-            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">Tu orden ha sido recibida. Estamos revisando tu comprobante de pago.</p>
+            <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">Hi ${firstName} ${lastName},</p>
+            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">Your order has been received. We are reviewing your payment proof.</p>
           </td>
         </tr>
         <!-- Status Icon -->
@@ -35,7 +36,7 @@ export function buildConfirmationEmailHtml(params: {
           <td align="center" style="padding:16px 32px;">
             <div style="background-color:#fef3c7;border-radius:12px;padding:24px;display:inline-block;">
               <div style="font-size:48px;line-height:1;">&#9203;</div>
-              <p style="margin:8px 0 0;font-size:14px;color:#92400e;font-weight:600;">Pago en revision</p>
+              <p style="margin:8px 0 0;font-size:14px;color:#92400e;font-weight:600;">Payment under review</p>
             </div>
           </td>
         </tr>
@@ -43,49 +44,55 @@ export function buildConfirmationEmailHtml(params: {
         <tr>
           <td style="padding:8px 32px 24px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;border-radius:12px;padding:20px;">
+              ${orderNumber ? `<tr>
+                <td style="padding:6px 20px;">
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Order Number</p>
+                  <p style="margin:2px 0 0;font-size:18px;color:#1a2b4a;font-weight:700;font-family:monospace;">${orderNumber}</p>
+                </td>
+              </tr>` : ""}
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Evento</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Event</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${eventName}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Fecha</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Date</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${eventDate}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Lugar</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Venue</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${venue}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Tipo de Entrada</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Ticket Type</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${ticketTypeName}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Precio</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Price</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${price}</p>
                 </td>
               </tr>
             </table>
           </td>
         </tr>
-        <!-- CTA Button -->
+        <!-- Info -->
         <tr>
-          <td align="center" style="padding:0 32px 28px;">
-            <a href="${orderUrl}" style="display:inline-block;background-color:#1a2b4a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 32px;border-radius:10px;">Ver Estado de Orden</a>
+          <td style="padding:0 32px 28px;text-align:center;">
+            <p style="margin:0;font-size:14px;color:#7a8599;line-height:1.5;">You will receive a new email with your QR code once your payment is approved.</p>
           </td>
         </tr>
         <!-- Footer -->
         <tr>
           <td style="padding:20px 32px;border-top:1px solid #d8dde6;text-align:center;">
-            <p style="margin:0;font-size:12px;color:#7a8599;">maTickets &mdash; Sistema de boletos digitales</p>
+            <p style="margin:0;font-size:12px;color:#7a8599;">maTickets &mdash; Digital ticketing system</p>
           </td>
         </tr>
       </table>
@@ -104,29 +111,30 @@ export function buildConfirmationEmailText(params: {
   ticketTypeName: string;
   price: string;
   orderUrl: string;
+  orderNumber?: string;
 }) {
-  const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, orderUrl } = params;
+  const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, orderUrl, orderNumber } = params;
 
   return `maTickets
 ========
 
-Hola ${firstName} ${lastName},
+Hi ${firstName} ${lastName},
 
-Tu orden ha sido recibida. Estamos revisando tu comprobante de pago.
+Your order has been received. We are reviewing your payment proof.
+${orderNumber ? `\nOrder Number: ${orderNumber}\n` : ""}
+--- Event Details ---
 
---- Detalles del evento ---
-
-Evento: ${eventName}
-Fecha: ${eventDate}
-Lugar: ${venue}
-Tipo de Entrada: ${ticketTypeName}
-Precio: ${price}
+Event: ${eventName}
+Date: ${eventDate}
+Venue: ${venue}
+Ticket Type: ${ticketTypeName}
+Price: ${price}
 
 ---
 
-Ver estado de tu orden: ${orderUrl}
+You will receive a new email with your QR code once your payment is approved.
 
-maTickets - Sistema de boletos digitales
+maTickets - Digital ticketing system
 `;
 }
 
@@ -139,31 +147,32 @@ export function buildTicketEmailText(params: {
   ticketTypeName: string;
   price: string;
   ticketUrl: string;
+  orderNumber?: string;
 }) {
-  const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, ticketUrl } = params;
+  const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, ticketUrl, orderNumber } = params;
 
   return `maTickets
 ========
 
-Hola ${firstName} ${lastName},
+Hi ${firstName} ${lastName},
 
-Tu entrada ha sido aprobada. Presenta el codigo QR adjunto en la entrada del evento.
+Your ticket has been approved. Show the attached QR code at the event entrance.
+${orderNumber ? `\nOrder Number: ${orderNumber}\n` : ""}
+--- Event Details ---
 
---- Detalles del evento ---
-
-Evento: ${eventName}
-Fecha: ${eventDate}
-Lugar: ${venue}
-Tipo de Entrada: ${ticketTypeName}
-Precio: ${price}
+Event: ${eventName}
+Date: ${eventDate}
+Venue: ${venue}
+Ticket Type: ${ticketTypeName}
+Price: ${price}
 
 ---
 
-Ver tu ticket online: ${ticketUrl}
+View your ticket online: ${ticketUrl}
 
-Si no puedes ver el codigo QR en el cuerpo del correo, lo encontraras como archivo adjunto (ticket-qr.png).
+If you can't see the QR code in the email body, you'll find it as an attachment (ticket-qr.png).
 
-maTickets - Sistema de boletos digitales
+maTickets - Digital ticketing system
 `;
 }
 
@@ -176,11 +185,12 @@ export function buildTicketEmailHtml(params: {
   ticketTypeName: string;
   price: string;
   ticketUrl: string;
+  orderNumber?: string;
 }) {
-  const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, ticketUrl } = params;
+  const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, ticketUrl, orderNumber } = params;
 
   return `<!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
 <body style="margin:0;padding:0;background-color:#f5f7fa;font-family:system-ui,-apple-system,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;padding:32px 16px;">
@@ -195,8 +205,8 @@ export function buildTicketEmailHtml(params: {
         <!-- Greeting -->
         <tr>
           <td style="padding:32px 32px 16px;">
-            <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">Hola ${firstName} ${lastName},</p>
-            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">Tu entrada ha sido aprobada. Presenta el siguiente codigo QR en la entrada del evento.</p>
+            <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">Hi ${firstName} ${lastName},</p>
+            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">Your ticket has been approved. Show the QR code below at the event entrance.</p>
           </td>
         </tr>
         <!-- QR Code -->
@@ -211,49 +221,49 @@ export function buildTicketEmailHtml(params: {
         <tr>
           <td style="padding:8px 32px 24px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;border-radius:12px;padding:20px;">
+              ${orderNumber ? `<tr>
+                <td style="padding:6px 20px;">
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Order Number</p>
+                  <p style="margin:2px 0 0;font-size:18px;color:#1a2b4a;font-weight:700;font-family:monospace;">${orderNumber}</p>
+                </td>
+              </tr>` : ""}
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Evento</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Event</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${eventName}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Fecha</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Date</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${eventDate}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Lugar</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Venue</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${venue}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Tipo de Entrada</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Ticket Type</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${ticketTypeName}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Precio</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Price</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${price}</p>
                 </td>
               </tr>
             </table>
           </td>
         </tr>
-        <!-- CTA Button -->
-        <tr>
-          <td align="center" style="padding:0 32px 28px;">
-            <a href="${ticketUrl}" style="display:inline-block;background-color:#1a2b4a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 32px;border-radius:10px;">Ver Ticket</a>
-          </td>
-        </tr>
         <!-- Footer -->
         <tr>
           <td style="padding:20px 32px;border-top:1px solid #d8dde6;text-align:center;">
-            <p style="margin:0;font-size:12px;color:#7a8599;">maTickets &mdash; Sistema de boletos digitales</p>
+            <p style="margin:0;font-size:12px;color:#7a8599;">maTickets &mdash; Digital ticketing system</p>
           </td>
         </tr>
       </table>

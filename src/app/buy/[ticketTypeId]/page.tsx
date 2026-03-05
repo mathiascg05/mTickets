@@ -433,6 +433,7 @@ export default function BuyPage() {
       const livePhase = liveAvail.activePhase;
 
       const orderIds: string[] = [];
+      const purchaseGroupId = qty > 1 ? id() : undefined;
       const orderTxns = attendees.map((attendee) => {
         const orderId = id();
         orderIds.push(orderId);
@@ -453,6 +454,7 @@ export default function BuyPage() {
               ? { couponCode: appliedCoupon.code, discountAmount: discount }
               : {}),
             ...(livePhase ? { phaseId: livePhase.id } : {}),
+            ...(purchaseGroupId ? { purchaseGroupId } : {}),
           })
           .link({ ticketType: ticketTypeId });
       });
@@ -613,7 +615,7 @@ export default function BuyPage() {
                 className="border border-border rounded-xl p-5 space-y-4"
               >
                 <h3 className="font-semibold text-accent-light">
-                  Asistente {i + 1}
+                  Attendee {i + 1}
                 </h3>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>

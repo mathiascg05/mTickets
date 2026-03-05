@@ -168,6 +168,11 @@ function TicketInfo({
           {isApproved && !isVisited ? (
             <div className="text-5xl mb-2 text-success">{"✓"}</div>
           ) : null}
+          {order.orderNumber && (
+            <p className="text-sm font-mono font-bold text-accent-light tracking-wide mb-1">
+              {order.orderNumber}
+            </p>
+          )}
           <h3 className="text-xl font-bold">{concert?.name || "Event"}</h3>
           <p className="text-muted">{ticketType?.name || "Ticket"}</p>
         </div>

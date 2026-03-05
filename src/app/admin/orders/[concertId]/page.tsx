@@ -37,6 +37,7 @@ type FlatOrder = {
   proofReferenceNumber?: string;
   couponCode?: string;
   discountAmount?: number;
+  orderNumber?: string;
   createdAt: number;
   ticketTypeName: string;
   ticketTypePrice: number;
@@ -45,13 +46,11 @@ type FlatOrder = {
 function ExportSection({
   concertName,
   allOrders,
-  orderNumberMap,
   pmCurrencyMap,
   rateMap,
 }: {
   concertName: string;
   allOrders: FlatOrder[];
-  orderNumberMap: Record<string, number>;
   pmCurrencyMap: Record<string, string>;
   rateMap: Record<string, number>;
 }) {
@@ -88,7 +87,7 @@ function ExportSection({
         rate != null ? (effectivePrice * rate).toFixed(2) : "";
 
       return [
-        String(orderNumberMap[order.id]),
+        escapeCsv(order.orderNumber || "---"),
         escapeCsv(order.firstName),
         escapeCsv(order.lastName),
         escapeCsv(order.paymentMethod),
@@ -156,7 +155,7 @@ function CouponInlineInput({
         value={code}
         onChange={(e) => { setCode(e.target.value); setError(null); }}
         onKeyDown={(e) => e.key === "Enter" && handleApply()}
-        placeholder="Codigo"
+        placeholder="Code"
         className={`w-24 px-2 py-1 text-xs bg-background border rounded-lg focus:outline-none focus:border-accent ${error ? "border-danger" : "border-border"}`}
         autoFocus
       />
@@ -232,6 +231,7 @@ function CreateOrderModal({
       }
 
       const orderIds: string[] = [];
+      const purchaseGroupId = quantity > 1 ? id() : undefined;
       const txns = Array.from({ length: quantity }, () => {
         const orderId = id();
         orderIds.push(orderId);
@@ -249,10 +249,21 @@ function CreateOrderModal({
             ...(selectedOption.activePhase
               ? { phaseId: selectedOption.activePhase.id }
               : {}),
+            ...(purchaseGroupId ? { purchaseGroupId } : {}),
           })
           .link({ ticketType: selectedTicketTypeId });
       });
       await db.transact(txns);
+      // Assign order numbers for all created orders
+      await Promise.allSettled(
+        orderIds.map((oid) =>
+          fetch("/api/assign-order-number", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: oid }),
+          }),
+        ),
+      );
       if (orderStatus === "approved") {
         await Promise.allSettled(orderIds.map((oid) => sendTicketEmail(oid)));
       } else if (orderStatus === "pending") {
@@ -277,7 +288,7 @@ function CreateOrderModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold">Crear Orden</h3>
+          <h3 className="text-lg font-semibold">Create Order</h3>
           <button
             onClick={onClose}
             className="text-muted hover:text-foreground transition-colors"
@@ -289,7 +300,7 @@ function CreateOrderModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Ticket Type */}
           <div>
-            <label className="block text-sm font-medium mb-1">Tipo de Entrada</label>
+            <label className="block text-sm font-medium mb-1">Ticket Type</label>
             <select
               value={selectedTicketTypeId}
               onChange={(e) => setSelectedTicketTypeId(e.target.value)}
@@ -297,7 +308,7 @@ function CreateOrderModal({
             >
               {ticketOptions.map((opt) => (
                 <option key={opt.id} value={opt.id}>
-                  {opt.name} — ${opt.price.toFixed(2)} ({opt.available} disponibles)
+                  {opt.name} — ${opt.price.toFixed(2)} ({opt.available} available)
                 </option>
               ))}
             </select>
@@ -305,7 +316,7 @@ function CreateOrderModal({
 
           {/* Quantity */}
           <div>
-            <label className="block text-sm font-medium mb-1">Cantidad</label>
+            <label className="block text-sm font-medium mb-1">Quantity</label>
             <input
               type="number"
               min={1}
@@ -319,7 +330,7 @@ function CreateOrderModal({
           {/* Name */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium mb-1">Nombre</label>
+              <label className="block text-sm font-medium mb-1">First Name</label>
               <input
                 type="text"
                 required
@@ -329,7 +340,7 @@ function CreateOrderModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Apellido</label>
+              <label className="block text-sm font-medium mb-1">Last Name</label>
               <input
                 type="text"
                 required
@@ -366,7 +377,7 @@ function CreateOrderModal({
 
           {/* Payment Method */}
           <div>
-            <label className="block text-sm font-medium mb-1">Metodo de Pago</label>
+            <label className="block text-sm font-medium mb-1">Payment Method</label>
             <select
               value={paymentMethod}
               onChange={(e) => setPaymentMethod(e.target.value)}
@@ -383,7 +394,7 @@ function CreateOrderModal({
           {/* Payment Proof (optional) */}
           <div>
             <label className="block text-sm font-medium mb-1">
-              Comprobante de Pago <span className="text-muted font-normal">(opcional)</span>
+              Payment Proof <span className="text-muted font-normal">(optional)</span>
             </label>
             <input
               type="file"
@@ -395,7 +406,7 @@ function CreateOrderModal({
 
           {/* Status Toggle */}
           <div>
-            <label className="block text-sm font-medium mb-2">Estado</label>
+            <label className="block text-sm font-medium mb-2">Status</label>
             <div className="flex gap-2">
               <button
                 type="button"
@@ -406,7 +417,7 @@ function CreateOrderModal({
                     : "border-border text-muted hover:text-foreground"
                 }`}
               >
-                Aprobado
+                Approved
               </button>
               <button
                 type="button"
@@ -417,7 +428,7 @@ function CreateOrderModal({
                     : "border-border text-muted hover:text-foreground"
                 }`}
               >
-                Pendiente
+                Pending
               </button>
             </div>
           </div>
@@ -437,7 +448,7 @@ function CreateOrderModal({
             disabled={submitting}
             className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
           >
-            {submitting ? "Creando..." : "Crear Orden"}
+            {submitting ? "Creating..." : "Create Order"}
           </button>
         </form>
       </div>
@@ -454,6 +465,7 @@ export default function ConcertOrdersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [couponOrderId, setCouponOrderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [scannedSearch, setScannedSearch] = useState("");
 
   const { isLoading, data } = db.useQuery({
     concerts: {
@@ -497,13 +509,6 @@ export default function ConcertOrdersPage() {
   );
   allOrders.sort((a, b) => b.createdAt - a.createdAt);
 
-  // Build order number map: sorted chronologically ascending = order #1, #2, etc.
-  const ordersByDate = [...allOrders].sort((a, b) => a.createdAt - b.createdAt);
-  const orderNumberMap: Record<string, number> = {};
-  ordersByDate.forEach((o, i) => {
-    orderNumberMap[o.id] = i + 1;
-  });
-
   // Map payment method name → convertCurrency for Bs calculation
   const pmCurrencyMap: Record<string, string> = {};
   for (const pm of concert.paymentMethods || []) {
@@ -533,7 +538,7 @@ export default function ConcertOrdersPage() {
         o.ticketTypeName,
         o.promoter,
         o.couponCode,
-        String(orderNumberMap[o.id] ?? ""),
+        o.orderNumber,
       ];
       if (!fields.some((f) => f && f.toLowerCase().includes(q))) return false;
     }
@@ -596,8 +601,8 @@ export default function ConcertOrdersPage() {
     const coupon = (concert.coupons || []).find(
       (c) => c.code.toUpperCase() === code.trim().toUpperCase(),
     );
-    if (!coupon) return "Cupon invalido";
-    if (!coupon.active) return "Cupon inactivo";
+    if (!coupon) return "Invalid coupon";
+    if (!coupon.active) return "Inactive coupon";
 
     if (coupon.maxUses != null) {
       const usageCount = allOrders.filter(
@@ -605,7 +610,7 @@ export default function ConcertOrdersPage() {
           o.couponCode === coupon.code &&
           (o.status === "approved" || o.status === "pending"),
       ).length;
-      if (usageCount >= coupon.maxUses) return "Cupon agotado";
+      if (usageCount >= coupon.maxUses) return "Coupon limit reached";
     }
 
     const discount =
@@ -796,7 +801,7 @@ export default function ConcertOrdersPage() {
                             <span className={`font-bold ${s.color}`}>
                               {cell.count}
                             </span>
-                            <span className="text-muted text-xs"> Cant.</span>
+                            <span className="text-muted text-xs"> Qty.</span>
                           </td>
                         );
                       }),
@@ -927,7 +932,7 @@ export default function ConcertOrdersPage() {
                         return (
                           <td key={`${s.key}-${pm}-count`} className="text-center py-2 px-2">
                             <span className={`font-bold ${s.color}`}>{cell.count}</span>
-                            <span className="text-muted text-xs"> Cant.</span>
+                            <span className="text-muted text-xs"> Qty.</span>
                           </td>
                         );
                       }),
@@ -971,6 +976,14 @@ export default function ConcertOrdersPage() {
           .filter((o) => o.visited)
           .sort((a, b) => b.createdAt - a.createdAt);
 
+        const filteredScanned = scannedSearch
+          ? scannedOrders.filter((o) => {
+              const q = scannedSearch.toLowerCase();
+              return [o.firstName, o.lastName, `${o.firstName} ${o.lastName}`, o.email, o.cedula, o.orderNumber, o.ticketTypeName]
+                .some((f) => f && f.toLowerCase().includes(q));
+            })
+          : scannedOrders;
+
         return (
           <div className="bg-surface border border-border rounded-xl p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
@@ -986,13 +999,40 @@ export default function ConcertOrdersPage() {
               </div>
             </div>
 
+            {scannedOrders.length > 0 && (
+              <div className="relative mb-4">
+                <input
+                  type="text"
+                  value={scannedSearch}
+                  onChange={(e) => setScannedSearch(e.target.value)}
+                  placeholder="Search scanned tickets..."
+                  className="w-full px-4 py-2.5 pl-10 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent-light transition-colors"
+                />
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {scannedSearch && (
+                  <button
+                    onClick={() => setScannedSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors"
+                  >
+                    {"✕"}
+                  </button>
+                )}
+              </div>
+            )}
+
             {scannedOrders.length === 0 ? (
               <p className="text-muted text-center py-6 text-sm">
                 No tickets have been scanned yet.
               </p>
+            ) : filteredScanned.length === 0 ? (
+              <p className="text-muted text-center py-6 text-sm">
+                No scanned tickets matching &quot;{scannedSearch}&quot;
+              </p>
             ) : (
               <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {scannedOrders.map((order) => (
+                {filteredScanned.map((order) => (
                   <div
                     key={order.id}
                     className="flex items-center justify-between gap-3 p-3 border border-success/20 bg-success/5 rounded-lg"
@@ -1002,7 +1042,7 @@ export default function ConcertOrdersPage() {
                       <div className="min-w-0">
                         <p className="font-medium text-sm truncate">
                           <span className="text-xs font-mono text-accent-light mr-2">
-                            #{orderNumberMap[order.id]}
+                            {order.orderNumber || "---"}
                           </span>
                           {order.firstName} {order.lastName}
                         </p>
@@ -1029,7 +1069,6 @@ export default function ConcertOrdersPage() {
       <ExportSection
         concertName={concert.name}
         allOrders={allOrders}
-        orderNumberMap={orderNumberMap}
         pmCurrencyMap={pmCurrencyMap}
         rateMap={rateMap}
       />
@@ -1043,7 +1082,7 @@ export default function ConcertOrdersPage() {
               onClick={() => setShowCreateModal(true)}
               className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-medium transition-colors shadow-lg shadow-accent/20"
             >
-              + Crear Orden
+              + Create Order
             </button>
           </div>
           <div className="flex flex-wrap gap-2 items-center">
@@ -1127,7 +1166,7 @@ export default function ConcertOrdersPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-mono font-bold text-accent-light">
-                      #{orderNumberMap[order.id]}
+                      {order.orderNumber || "---"}
                     </span>
                     <StatusBadge status={order.status} />
                     {order.visited && (

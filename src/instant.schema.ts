@@ -14,8 +14,8 @@ const _schema = i.schema({
     concerts: i.entity({
       name: i.string(),
       date: i.string(),
-      venue: i.string(),
-      description: i.string(),
+      venue: i.string().optional(),
+      description: i.string().optional(),
       status: i.string().indexed(),
       createdAt: i.number().indexed(),
     }),
@@ -40,6 +40,8 @@ const _schema = i.schema({
       couponCode: i.string().optional(),
       discountAmount: i.number().optional(),
       phaseId: i.string().optional(),
+      orderNumber: i.string().optional().indexed(),
+      purchaseGroupId: i.string().optional().indexed(),
       createdAt: i.number().indexed(),
     }),
     paymentMethods: i.entity({

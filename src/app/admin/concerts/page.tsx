@@ -82,9 +82,8 @@ export default function AdminConcertsPage() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1.5">Venue</label>
+            <label className="block text-sm font-medium mb-1.5">Venue <span className="text-muted font-normal">(optional)</span></label>
             <input
-              required
               value={venue}
               onChange={(e) => setVenue(e.target.value)}
               className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
@@ -93,10 +92,9 @@ export default function AdminConcertsPage() {
           </div>
           <div>
             <label className="block text-sm font-medium mb-1.5">
-              Description
+              Description <span className="text-muted font-normal">(optional)</span>
             </label>
             <textarea
-              required
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
