@@ -381,8 +381,12 @@ export async function POST(req: NextRequest) {
 
     // Send confirmation emails in the background (Vercel after() support)
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    after(() => {
-      orderIds.forEach((orderId, idx) => {
+    after(async () => {
+      const gmailUser = process.env.GMAIL_USER;
+      if (!gmailUser) return;
+
+      for (let idx = 0; idx < orderIds.length; idx++) {
+        const orderId = orderIds[idx];
         const attendee = trimmedAttendees[idx];
         const orderNumber = orderNumbers[idx];
         const phase = activePhase
@@ -404,9 +408,6 @@ export async function POST(req: NextRequest) {
           orderNumber,
         };
 
-        const gmailUser = process.env.GMAIL_USER;
-        if (!gmailUser) return;
-
         const mailOptions = {
           from: `"maTickets" <${gmailUser}>`,
           replyTo: gmailUser,
@@ -423,10 +424,12 @@ export async function POST(req: NextRequest) {
           },
         };
 
-        transporter.sendMail(mailOptions).catch((err) => {
+        try {
+          await transporter.sendMail(mailOptions);
+        } catch (err) {
           console.error(`[create-order] Email failed for order ${orderId}:`, err);
-        });
-      });
+        }
+      }
     });
 
     return NextResponse.json({ orderIds }, { status: 200 });

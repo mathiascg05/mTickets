@@ -2,6 +2,9 @@ import nodemailer from "nodemailer";
 import { randomUUID } from "crypto";
 
 export const transporter = nodemailer.createTransport({
+  pool: true,
+  maxConnections: 1,
+  maxMessages: Infinity,
   host: "smtp.gmail.com",
   port: 465,
   secure: true,
