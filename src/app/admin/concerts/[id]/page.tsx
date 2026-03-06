@@ -63,6 +63,10 @@ export default function AdminConcertEditPage() {
             coupons={concert.coupons}
             allOrders={concert.ticketTypes.flatMap((tt) => tt.orders)}
           />
+          <ScannerPinSection
+            concertId={concertId}
+            currentPin={concert.scannerPin}
+          />
         </div>
         <TicketTypesSection
           concertId={concertId}
@@ -1535,6 +1539,85 @@ function PromotersSection({
               </div>
             ),
           )
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ScannerPinSection({
+  concertId,
+  currentPin,
+}: {
+  concertId: string;
+  currentPin?: string;
+}) {
+  const [pin, setPin] = useState(currentPin || "");
+  const [saved, setSaved] = useState(false);
+
+  function generatePin() {
+    const random = Math.floor(1000 + Math.random() * 9000).toString();
+    setPin(random);
+  }
+
+  function handleSave() {
+    if (pin && (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin))) return;
+    db.transact(
+      db.tx.concerts[concertId].update({ scannerPin: pin || "" }),
+    );
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  function handleClear() {
+    setPin("");
+    db.transact(
+      db.tx.concerts[concertId].update({ scannerPin: "" }),
+    );
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <h2 className="text-lg font-semibold mb-4">Door Scanner PIN</h2>
+      <p className="text-sm text-muted mb-4">
+        Share this PIN with door staff. They access the scanner at{" "}
+        <code className="text-accent-light">/scan</code>.
+      </p>
+      <div className="flex gap-2 mb-3">
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={6}
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          placeholder="4-6 digit PIN"
+          className="flex-1 px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-center font-mono text-xl tracking-[0.3em]"
+        />
+        <button
+          onClick={generatePin}
+          className="px-3 py-2.5 border border-border rounded-lg hover:bg-surface-hover transition-colors text-sm font-medium"
+        >
+          Generate
+        </button>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={handleSave}
+          disabled={!pin || pin.length < 4}
+          className="flex-1 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
+        >
+          {saved ? "Saved!" : "Save PIN"}
+        </button>
+        {currentPin && (
+          <button
+            onClick={handleClear}
+            className="px-4 py-2.5 border border-danger/30 text-danger rounded-lg hover:bg-danger/10 transition-colors text-sm font-medium"
+          >
+            Clear PIN
+          </button>
         )}
       </div>
     </div>

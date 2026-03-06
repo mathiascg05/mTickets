@@ -9,6 +9,9 @@ const rules = {
       delete: "isAdmin",
     },
     bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+    fields: {
+      scannerPin: "isAdmin",
+    },
   },
   ticketTypes: {
     allow: {

@@ -1,19 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
+import { verifyScannerToken } from "@/lib/scannerToken";
 
 const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 
 export async function POST(req: NextRequest) {
   try {
-    const { orderId, userEmail } = await req.json();
+    const { orderId, userEmail, scannerToken } = await req.json();
 
     if (!orderId || typeof orderId !== "string") {
       return NextResponse.json({ error: "orderId is required" }, { status: 400 });
     }
 
-    // Verify the caller is an admin
-    if (!ADMIN_EMAIL || !userEmail || userEmail.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+    // Auth: either admin email or scanner token
+    let scopedConcertId: string | null = null;
+
+    if (scannerToken) {
+      const result = verifyScannerToken(scannerToken);
+      if (!result) {
+        return NextResponse.json({ error: "Invalid or expired scanner token" }, { status: 401 });
+      }
+      scopedConcertId = result.concertId;
+    } else if (ADMIN_EMAIL && userEmail && userEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      // Admin — no concert scope restriction
+    } else {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // If scanner token, verify the order belongs to the scoped concert
+    if (scopedConcertId) {
+      const { orders } = await adminDb.query({
+        orders: {
+          $: { where: { id: orderId } },
+          ticketType: { concert: {} },
+        },
+      });
+      const order = orders[0];
+      if (!order) {
+        return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      }
+      const concertId = order.ticketType?.concert?.id;
+      if (concertId !== scopedConcertId) {
+        return NextResponse.json({ error: "Wrong event" }, { status: 403 });
+      }
     }
 
     await adminDb.transact(
