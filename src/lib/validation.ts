@@ -7,7 +7,7 @@ export function isValidUUID(val: unknown): val is string {
 }
 
 export function isValidQty(val: unknown): val is number {
-  return typeof val === "number" && Number.isInteger(val) && val >= 1 && val <= 10;
+  return typeof val === "number" && Number.isInteger(val) && val >= 1 && val <= 5;
 }
 
 export function isValidEmail(val: unknown): val is string {

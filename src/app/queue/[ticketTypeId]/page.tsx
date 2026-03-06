@@ -22,7 +22,7 @@ export default function QueuePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const ticketTypeId = params.ticketTypeId as string;
-  const qty = Math.max(1, Math.min(10, Number(searchParams.get("qty")) || 1));
+  const qty = Math.max(1, Math.min(5, Number(searchParams.get("qty")) || 1));
   const phaseId = searchParams.get("phaseId") || undefined;
 
   const [queueEntryId, setQueueEntryId] = useState<string | null>(null);

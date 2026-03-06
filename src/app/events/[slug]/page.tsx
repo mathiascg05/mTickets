@@ -144,7 +144,7 @@ function TicketTypeRow({
   );
   const { price, available, totalCapacity, activePhase, soldOut } =
     getAvailability(ticketType, ticketType.phases || [], ticketType.orders, today, activeReservations);
-  const maxQty = Math.min(available, 10);
+  const maxQty = Math.min(available, 5);
 
   // Queue detection
   const queueEntries = ticketType.queueEntries || [];
