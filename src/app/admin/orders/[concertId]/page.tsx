@@ -542,6 +542,14 @@ export default function ConcertOrdersPage() {
     exchangeRates: {},
   });
 
+  // Direct subscription to orders for this concert — ensures real-time updates
+  // for attribute changes (like 'visited') propagate reliably
+  const { data: liveOrderData } = db.useQuery({
+    orders: {
+      $: { where: { "ticketType.concert.id": concertId } },
+    },
+  });
+
   if (isLoading || !data) {
     return <div className="animate-pulse text-muted">Loading...</div>;
   }
@@ -551,12 +559,20 @@ export default function ConcertOrdersPage() {
     return <div className="text-muted">Event not found</div>;
   }
 
+  // Build a live lookup for order fields (especially 'visited') from the direct subscription
+  const liveOrderMap = new Map(
+    (liveOrderData?.orders || []).map((o) => [o.id, o]),
+  );
+
   // Flatten all orders with their ticket type info (use phase price when available)
   const allOrders = concert.ticketTypes.flatMap((tt) =>
     tt.orders.map((order) => {
       const phase = (tt.phases || []).find((p: { id: string }) => p.id === order.phaseId);
+      const live = liveOrderMap.get(order.id);
       return {
         ...order,
+        // Prefer live data for 'visited' to ensure real-time scanner updates
+        visited: live ? live.visited : order.visited,
         ticketTypeName: tt.name,
         ticketTypePrice: phase ? phase.price : tt.price,
       };
