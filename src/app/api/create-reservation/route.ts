@@ -131,6 +131,41 @@ export async function POST(req: NextRequest) {
         .link({ ticketType: ticketTypeId }),
     );
 
+    // ── Post-write validation: re-read and rollback if overbooked ──
+    {
+      const { ticketTypes: freshTTs } = await adminDb.query({
+        ticketTypes: {
+          $: { where: { id: ticketTypeId } },
+          orders: {},
+          phases: {
+            $: { order: { sortOrder: "asc" } },
+          },
+          reservations: {},
+        },
+      });
+
+      const freshTT = freshTTs[0];
+      if (freshTT) {
+        const freshOrders = freshTT.orders as { id: string; status: string; phaseId?: string }[];
+        const freshReservations = ((freshTT.reservations || []) as { id: string; quantity: number; expiresAt: number; phaseId?: string }[])
+          .filter((r) => r.expiresAt > Date.now());
+        const freshPhases = (freshTT.phases || []) as { id: string; name: string; price: number; quantity: number; endDate?: string; sortOrder: number }[];
+
+        const freshAvail = getAvailability(freshTT, freshPhases, freshOrders, getTodayString(), freshReservations);
+
+        if (freshAvail.available < 0) {
+          // Rollback: delete the just-created reservation
+          await adminDb.transact(
+            adminDb.tx.reservations[reservationId].delete(),
+          );
+          return NextResponse.json(
+            { error: "Tickets oversold due to concurrent reservation. Please try again.", code: "CONCURRENT_CONFLICT" },
+            { status: 409 },
+          );
+        }
+      }
+    }
+
     return NextResponse.json({ reservationId, expiresAt }, { status: 200 });
   } catch (err) {
     console.error("[create-reservation] Error:", err);

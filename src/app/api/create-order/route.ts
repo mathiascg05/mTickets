@@ -313,6 +313,72 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Post-write validation: re-read and rollback if invariants violated ──
+    {
+      const { ticketTypes: freshTTs } = await adminDb.query({
+        ticketTypes: {
+          $: { where: { id: ticketTypeId } },
+          orders: {},
+          phases: {
+            $: { order: { sortOrder: "asc" } },
+          },
+          reservations: {},
+        },
+      });
+
+      const freshTT = freshTTs[0];
+      if (freshTT) {
+        const freshOrders = freshTT.orders as { id: string; status: string; phaseId?: string; couponCode?: string }[];
+        const freshReservations = ((freshTT.reservations || []) as { id: string; quantity: number; expiresAt: number; phaseId?: string }[])
+          .filter((r) => r.expiresAt > Date.now());
+        const freshPhases = (freshTT.phases || []) as { id: string; name: string; price: number; quantity: number; endDate?: string; sortOrder: number }[];
+
+        const freshAvail = getAvailability(freshTT, freshPhases, freshOrders, getTodayString(), freshReservations);
+
+        let rollback = false;
+        let rollbackReason = "";
+
+        if (freshAvail.available < 0) {
+          rollback = true;
+          rollbackReason = "Tickets oversold due to concurrent purchase. Please try again.";
+        }
+
+        // Check coupon overuse
+        if (!rollback && validatedCouponCode) {
+          const coupons = concert.coupons || [];
+          const coupon = coupons.find((c) => c.code.toUpperCase() === validatedCouponCode!.toUpperCase());
+          if (coupon?.maxUses != null) {
+            const usageCount = freshOrders.filter(
+              (o) =>
+                o.couponCode === coupon.code &&
+                (o.status === "approved" || o.status === "pending"),
+            ).length;
+            if (usageCount > coupon.maxUses) {
+              rollback = true;
+              rollbackReason = "Coupon usage limit exceeded due to concurrent purchase. Please try again.";
+            }
+          }
+        }
+
+        if (rollback) {
+          // Rollback: delete created orders, restore concert seq, restore queue entry
+          const rollbackTxns = [
+            ...orderIds.map((oid) => adminDb.tx.orders[oid].delete()),
+            adminDb.tx.concerts[concert.id].update({ lastOrderSeq: currentSeq }),
+            ...(queueToken
+              ? [adminDb.tx.queueEntries[queueToken].update({ status: "admitted" })]
+              : []),
+          ];
+          await adminDb.transact(rollbackTxns);
+
+          return NextResponse.json(
+            { error: rollbackReason, code: "CONCURRENT_CONFLICT" },
+            { status: 409 },
+          );
+        }
+      }
+    }
+
     // Send confirmation emails in the background (Vercel after() support)
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     after(() => {

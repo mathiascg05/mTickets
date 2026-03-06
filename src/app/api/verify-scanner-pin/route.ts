@@ -40,6 +40,8 @@ export async function POST(req: NextRequest) {
       pinBuf.length !== storedBuf.length ||
       !crypto.timingSafeEqual(pinBuf, storedBuf)
     ) {
+      // Brute-force deterrent: delay wrong PIN responses
+      await new Promise((r) => setTimeout(r, 1000));
       return NextResponse.json(
         { error: "Invalid PIN" },
         { status: 401 },

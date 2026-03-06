@@ -1,5 +1,6 @@
 import { adminDb } from "./adminDb";
 
+const MAX_RETRIES = 3;
 const VOWELS = new Set("AEIOUaeiou".split(""));
 
 /**
@@ -54,26 +55,37 @@ export async function assignOrderNumber(
 
   const prefix = generatePrefix(concertName);
 
-  // Read current lastOrderSeq from concert
-  const { concerts } = await db.query({
-    concerts: {
-      $: { where: { id: concertId } },
-    },
-  });
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    // Read current lastOrderSeq from concert
+    const { concerts } = await db.query({
+      concerts: {
+        $: { where: { id: concertId } },
+      },
+    });
 
-  const concert = concerts[0];
-  if (!concert) {
-    throw new Error(`Concert ${concertId} not found`);
+    const concert = concerts[0];
+    if (!concert) {
+      throw new Error(`Concert ${concertId} not found`);
+    }
+
+    const currentSeq = (concert as { lastOrderSeq?: number }).lastOrderSeq || 0;
+    const newSeq = currentSeq + 1;
+    const orderNumber = formatOrderNumber(prefix, newSeq);
+
+    try {
+      await db.transact([
+        db.tx.orders[orderId].update({ orderNumber }),
+        db.tx.concerts[concertId].update({ lastOrderSeq: newSeq }),
+      ]);
+      return orderNumber;
+    } catch (err) {
+      if (attempt === MAX_RETRIES - 1) {
+        throw err;
+      }
+      console.warn(`[assignOrderNumber] Attempt ${attempt + 1} failed, retrying...`);
+    }
   }
 
-  const currentSeq = (concert as { lastOrderSeq?: number }).lastOrderSeq || 0;
-  const newSeq = currentSeq + 1;
-  const orderNumber = formatOrderNumber(prefix, newSeq);
-
-  await db.transact([
-    db.tx.orders[orderId].update({ orderNumber }),
-    db.tx.concerts[concertId].update({ lastOrderSeq: newSeq }),
-  ]);
-
-  return orderNumber;
+  // Should never reach here, but TypeScript needs it
+  throw new Error("assignOrderNumber: exhausted retries");
 }
