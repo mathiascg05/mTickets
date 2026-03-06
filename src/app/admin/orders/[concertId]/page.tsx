@@ -133,6 +133,53 @@ function ExportSection({
   );
 }
 
+function EmailInlineEdit({
+  currentEmail,
+  onSave,
+  onCancel,
+}: {
+  currentEmail: string;
+  onSave: (email: string) => void;
+  onCancel: () => void;
+}) {
+  const [email, setEmail] = useState(currentEmail);
+
+  function handleSave() {
+    const trimmed = email.trim();
+    if (!trimmed) return;
+    onSave(trimmed);
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleSave();
+          if (e.key === "Escape") onCancel();
+        }}
+        className="w-48 px-2 py-0.5 text-xs bg-background border border-border rounded-lg focus:outline-none focus:border-accent"
+        autoFocus
+        required
+      />
+      <button
+        onClick={handleSave}
+        className="px-2 py-0.5 text-xs bg-accent/10 text-accent-light border border-accent/30 rounded-lg hover:bg-accent/20 transition-colors"
+      >
+        OK
+      </button>
+      <button
+        onClick={onCancel}
+        className="px-2 py-0.5 text-xs text-muted border border-border rounded-lg hover:text-foreground transition-colors"
+      >
+        {"✕"}
+      </button>
+    </div>
+  );
+}
+
 function CouponInlineInput({
   onApply,
   onCancel,
@@ -468,8 +515,12 @@ export default function ConcertOrdersPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [couponOrderId, setCouponOrderId] = useState<string | null>(null);
+  const [editingEmailOrderId, setEditingEmailOrderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [scannedSearch, setScannedSearch] = useState("");
+  const [resendOrderId, setResendOrderId] = useState<string | null>(null);
+  const [resendType, setResendType] = useState<"confirmation" | "ticket">("confirmation");
+  const [resendingOrderId, setResendingOrderId] = useState<string | null>(null);
 
   const { isLoading, data } = db.useQuery({
     concerts: {
@@ -1186,7 +1237,27 @@ export default function ConcertOrdersPage() {
                     </span>
                   </div>
                   <p className="font-medium text-sm">{order.firstName} {order.lastName}</p>
-                  <p className="text-xs text-muted">{order.email}</p>
+                  {editingEmailOrderId === order.id ? (
+                    <EmailInlineEdit
+                      currentEmail={order.email}
+                      onSave={(newEmail) => {
+                        db.transact(db.tx.orders[order.id].update({ email: newEmail }));
+                        setEditingEmailOrderId(null);
+                      }}
+                      onCancel={() => setEditingEmailOrderId(null)}
+                    />
+                  ) : (
+                    <p
+                      className="text-xs text-muted cursor-pointer hover:text-accent-light transition-colors group inline-flex items-center gap-1"
+                      onClick={() => setEditingEmailOrderId(order.id)}
+                      title="Click to edit email"
+                    >
+                      {order.email}
+                      <svg className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </p>
+                  )}
                   <p className="text-xs text-muted">Cedula: {order.cedula}</p>
                   {order.promoter && (
                     <p className="text-xs text-muted">Promoter: {order.promoter}</p>
@@ -1264,6 +1335,76 @@ export default function ConcertOrdersPage() {
                     >
                       Cancel
                     </button>
+                  )}
+                  {(order.status === "pending" || order.status === "approved") && (
+                    <div className="relative">
+                      <button
+                        onClick={() => {
+                          if (resendOrderId === order.id) {
+                            setResendOrderId(null);
+                          } else {
+                            setResendOrderId(order.id);
+                            setResendType(order.status === "approved" ? "ticket" : "confirmation");
+                          }
+                        }}
+                        disabled={resendingOrderId === order.id}
+                        className="px-3 py-1.5 text-xs border border-accent/30 text-accent-light rounded-lg hover:bg-accent/10 transition-colors font-medium disabled:opacity-50"
+                      >
+                        {resendingOrderId === order.id ? "Sending..." : "Resend"}
+                      </button>
+                      {resendOrderId === order.id && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setResendOrderId(null)} />
+                          <div className="absolute right-0 top-full mt-1 z-50 bg-surface border border-border rounded-lg shadow-xl p-3 w-56">
+                            <p className="text-xs font-semibold mb-2">Email type</p>
+                            <label className="flex items-center gap-2 cursor-pointer mb-1.5">
+                              <input
+                                type="radio"
+                                name={`resend-${order.id}`}
+                                checked={resendType === "confirmation"}
+                                onChange={() => setResendType("confirmation")}
+                                className="accent-accent"
+                              />
+                              <span className="text-xs">Confirmation Email</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer mb-3">
+                              <input
+                                type="radio"
+                                name={`resend-${order.id}`}
+                                checked={resendType === "ticket"}
+                                onChange={() => setResendType("ticket")}
+                                className="accent-accent"
+                              />
+                              <span className="text-xs">Ticket Email (with QR)</span>
+                            </label>
+                            <button
+                              onClick={async () => {
+                                setResendOrderId(null);
+                                setResendingOrderId(order.id);
+                                try {
+                                  const res = resendType === "ticket"
+                                    ? await sendTicketEmail(order.id, refreshToken)
+                                    : await sendConfirmationEmail(order.id, refreshToken);
+                                  if (res.success) {
+                                    alert("Email sent successfully!");
+                                  } else {
+                                    alert("Failed to send email: " + (res.error || "Unknown error"));
+                                  }
+                                } catch (err) {
+                                  console.error("Resend failed:", err);
+                                  alert("Failed to send email. Check console for details.");
+                                } finally {
+                                  setResendingOrderId(null);
+                                }
+                              }}
+                              className="w-full py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-medium transition-colors"
+                            >
+                              Send
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   )}
                   <a
                     href={`/ticket/${order.id}`}
