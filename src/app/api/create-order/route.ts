@@ -308,8 +308,7 @@ export async function POST(req: NextRequest) {
           );
         }
         console.warn(`[create-order] Transaction attempt ${attempt + 1} failed, retrying...`);
-        const backoff = Math.min(50 * Math.pow(2, attempt), 2000) + Math.random() * 200;
-        await new Promise((r) => setTimeout(r, backoff));
+        await new Promise((r) => setTimeout(r, 50 + Math.random() * 200));
       }
     }
 
