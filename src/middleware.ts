@@ -7,8 +7,8 @@ const RATE_LIMITS: Record<string, { max: number; windowMs: number }> = {
   "/api/create-order": { max: 500, windowMs: 60_000 },
   "/api/create-reservation": { max: 500, windowMs: 60_000 },
   "/api/verify-ticket-email": { max: 10, windowMs: 60_000 },
-  "/api/join-queue": { max: 500, windowMs: 60_000 },
-  "/api/queue-heartbeat": { max: 5000, windowMs: 60_000 },
+  "/api/join-queue": { max: 1000, windowMs: 60_000 },
+  "/api/queue-heartbeat": { max: 15000, windowMs: 60_000 },
 };
 
 function getClientIp(req: NextRequest): string {

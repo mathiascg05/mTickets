@@ -14,8 +14,8 @@ export const options = {
   scenarios: {
     full_flow: {
       executor: "shared-iterations",
-      vus: 400,
-      iterations: 400,
+      vus: 600,
+      iterations: 600,
       maxDuration: "15m",
     },
   },
