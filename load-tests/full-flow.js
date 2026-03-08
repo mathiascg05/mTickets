@@ -134,6 +134,9 @@ export default function () {
   const resData = resRes.json();
   const reservationId = resData.reservationId;
 
+  // Stagger order creation to reduce contention on lastOrderSeq counter
+  sleep(Math.random() * 3);
+
   // ── Step 4: Create order ──────────────────────────────────────────
   const orderRes = http.post(
     `${BASE_URL}/api/create-order`,

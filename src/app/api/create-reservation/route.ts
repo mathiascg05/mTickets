@@ -5,7 +5,7 @@ import { getAvailability, getTodayString } from "@/lib/phases";
 import { isValidUUID, isValidQty } from "@/lib/validation";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
 
-const RESERVATION_DURATION = 25 * 60 * 1000; // 25 minutes
+const RESERVATION_DURATION = 10 * 60 * 1000; // 10 minutes
 
 export async function POST(req: NextRequest) {
   try {
@@ -130,6 +130,14 @@ export async function POST(req: NextRequest) {
         })
         .link({ ticketType: ticketTypeId }),
     );
+
+    // Mark queue entry as "purchasing" so it's no longer counted as "admitted"
+    // This fixes the double-counting bug where activeBuyers = reservations + admitted
+    if (queueToken) {
+      await adminDb.transact(
+        adminDb.tx.queueEntries[queueToken].update({ status: "purchasing" }),
+      );
+    }
 
     // ── Post-write validation: re-read and rollback if overbooked ──
     {

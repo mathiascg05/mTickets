@@ -294,6 +294,14 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         if (attempt === MAX_RETRIES - 1) {
           console.error("[create-order] Transaction failed after retries:", err);
+          // Cleanup: free capacity slot so other users can proceed
+          const failCleanup = [
+            ...(reservationId ? [adminDb.tx.reservations[reservationId].delete()] : []),
+            ...(queueToken ? [adminDb.tx.queueEntries[queueToken].update({ status: "expired" })] : []),
+          ];
+          if (failCleanup.length > 0) {
+            try { await adminDb.transact(failCleanup); } catch { /* best effort */ }
+          }
           return NextResponse.json(
             { error: "Failed to create order. Please try again." },
             { status: 500 },
