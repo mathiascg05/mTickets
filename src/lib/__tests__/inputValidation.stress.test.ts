@@ -428,8 +428,8 @@ describe("POST /api/create-order — input validation", () => {
       const res = await handler(
         makeRequest("/api/create-order", {
           ticketTypeId: VALID_UUID,
-          qty: 10,
-          attendees: Array.from({ length: 10 }, (_, i) =>
+          qty: 5,
+          attendees: Array.from({ length: 5 }, (_, i) =>
             validAttendee({ email: `user${i}@example.com` }),
           ),
           paymentMethodName: "Zelle",

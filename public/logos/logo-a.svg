@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <!-- Ticket body with notches -->
+  <path d="
+    M 8 0 H 72 Q 80 0, 80 8
+    V 26 A 8 8 0 0 1 80 42 V 42
+    A 8 8 0 0 1 80 58
+    V 72 Q 80 80, 72 80
+    H 8 Q 0 80, 0 72
+    V 58 A 8 8 0 0 0 0 42
+    V 42 A 8 8 0 0 0 0 26
+    V 8 Q 0 0, 8 0 Z
+  " fill="#1a2b4a"/>
+  <!-- Subtle inner border -->
+  <rect x="8" y="8" width="64" height="64" rx="4" ry="4" fill="none" stroke="white" stroke-opacity="0.08" stroke-width="1"/>
+  <!-- Bold "m" lettermark -->
+  <text x="40" y="55" font-family="'Geist Sans', 'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="42" font-weight="800" fill="white" text-anchor="middle" letter-spacing="-1">m</text>
+</svg>

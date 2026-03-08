@@ -44,7 +44,7 @@ const _schema = i.schema({
       couponCode: i.string().optional(),
       discountAmount: i.number().optional(),
       phaseId: i.string().optional(),
-      orderNumber: i.string().optional().indexed(),
+      orderNumber: i.string().optional().unique().indexed(),
       purchaseGroupId: i.string().optional().indexed(),
       createdAt: i.number().indexed(),
     }),

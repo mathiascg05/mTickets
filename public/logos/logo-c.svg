@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80" width="240" height="80">
+  <!-- "ma" bold -->
+  <text x="4" y="52" font-family="'Geist Sans', 'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="46" font-weight="800" fill="white" text-anchor="start" letter-spacing="-2">ma</text>
+  <!-- "Tickets" light weight -->
+  <text x="68" y="52" font-family="'Geist Sans', 'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="46" font-weight="300" fill="white" text-anchor="start" opacity="0.55" letter-spacing="-1.5">Tickets</text>
+
+  <!-- Ticket-shaped underline accent under "ma" -->
+  <!-- Main bar with notches -->
+  <path d="
+    M 6 64 H 56
+    Q 60 64, 60 66
+    V 68.5 A 2.5 2.5 0 0 1 60 73.5
+    V 76 Q 60 78, 56 78
+    H 6 Q 2 78, 2 76
+    V 73.5 A 2.5 2.5 0 0 1 2 68.5
+    V 66 Q 2 64, 6 64 Z
+  " fill="#3b5998"/>
+</svg>

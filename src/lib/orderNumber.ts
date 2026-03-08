@@ -1,6 +1,6 @@
 import { adminDb } from "./adminDb";
 
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 5;
 const VOWELS = new Set("AEIOUaeiou".split(""));
 
 /**
@@ -83,6 +83,7 @@ export async function assignOrderNumber(
         throw err;
       }
       console.warn(`[assignOrderNumber] Attempt ${attempt + 1} failed, retrying...`);
+      await new Promise((r) => setTimeout(r, 50 + Math.random() * 150));
     }
   }
 

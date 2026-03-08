@@ -144,9 +144,13 @@ describe("POST /api/create-order — overbooking", () => {
   });
 
   it("succeeds when tickets are available", async () => {
-    mockQuery.mockResolvedValueOnce({
-      ticketTypes: [baseTicketType()],
-    });
+    mockQuery
+      .mockResolvedValueOnce({
+        ticketTypes: [baseTicketType()],
+      })
+      .mockResolvedValueOnce({
+        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
+      });
 
     const res = await handler(makeRequest(validBody()));
     expect(res.status).toBe(200);
@@ -197,9 +201,8 @@ describe("POST /api/create-order — overbooking", () => {
     let queryCallCount = 0;
     mockQuery.mockImplementation(() => {
       queryCallCount++;
-      // First 2 calls: initial reads (stale snapshot showing 1 ticket left)
-      // Subsequent calls: post-write re-reads showing overbooked state
-      if (queryCallCount <= 2) {
+      // First calls: initial reads + fresh seq reads (stale snapshot showing 1 ticket left)
+      if (queryCallCount <= 4) {
         return Promise.resolve({
           ticketTypes: [
             baseTicketType({
@@ -207,6 +210,7 @@ describe("POST /api/create-order — overbooking", () => {
               orders: [], // stale: no orders yet
             }),
           ],
+          concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
         });
       }
       // Post-write re-read: 2 orders now exist for 1 ticket → available < 0
@@ -220,6 +224,7 @@ describe("POST /api/create-order — overbooking", () => {
             ],
           }),
         ],
+        concerts: [{ id: CONCERT_ID, lastOrderSeq: 2 }],
       });
     });
 
@@ -237,34 +242,39 @@ describe("POST /api/create-order — overbooking", () => {
   });
 
   it("counts pending orders against availability (not just approved)", async () => {
-    mockQuery.mockResolvedValueOnce({
-      ticketTypes: [
-        baseTicketType({
-          quantity: 2,
-          orders: [
-            { id: "o1", status: "pending" },
-            { id: "o2", status: "pending" },
-          ],
-        }),
-      ],
-    });
+    mockQuery
+      .mockResolvedValueOnce({
+        ticketTypes: [
+          baseTicketType({
+            quantity: 2,
+            orders: [
+              { id: "o1", status: "pending" },
+              { id: "o2", status: "pending" },
+            ],
+          }),
+        ],
+      });
 
     const res = await handler(makeRequest(validBody()));
     expect(res.status).toBe(409);
   });
 
   it("excludes rejected orders from count", async () => {
-    mockQuery.mockResolvedValueOnce({
-      ticketTypes: [
-        baseTicketType({
-          quantity: 2,
-          orders: [
-            { id: "o1", status: "rejected" },
-            { id: "o2", status: "rejected" },
-          ],
-        }),
-      ],
-    });
+    mockQuery
+      .mockResolvedValueOnce({
+        ticketTypes: [
+          baseTicketType({
+            quantity: 2,
+            orders: [
+              { id: "o1", status: "rejected" },
+              { id: "o2", status: "rejected" },
+            ],
+          }),
+        ],
+      })
+      .mockResolvedValueOnce({
+        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
+      });
 
     const res = await handler(makeRequest(validBody()));
     expect(res.status).toBe(200);
@@ -292,21 +302,25 @@ describe("POST /api/create-order — overbooking", () => {
   });
 
   it("ignores expired reservations", async () => {
-    mockQuery.mockResolvedValueOnce({
-      ticketTypes: [
-        baseTicketType({
-          quantity: 2,
-          orders: [{ id: "o1", status: "approved" }],
-          reservations: [
-            {
-              id: "r1",
-              quantity: 1,
-              expiresAt: Date.now() - 1000, // expired
-            },
-          ],
-        }),
-      ],
-    });
+    mockQuery
+      .mockResolvedValueOnce({
+        ticketTypes: [
+          baseTicketType({
+            quantity: 2,
+            orders: [{ id: "o1", status: "approved" }],
+            reservations: [
+              {
+                id: "r1",
+                quantity: 1,
+                expiresAt: Date.now() - 1000, // expired
+              },
+            ],
+          }),
+        ],
+      })
+      .mockResolvedValueOnce({
+        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
+      });
 
     const res = await handler(makeRequest(validBody()));
     expect(res.status).toBe(200);
@@ -314,21 +328,25 @@ describe("POST /api/create-order — overbooking", () => {
 
   it("excludes buyer's own reservation from availability count", async () => {
     const myReservationId = "b0000000-0000-4000-8000-000000000099";
-    mockQuery.mockResolvedValueOnce({
-      ticketTypes: [
-        baseTicketType({
-          quantity: 2,
-          orders: [{ id: "o1", status: "approved" }],
-          reservations: [
-            {
-              id: myReservationId,
-              quantity: 1,
-              expiresAt: Date.now() + 600_000,
-            },
-          ],
-        }),
-      ],
-    });
+    mockQuery
+      .mockResolvedValueOnce({
+        ticketTypes: [
+          baseTicketType({
+            quantity: 2,
+            orders: [{ id: "o1", status: "approved" }],
+            reservations: [
+              {
+                id: myReservationId,
+                quantity: 1,
+                expiresAt: Date.now() + 600_000,
+              },
+            ],
+          }),
+        ],
+      })
+      .mockResolvedValueOnce({
+        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
+      });
 
     const res = await handler(
       makeRequest(validBody({ reservationId: myReservationId })),
@@ -408,12 +426,13 @@ describe("POST /api/create-order — coupon validation", () => {
     let queryCallCount = 0;
     mockQuery.mockImplementation(() => {
       queryCallCount++;
-      // First 2 calls: initial reads (stale: 0 coupon usages)
-      if (queryCallCount <= 2) {
+      // First calls: initial reads + fresh seq reads (stale: 0 coupon usages)
+      if (queryCallCount <= 4) {
         return Promise.resolve({
           ticketTypes: [
             ticketWithCoupon({ maxUses: 1 }, []),
           ],
+          concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
         });
       }
       // Post-write re-read: 2 orders now using the coupon → exceeds maxUses
@@ -424,6 +443,7 @@ describe("POST /api/create-order — coupon validation", () => {
             { id: "generated-order-id-2", status: "pending", couponCode: "SAVE10" },
           ]),
         ],
+        concerts: [{ id: CONCERT_ID, lastOrderSeq: 2 }],
       });
     });
 
@@ -467,9 +487,13 @@ describe("POST /api/create-order — coupon validation", () => {
   });
 
   it("case-insensitive coupon matching", async () => {
-    mockQuery.mockResolvedValueOnce({
-      ticketTypes: [ticketWithCoupon({ code: "SAVE10" })],
-    });
+    mockQuery
+      .mockResolvedValueOnce({
+        ticketTypes: [ticketWithCoupon({ code: "SAVE10" })],
+      })
+      .mockResolvedValueOnce({
+        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
+      });
 
     const res = await handler(
       makeRequest(validBody({ couponCode: "save10" })),
@@ -478,11 +502,15 @@ describe("POST /api/create-order — coupon validation", () => {
   });
 
   it("percentage discount capped at subtotal", async () => {
-    mockQuery.mockResolvedValueOnce({
-      ticketTypes: [
-        ticketWithCoupon({ discountType: "percentage", discountValue: 150 }),
-      ],
-    });
+    mockQuery
+      .mockResolvedValueOnce({
+        ticketTypes: [
+          ticketWithCoupon({ discountType: "percentage", discountValue: 150 }),
+        ],
+      })
+      .mockResolvedValueOnce({
+        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
+      });
 
     const res = await handler(
       makeRequest(validBody({ couponCode: "SAVE10" })),
@@ -492,11 +520,15 @@ describe("POST /api/create-order — coupon validation", () => {
   });
 
   it("fixed discount capped at subtotal", async () => {
-    mockQuery.mockResolvedValueOnce({
-      ticketTypes: [
-        ticketWithCoupon({ discountType: "fixed", discountValue: 9999 }),
-      ],
-    });
+    mockQuery
+      .mockResolvedValueOnce({
+        ticketTypes: [
+          ticketWithCoupon({ discountType: "fixed", discountValue: 9999 }),
+        ],
+      })
+      .mockResolvedValueOnce({
+        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
+      });
 
     const res = await handler(
       makeRequest(validBody({ couponCode: "SAVE10" })),
@@ -517,23 +549,27 @@ describe("POST /api/create-order — order number sequencing", () => {
   });
 
   it("generates correct sequential order numbers from lastOrderSeq", async () => {
-    mockQuery.mockResolvedValueOnce({
-      ticketTypes: [
-        baseTicketType({
-          concert: [
-            {
-              id: CONCERT_ID,
-              name: "Rock Show",
-              date: "2026-06-15",
-              venue: "Arena",
-              slug: "rock-show",
-              lastOrderSeq: 42,
-              coupons: [],
-            },
-          ],
-        }),
-      ],
-    });
+    mockQuery
+      .mockResolvedValueOnce({
+        ticketTypes: [
+          baseTicketType({
+            concert: [
+              {
+                id: CONCERT_ID,
+                name: "Rock Show",
+                date: "2026-06-15",
+                venue: "Arena",
+                slug: "rock-show",
+                lastOrderSeq: 42,
+                coupons: [],
+              },
+            ],
+          }),
+        ],
+      })
+      .mockResolvedValueOnce({
+        concerts: [{ id: CONCERT_ID, lastOrderSeq: 42 }],
+      });
 
     const res = await handler(
       makeRequest(
@@ -556,7 +592,11 @@ describe("POST /api/create-order — order number sequencing", () => {
       .mockResolvedValueOnce({
         ticketTypes: [baseTicketType()],
       })
-      // Retry: re-fetch concert sequence
+      // First attempt: fresh seq read
+      .mockResolvedValueOnce({
+        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
+      })
+      // Retry: fresh seq read
       .mockResolvedValueOnce({
         concerts: [{ id: CONCERT_ID, lastOrderSeq: 1 }],
       });
@@ -571,7 +611,7 @@ describe("POST /api/create-order — order number sequencing", () => {
     expect(mockTransact).toHaveBeenCalledTimes(2);
   });
 
-  it("fails after MAX_RETRIES (3) transact failures", async () => {
+  it("fails after MAX_RETRIES (5) transact failures", async () => {
     mockQuery
       .mockResolvedValueOnce({
         ticketTypes: [baseTicketType()],
@@ -584,13 +624,12 @@ describe("POST /api/create-order — order number sequencing", () => {
 
     const res = await handler(makeRequest(validBody()));
     expect(res.status).toBe(500);
-    expect(mockTransact).toHaveBeenCalledTimes(3);
+    expect(mockTransact).toHaveBeenCalledTimes(5);
   });
 
-  it("KNOWN LIMITATION: concurrent requests may read same lastOrderSeq → duplicate order numbers", async () => {
-    // This is a known limitation of the eventual-consistency model.
-    // The overbooking post-write check will catch the more critical issue.
-    // Duplicate order numbers are cosmetic — the order IDs are still unique UUIDs.
+  it("concurrent requests both succeed when plenty of availability (unique constraint prevents duplicates in prod)", async () => {
+    // With .unique() on orderNumber in schema, duplicate order numbers are rejected by InstantDB.
+    // In this mock environment, transact always succeeds — the unique constraint is DB-level.
     const staleData = {
       ticketTypes: [
         baseTicketType({
@@ -608,6 +647,7 @@ describe("POST /api/create-order — order number sequencing", () => {
           ],
         }),
       ],
+      concerts: [{ id: CONCERT_ID, lastOrderSeq: 10 }],
     };
 
     mockQuery.mockResolvedValue(staleData);
@@ -617,7 +657,7 @@ describe("POST /api/create-order — order number sequencing", () => {
       handler(makeRequest(validBody())),
     ]);
 
-    // Both succeed — duplicate order numbers are a cosmetic issue, not a data integrity issue
+    // Both succeed in mock (unique constraint enforced at DB level, not in mock)
     expect(res1.status).toBe(200);
     expect(res2.status).toBe(200);
   });
@@ -636,19 +676,24 @@ describe("POST /api/create-order — reservation + queue cleanup", () => {
 
   it("deletes reservation on successful order", async () => {
     const reservationId = "e0000000-0000-4000-8000-000000000001";
-    mockQuery.mockResolvedValueOnce({
-      ticketTypes: [baseTicketType()],
-    });
+    mockQuery
+      .mockResolvedValueOnce({
+        ticketTypes: [baseTicketType()],
+      })
+      .mockResolvedValueOnce({
+        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
+      });
 
     const res = await handler(
       makeRequest(validBody({ reservationId })),
     );
     expect(res.status).toBe(200);
 
-    // Check that a reservation delete was included in the transaction
-    const txArgs = mockTransact.mock.calls[0][0];
-    const deleteOp = Array.isArray(txArgs)
-      ? txArgs.find(
+    // Cleanup is now in a separate transaction (2nd transact call)
+    expect(mockTransact).toHaveBeenCalledTimes(2);
+    const cleanupTxArgs = mockTransact.mock.calls[1][0];
+    const deleteOp = Array.isArray(cleanupTxArgs)
+      ? cleanupTxArgs.find(
           (op: { __type: string; entity: string; id: string }) =>
             op.__type === "delete" && op.entity === "reservations",
         )
@@ -658,19 +703,24 @@ describe("POST /api/create-order — reservation + queue cleanup", () => {
 
   it("marks queueEntry as completed when queueToken provided", async () => {
     const queueToken = "f0000000-0000-4000-8000-000000000001";
-    mockQuery.mockResolvedValueOnce({
-      ticketTypes: [baseTicketType()],
-    });
+    mockQuery
+      .mockResolvedValueOnce({
+        ticketTypes: [baseTicketType()],
+      })
+      .mockResolvedValueOnce({
+        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
+      });
 
     const res = await handler(
       makeRequest(validBody({ queueToken })),
     );
     expect(res.status).toBe(200);
 
-    // Check that a queueEntry update was included
-    const txArgs = mockTransact.mock.calls[0][0];
-    const updateOp = Array.isArray(txArgs)
-      ? txArgs.find(
+    // Cleanup is now in a separate transaction (2nd transact call)
+    expect(mockTransact).toHaveBeenCalledTimes(2);
+    const cleanupTxArgs = mockTransact.mock.calls[1][0];
+    const updateOp = Array.isArray(cleanupTxArgs)
+      ? cleanupTxArgs.find(
           (op: { __type: string; entity: string; id: string; data?: { status: string } }) =>
             op.__type === "update" &&
             op.entity === "queueEntries" &&

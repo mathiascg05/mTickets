@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <defs>
+    <!-- Shield/badge shape with ticket notch -->
+    <clipPath id="shieldClip">
+      <path d="
+        M 40 2
+        Q 72 2, 74 12
+        V 48
+        Q 74 70, 40 78
+        Q 6 70, 6 48
+        V 12
+        Q 8 2, 40 2
+        Z
+      "/>
+    </clipPath>
+  </defs>
+
+  <!-- Shield body -->
+  <path d="
+    M 40 2
+    Q 72 2, 74 12
+    V 48
+    Q 74 70, 40 78
+    Q 6 70, 6 48
+    V 12
+    Q 8 2, 40 2
+    Z
+  " fill="#1a2b4a"/>
+
+  <!-- Inner shield border -->
+  <path d="
+    M 40 7
+    Q 67 7, 69 15
+    V 47
+    Q 69 66, 40 73
+    Q 11 66, 11 47
+    V 15
+    Q 13 7, 40 7
+    Z
+  " fill="none" stroke="#2c4a7c" stroke-width="1.5"/>
+
+  <!-- Ticket notch cut on left side -->
+  <circle cx="6" cy="34" r="7" fill="white"/>
+  <!-- Ticket notch cut on right side -->
+  <circle cx="74" cy="34" r="7" fill="white"/>
+
+  <!-- Bold "m" lettermark -->
+  <text x="40" y="56" font-family="'Geist Sans', 'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="38" font-weight="800" fill="white" text-anchor="middle" letter-spacing="-1">m</text>
+</svg>

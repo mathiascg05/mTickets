@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" width="300" height="200">
+
+  <!-- ===== MONITOR ===== -->
+  <!-- Monitor body -->
+  <rect x="60" y="10" width="130" height="100" rx="8" ry="8" fill="none" stroke="#2c4a7c" stroke-width="6"/>
+  <!-- Monitor screen inner -->
+  <rect x="68" y="18" width="114" height="76" rx="3" ry="3" fill="#1a2b4a" opacity="0.15"/>
+  <!-- Monitor stand -->
+  <path d="M 110 110 L 105 128 H 145 L 140 110" fill="none" stroke="#2c4a7c" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Monitor base -->
+  <line x1="95" y1="128" x2="155" y2="128" stroke="#2c4a7c" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- ===== BACK TICKET (rotated, behind) ===== -->
+  <g transform="translate(148, 18) rotate(18)">
+    <!-- Ticket body -->
+    <rect x="0" y="0" width="50" height="80" rx="4" ry="4" fill="#2c4a7c"/>
+    <!-- Top scallop notches -->
+    <circle cx="0" cy="16" r="5" fill="white"/>
+    <circle cx="50" cy="16" r="5" fill="white"/>
+    <!-- Bottom scallop notches -->
+    <circle cx="0" cy="64" r="5" fill="white"/>
+    <circle cx="50" cy="64" r="5" fill="white"/>
+    <!-- Dashed perforation lines -->
+    <line x1="8" y1="16" x2="42" y2="16" stroke="white" stroke-opacity="0.35" stroke-width="1" stroke-dasharray="3,3"/>
+    <line x1="8" y1="64" x2="42" y2="64" stroke="white" stroke-opacity="0.35" stroke-width="1" stroke-dasharray="3,3"/>
+    <!-- Mini QR code pattern -->
+    <rect x="14" y="28" width="6" height="6" rx="1" fill="white" opacity="0.4"/>
+    <rect x="22" y="28" width="6" height="6" rx="1" fill="white" opacity="0.4"/>
+    <rect x="30" y="28" width="6" height="6" rx="1" fill="white" opacity="0.3"/>
+    <rect x="14" y="36" width="6" height="6" rx="1" fill="white" opacity="0.3"/>
+    <rect x="22" y="36" width="6" height="6" rx="1" fill="white" opacity="0.25"/>
+    <rect x="30" y="36" width="6" height="6" rx="1" fill="white" opacity="0.4"/>
+    <rect x="14" y="44" width="6" height="6" rx="1" fill="white" opacity="0.4"/>
+    <rect x="22" y="44" width="6" height="6" rx="1" fill="white" opacity="0.35"/>
+    <rect x="30" y="44" width="6" height="6" rx="1" fill="white" opacity="0.4"/>
+  </g>
+
+  <!-- ===== FRONT TICKET (main, bright blue) ===== -->
+  <g transform="translate(95, 4)">
+    <!-- Ticket body -->
+    <rect x="0" y="0" width="56" height="90" rx="5" ry="5" fill="#3b5998"/>
+    <!-- Top scallop notches -->
+    <circle cx="0" cy="18" r="6" fill="white"/>
+    <circle cx="56" cy="18" r="6" fill="white"/>
+    <!-- Bottom scallop notches -->
+    <circle cx="0" cy="72" r="6" fill="white"/>
+    <circle cx="56" cy="72" r="6" fill="white"/>
+    <!-- Dashed perforation lines -->
+    <line x1="8" y1="18" x2="48" y2="18" stroke="white" stroke-opacity="0.4" stroke-width="1.2" stroke-dasharray="3,3"/>
+    <line x1="8" y1="72" x2="48" y2="72" stroke="white" stroke-opacity="0.4" stroke-width="1.2" stroke-dasharray="3,3"/>
+
+    <!-- QR code pattern inside front ticket -->
+    <!-- Top-left QR finder pattern -->
+    <rect x="12" y="24" width="12" height="12" rx="1" fill="white" opacity="0.9"/>
+    <rect x="14" y="26" width="8" height="8" rx="0.5" fill="#3b5998"/>
+    <rect x="16" y="28" width="4" height="4" rx="0.5" fill="white" opacity="0.9"/>
+    <!-- Top-right QR finder pattern -->
+    <rect x="32" y="24" width="12" height="12" rx="1" fill="white" opacity="0.9"/>
+    <rect x="34" y="26" width="8" height="8" rx="0.5" fill="#3b5998"/>
+    <rect x="36" y="28" width="4" height="4" rx="0.5" fill="white" opacity="0.9"/>
+    <!-- Bottom-left QR finder pattern -->
+    <rect x="12" y="46" width="12" height="12" rx="1" fill="white" opacity="0.9"/>
+    <rect x="14" y="48" width="8" height="8" rx="0.5" fill="#3b5998"/>
+    <rect x="16" y="50" width="4" height="4" rx="0.5" fill="white" opacity="0.9"/>
+    <!-- QR data dots (scattered between finder patterns) -->
+    <rect x="27" y="39" width="3" height="3" fill="white" opacity="0.7"/>
+    <rect x="32" y="39" width="3" height="3" fill="white" opacity="0.5"/>
+    <rect x="37" y="39" width="3" height="3" fill="white" opacity="0.7"/>
+    <rect x="27" y="44" width="3" height="3" fill="white" opacity="0.5"/>
+    <rect x="32" y="44" width="3" height="3" fill="white" opacity="0.7"/>
+    <rect x="42" y="44" width="3" height="3" fill="white" opacity="0.5"/>
+    <rect x="27" y="49" width="3" height="3" fill="white" opacity="0.6"/>
+    <rect x="32" y="49" width="3" height="3" fill="white" opacity="0.4"/>
+    <rect x="37" y="49" width="3" height="3" fill="white" opacity="0.6"/>
+    <rect x="42" y="49" width="3" height="3" fill="white" opacity="0.5"/>
+    <rect x="32" y="54" width="3" height="3" fill="white" opacity="0.5"/>
+    <rect x="37" y="54" width="3" height="3" fill="white" opacity="0.7"/>
+    <rect x="42" y="54" width="3" height="3" fill="white" opacity="0.4"/>
+  </g>
+
+  <!-- ===== SPARKLE ACCENTS ===== -->
+  <!-- Small sparkle dots around tickets -->
+  <circle cx="170" cy="12" r="2" fill="#3b5998" opacity="0.6"/>
+  <circle cx="180" cy="22" r="1.5" fill="#3b5998" opacity="0.4"/>
+  <circle cx="175" cy="35" r="1.5" fill="#2c4a7c" opacity="0.5"/>
+
+  <!-- ===== TEXT: maTickets ===== -->
+  <text x="125" y="168" font-family="'Geist Sans', 'Inter', 'Helvetica Neue', Arial, sans-serif" text-anchor="middle" font-size="38" letter-spacing="-1.5">
+    <tspan font-weight="800" fill="#1a2b4a">ma</tspan><tspan font-weight="400" fill="#3b5998">Tickets</tspan>
+  </text>
+
+</svg>

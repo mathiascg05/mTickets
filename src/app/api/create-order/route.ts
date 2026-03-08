@@ -35,7 +35,7 @@ type CreateOrderBody = {
   queueToken?: string;
 };
 
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 5;
 
 export async function POST(req: NextRequest) {
   try {
@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
 
     // Generate order numbers using atomic counter with retry
     const prefix = generatePrefix(concert.name);
-    let currentSeq = concert.lastOrderSeq || 0;
+    let currentSeq = 0;
 
     const orderIds: string[] = [];
     const orderNumbers: string[] = [];
@@ -241,13 +241,11 @@ export async function POST(req: NextRequest) {
     }));
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      // On retry, re-fetch the current sequence
-      if (attempt > 0) {
-        const { concerts } = await adminDb.query({
-          concerts: { $: { where: { id: concert.id } } },
-        });
-        currentSeq = concerts[0]?.lastOrderSeq || 0;
-      }
+      // Always read fresh lastOrderSeq to avoid collisions
+      const { concerts: freshConcerts } = await adminDb.query({
+        concerts: { $: { where: { id: concert.id } } },
+      });
+      currentSeq = freshConcerts[0]?.lastOrderSeq || 0;
 
       orderIds.length = 0;
       orderNumbers.length = 0;
@@ -282,21 +280,13 @@ export async function POST(req: NextRequest) {
           .link({ ticketType: ticketTypeId });
       });
 
-      // Update concert's lastOrderSeq + delete reservation in one transaction
+      // Update concert's lastOrderSeq
       const newSeq = currentSeq + qty;
       const seqTxn = adminDb.tx.concerts[concert.id].update({
         lastOrderSeq: newSeq,
       });
 
-      const cleanupTxns = [
-        ...(reservationId
-          ? [adminDb.tx.reservations[reservationId].delete()]
-          : []),
-        ...(queueToken
-          ? [adminDb.tx.queueEntries[queueToken].update({ status: "completed" })]
-          : []),
-      ];
-      const allTxns = [...orderTxns, seqTxn, ...cleanupTxns];
+      const allTxns = [...orderTxns, seqTxn];
 
       try {
         await adminDb.transact(allTxns);
@@ -310,6 +300,24 @@ export async function POST(req: NextRequest) {
           );
         }
         console.warn(`[create-order] Transaction attempt ${attempt + 1} failed, retrying...`);
+        await new Promise((r) => setTimeout(r, 50 + Math.random() * 150));
+      }
+    }
+
+    // Cleanup reservation and queue entry after successful order creation
+    const cleanupTxns = [
+      ...(reservationId
+        ? [adminDb.tx.reservations[reservationId].delete()]
+        : []),
+      ...(queueToken
+        ? [adminDb.tx.queueEntries[queueToken].update({ status: "completed" })]
+        : []),
+    ];
+    if (cleanupTxns.length > 0) {
+      try {
+        await adminDb.transact(cleanupTxns);
+      } catch (err) {
+        console.error("[create-order] Cleanup transaction failed:", err);
       }
     }
 
