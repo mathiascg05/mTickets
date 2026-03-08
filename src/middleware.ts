@@ -4,11 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 const RATE_LIMITS: Record<string, { max: number; windowMs: number }> = {
-  "/api/create-order": { max: 10, windowMs: 60_000 },
-  "/api/create-reservation": { max: 5, windowMs: 60_000 },
+  "/api/create-order": { max: 500, windowMs: 60_000 },
+  "/api/create-reservation": { max: 500, windowMs: 60_000 },
   "/api/verify-ticket-email": { max: 10, windowMs: 60_000 },
-  "/api/join-queue": { max: 10, windowMs: 60_000 },
-  "/api/queue-heartbeat": { max: 60, windowMs: 60_000 },
+  "/api/join-queue": { max: 500, windowMs: 60_000 },
+  "/api/queue-heartbeat": { max: 3000, windowMs: 60_000 },
 };
 
 function getClientIp(req: NextRequest): string {
