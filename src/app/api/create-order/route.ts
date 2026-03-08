@@ -35,7 +35,7 @@ type CreateOrderBody = {
   queueToken?: string;
 };
 
-const MAX_RETRIES = 5;
+const MAX_RETRIES = 10;
 
 export async function POST(req: NextRequest) {
   try {
@@ -300,7 +300,8 @@ export async function POST(req: NextRequest) {
           );
         }
         console.warn(`[create-order] Transaction attempt ${attempt + 1} failed, retrying...`);
-        await new Promise((r) => setTimeout(r, 50 + Math.random() * 150));
+        const backoff = Math.min(50 * Math.pow(2, attempt), 2000) + Math.random() * 200;
+        await new Promise((r) => setTimeout(r, backoff));
       }
     }
 

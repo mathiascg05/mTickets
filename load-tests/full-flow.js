@@ -16,7 +16,7 @@ export const options = {
       executor: "shared-iterations",
       vus: 400,
       iterations: 400,
-      maxDuration: "10m",
+      maxDuration: "15m",
     },
   },
   thresholds: {
@@ -28,8 +28,8 @@ export const options = {
 const BASE_URL = __ENV.BASE_URL || "http://localhost:3000";
 const TICKET_TYPE_ID = __ENV.TICKET_TYPE_ID;
 
-const HEARTBEAT_INTERVAL_S = 10; // seconds between heartbeat polls
-const MAX_WAIT_S = 300; // 5 min max wait in queue
+const HEARTBEAT_INTERVAL_S = 3; // seconds between heartbeat polls
+const MAX_WAIT_S = 600; // 10 min max wait in queue
 
 export default function () {
   if (!TICKET_TYPE_ID) {

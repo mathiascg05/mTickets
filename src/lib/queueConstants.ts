@@ -1,5 +1,5 @@
 /** Max users allowed in the buy flow simultaneously */
-export const MAX_CONCURRENT = 50;
+export const MAX_CONCURRENT = 100;
 
 /** Active buyers threshold to activate the queue */
 export const QUEUE_THRESHOLD = 3;
