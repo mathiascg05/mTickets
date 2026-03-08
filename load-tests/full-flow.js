@@ -37,7 +37,10 @@ export default function () {
   }
 
   const sessionId = `k6-vu${__VU}-iter${__ITER}-${Date.now()}`;
-  const headers = { "Content-Type": "application/json" };
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Forwarded-For": `10.0.${Math.floor(__VU / 256)}.${__VU % 256}`,
+  };
 
   // ── Step 1: Join queue ────────────────────────────────────────────
   const joinRes = http.post(
