@@ -303,7 +303,7 @@ export async function POST(req: NextRequest) {
             try { await adminDb.transact(failCleanup); } catch { /* best effort */ }
           }
           return NextResponse.json(
-            { error: "Failed to create order. Please try again.", debug: String(err) },
+            { error: "Failed to create order. Please try again." },
             { status: 500 },
           );
         }
@@ -452,7 +452,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[create-order] Unexpected error:", err);
     return NextResponse.json(
-      { error: "Internal server error", debug: String(err) },
+      { error: "Internal server error" },
       { status: 500 },
     );
   }
