@@ -5,7 +5,7 @@ import { getAvailability, getTodayString } from "@/lib/phases";
 import { isValidUUID, isValidQty } from "@/lib/validation";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
 
-const RESERVATION_DURATION = 10 * 60 * 1000; // 10 minutes
+const RESERVATION_DURATION = 15 * 60 * 1000; // 15 minutes
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
     if (!isValidQty(qty)) {
       return NextResponse.json(
-        { error: "qty must be an integer between 1 and 10" },
+        { error: "qty must be an integer between 1 and 5" },
         { status: 400 },
       );
     }

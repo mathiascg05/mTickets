@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     }
     if (!isValidQty(qty)) {
       return NextResponse.json(
-        { error: "qty must be an integer between 1 and 10" },
+        { error: "qty must be an integer between 1 and 5" },
         { status: 400 },
       );
     }
@@ -98,6 +98,24 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+    if (paymentProofPath && !/^payment-proofs\/\d+-[a-zA-Z0-9._-]+$/.test(paymentProofPath)) {
+      return NextResponse.json(
+        { error: "Invalid file path" },
+        { status: 400 },
+      );
+    }
+    if (referenceNumber && (typeof referenceNumber !== "string" || referenceNumber.length > 100)) {
+      return NextResponse.json(
+        { error: "Invalid reference number" },
+        { status: 400 },
+      );
+    }
+    if (couponCode && (typeof couponCode !== "string" || couponCode.length > 50 || !/^[A-Z0-9_-]+$/i.test(couponCode))) {
+      return NextResponse.json(
+        { error: "Invalid coupon code format" },
+        { status: 400 },
+      );
+    }
 
     // Query fresh data server-side
     const { ticketTypes } = await adminDb.query({
@@ -113,6 +131,7 @@ export async function POST(req: NextRequest) {
           $: { order: { sortOrder: "asc" } },
         },
         reservations: {},
+        queueEntries: {},
       },
     });
 
@@ -163,10 +182,27 @@ export async function POST(req: NextRequest) {
       expiresAt: number;
       phaseId?: string;
     }[];
+    const allQueueEntries = (ticketType.queueEntries || []) as {
+      id: string;
+      status: string;
+      expiresAt: number;
+    }[];
+
+    // Validate reservationId belongs to this ticketType
+    let validatedReservationId = reservationId;
+    if (reservationId && !allReservations.some((r) => r.id === reservationId)) {
+      validatedReservationId = undefined;
+    }
+
+    // Validate queueToken belongs to this ticketType
+    let validatedQueueToken = queueToken;
+    if (queueToken && !allQueueEntries.some((e) => e.id === queueToken)) {
+      validatedQueueToken = undefined;
+    }
 
     // Filter out expired reservations and the buyer's own reservation
     const activeReservations = allReservations.filter(
-      (r) => r.expiresAt > Date.now() && r.id !== reservationId,
+      (r) => r.expiresAt > Date.now() && r.id !== validatedReservationId,
     );
 
     const today = getTodayString();
@@ -296,8 +332,8 @@ export async function POST(req: NextRequest) {
           console.error("[create-order] Transaction failed after retries:", err);
           // Cleanup: free capacity slot so other users can proceed
           const failCleanup = [
-            ...(reservationId ? [adminDb.tx.reservations[reservationId].delete()] : []),
-            ...(queueToken ? [adminDb.tx.queueEntries[queueToken].update({ status: "expired" })] : []),
+            ...(validatedReservationId ? [adminDb.tx.reservations[validatedReservationId].delete()] : []),
+            ...(validatedQueueToken ? [adminDb.tx.queueEntries[validatedQueueToken].update({ status: "expired" })] : []),
           ];
           if (failCleanup.length > 0) {
             try { await adminDb.transact(failCleanup); } catch { /* best effort */ }
@@ -314,11 +350,11 @@ export async function POST(req: NextRequest) {
 
     // Cleanup reservation and queue entry after successful order creation
     const cleanupTxns = [
-      ...(reservationId
-        ? [adminDb.tx.reservations[reservationId].delete()]
+      ...(validatedReservationId
+        ? [adminDb.tx.reservations[validatedReservationId].delete()]
         : []),
-      ...(queueToken
-        ? [adminDb.tx.queueEntries[queueToken].update({ status: "completed" })]
+      ...(validatedQueueToken
+        ? [adminDb.tx.queueEntries[validatedQueueToken].update({ status: "completed" })]
         : []),
     ];
     if (cleanupTxns.length > 0) {
@@ -381,8 +417,8 @@ export async function POST(req: NextRequest) {
           const rollbackTxns = [
             ...orderIds.map((oid) => adminDb.tx.orders[oid].delete()),
             adminDb.tx.concerts[concert.id].update({ lastOrderSeq: currentSeq }),
-            ...(queueToken
-              ? [adminDb.tx.queueEntries[queueToken].update({ status: "admitted" })]
+            ...(validatedQueueToken
+              ? [adminDb.tx.queueEntries[validatedQueueToken].update({ status: "admitted" })]
               : []),
           ];
           await adminDb.transact(rollbackTxns);

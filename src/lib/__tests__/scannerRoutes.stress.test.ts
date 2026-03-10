@@ -75,6 +75,17 @@ describe("POST /api/mark-visited", () => {
   });
 
   it("marks visited with valid admin email", async () => {
+    mockQuery.mockResolvedValueOnce({
+      orders: [
+        {
+          id: VALID_ORDER_ID,
+          status: "approved",
+          visited: false,
+          ticketType: { concert: { id: CONCERT_ID } },
+        },
+      ],
+    });
+
     const res = await handler(
       makeRequest("/api/mark-visited", {
         orderId: VALID_ORDER_ID,
@@ -93,6 +104,8 @@ describe("POST /api/mark-visited", () => {
       orders: [
         {
           id: VALID_ORDER_ID,
+          status: "approved",
+          visited: false,
           ticketType: { concert: { id: CONCERT_ID } },
         },
       ],
@@ -156,7 +169,17 @@ describe("POST /api/mark-visited", () => {
   });
 
   it("admin email bypasses concert scope restriction", async () => {
-    // Admin doesn't trigger the scopedConcertId query
+    mockQuery.mockResolvedValueOnce({
+      orders: [
+        {
+          id: VALID_ORDER_ID,
+          status: "approved",
+          visited: false,
+          ticketType: { concert: { id: OTHER_CONCERT_ID } },
+        },
+      ],
+    });
+
     const res = await handler(
       makeRequest("/api/mark-visited", {
         orderId: VALID_ORDER_ID,
@@ -164,8 +187,8 @@ describe("POST /api/mark-visited", () => {
       }),
     );
     expect(res.status).toBe(200);
-    // No query needed for admin path — only transact
-    expect(mockQuery).not.toHaveBeenCalled();
+    // Admin queries the order (for visited/status check) but skips concert scope check
+    expect(mockQuery).toHaveBeenCalledTimes(1);
   });
 
   it("rejects non-admin email → 401", async () => {
@@ -178,7 +201,30 @@ describe("POST /api/mark-visited", () => {
     expect(res.status).toBe(401);
   });
 
-  it("double mark-visited is idempotent (both succeed)", async () => {
+  it("double mark-visited rejects second scan (409)", async () => {
+    // First scan: order not yet visited
+    mockQuery.mockResolvedValueOnce({
+      orders: [
+        {
+          id: VALID_ORDER_ID,
+          status: "approved",
+          visited: false,
+          ticketType: { concert: { id: CONCERT_ID } },
+        },
+      ],
+    });
+    // Second scan: order already visited
+    mockQuery.mockResolvedValueOnce({
+      orders: [
+        {
+          id: VALID_ORDER_ID,
+          status: "approved",
+          visited: true,
+          ticketType: { concert: { id: CONCERT_ID } },
+        },
+      ],
+    });
+
     const req1 = makeRequest("/api/mark-visited", {
       orderId: VALID_ORDER_ID,
       userEmail: "admin@example.com",
@@ -188,11 +234,11 @@ describe("POST /api/mark-visited", () => {
       userEmail: "admin@example.com",
     });
 
-    const [res1, res2] = await Promise.all([handler(req1), handler(req2)]);
+    const res1 = await handler(req1);
+    const res2 = await handler(req2);
     expect(res1.status).toBe(200);
-    expect(res2.status).toBe(200);
-    // Both set visited=true — idempotent
-    expect(mockTransact).toHaveBeenCalledTimes(2);
+    expect(res2.status).toBe(409);
+    expect(mockTransact).toHaveBeenCalledTimes(1);
   });
 
   it("returns 404 for non-existent order (scanner path)", async () => {

@@ -30,6 +30,10 @@ const rules = {
       delete: "isAdmin",
     },
     bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+    fields: {
+      paymentProofPath: "isAdmin",
+      proofReferenceNumber: "isAdmin",
+    },
   },
   paymentMethods: {
     allow: {
@@ -97,7 +101,7 @@ const rules = {
   $files: {
     allow: {
       view: "auth.email == 'mcarstensg@gmail.com'",
-      create: "true",
+      create: "data.path.startsWith('payment-proofs/')",
     },
   },
 } satisfies InstantRules;

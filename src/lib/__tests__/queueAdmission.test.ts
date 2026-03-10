@@ -169,7 +169,7 @@ describe("processQueueAdmissions", () => {
 
   it("respects MAX_CONCURRENT slot limit with active reservations", async () => {
     const now = Date.now();
-    const waitingEntries = Array.from({ length: 5 }, (_, i) =>
+    const waitingEntries = Array.from({ length: MAX_CONCURRENT }, (_, i) =>
       makeEntry({
         id: `wait-${i}`,
         status: "waiting",
@@ -207,8 +207,8 @@ describe("processQueueAdmissions", () => {
         expiresAt: now + 300_000,
       }),
     );
-    // 3 waiting
-    const waitingEntries = Array.from({ length: 3 }, (_, i) =>
+    // Enough waiting entries to exceed available slots
+    const waitingEntries = Array.from({ length: MAX_CONCURRENT }, (_, i) =>
       makeEntry({
         id: `wait-${i}`,
         status: "waiting",
@@ -231,8 +231,8 @@ describe("processQueueAdmissions", () => {
 
     const result = await processQueueAdmissions("tt-1");
     // activeBuyers = 1 reservation + 2 admitted = 3
-    // availableSlots = MAX_CONCURRENT(5) - 3 = 2
-    expect(result!.admitted).toBe(2);
+    // availableSlots = MAX_CONCURRENT - 3
+    expect(result!.admitted).toBe(MAX_CONCURRENT - 3);
   });
 
   it("admits zero when no slots available", async () => {

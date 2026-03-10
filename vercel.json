@@ -2,7 +2,11 @@
   "crons": [
     {
       "path": "/api/cron/process-queue",
-      "schedule": "0 0 * * *"
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-reservations",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

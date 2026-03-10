@@ -273,7 +273,7 @@ function CreateOrderModal({
     try {
       let filePath = "admin-created";
       if (proofFile) {
-        const ext = proofFile.name.split(".").pop();
+        const ext = proofFile.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") || "jpg";
         const storagePath = `payment-proofs/${Date.now()}-admin.${ext}`;
         await db.storage.upload(storagePath, proofFile);
         filePath = storagePath;

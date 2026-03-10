@@ -7,7 +7,7 @@ import { id } from "@instantdb/react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-const RESERVATION_DURATION = 25 * 60 * 1000; // 25 minutes
+const RESERVATION_DURATION = 15 * 60 * 1000; // 15 minutes
 const STORAGE_KEY_PREFIX = "reservation_";
 
 type Attendee = {
@@ -67,6 +67,7 @@ export default function BuyPage() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
   const [selectedPromoter, setSelectedPromoter] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const [referenceNumber, setReferenceNumber] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -415,7 +416,8 @@ export default function BuyPage() {
     try {
       let filePath = "";
       if (file) {
-        filePath = `payment-proofs/${Date.now()}-${file.name}`;
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        filePath = `payment-proofs/${Date.now()}-${safeName}`;
         await db.storage.upload(filePath, file);
       }
 
@@ -766,10 +768,33 @@ export default function BuyPage() {
                     </label>
                     <input
                       type="file"
-                      accept="image/*"
-                      onChange={(e) => setFile(e.target.files?.[0] || null)}
+                      accept="image/jpeg,image/png,image/webp,image/heic"
+                      onChange={(e) => {
+                        const selected = e.target.files?.[0] || null;
+                        if (selected) {
+                          const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+                          const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"];
+                          if (selected.size > MAX_SIZE) {
+                            setFileError("File must be under 5MB.");
+                            setFile(null);
+                            e.target.value = "";
+                            return;
+                          }
+                          if (!ALLOWED_TYPES.includes(selected.type)) {
+                            setFileError("Only JPEG, PNG, WebP, and HEIC images are allowed.");
+                            setFile(null);
+                            e.target.value = "";
+                            return;
+                          }
+                        }
+                        setFileError(null);
+                        setFile(selected);
+                      }}
                       className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-accent/20 file:text-accent-light file:font-medium file:cursor-pointer"
                     />
+                    {fileError && (
+                      <p className="text-danger text-sm mt-1.5">{fileError}</p>
+                    )}
                   </div>
                 )}
                 {selectedPm.requireReferenceNumber && (
@@ -812,7 +837,7 @@ export default function BuyPage() {
 
             <button
               type="submit"
-              disabled={submitting || timerExpired}
+              disabled={submitting || timerExpired || !!fileError}
               className="w-full py-3 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-semibold transition-colors shadow-lg shadow-accent/20"
             >
               {submitting ? "Submitting..." : "Submit Order"}

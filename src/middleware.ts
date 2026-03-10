@@ -9,6 +9,10 @@ const RATE_LIMITS: Record<string, { max: number; windowMs: number }> = {
   "/api/verify-ticket-email": { max: 10, windowMs: 60_000 },
   "/api/join-queue": { max: 1000, windowMs: 60_000 },
   "/api/queue-heartbeat": { max: 15000, windowMs: 60_000 },
+  "/api/verify-scanner-pin": { max: 5, windowMs: 60_000 },
+  "/api/send-ticket-email": { max: 10, windowMs: 60_000 },
+  "/api/send-confirmation-email": { max: 10, windowMs: 60_000 },
+  "/api/exchange-rates": { max: 30, windowMs: 60_000 },
 };
 
 function getClientIp(req: NextRequest): string {
@@ -65,5 +69,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/create-order", "/api/create-reservation", "/api/verify-ticket-email", "/api/join-queue", "/api/queue-heartbeat"],
+  matcher: ["/api/create-order", "/api/create-reservation", "/api/verify-ticket-email", "/api/join-queue", "/api/queue-heartbeat", "/api/verify-scanner-pin", "/api/send-ticket-email", "/api/send-confirmation-email", "/api/exchange-rates"],
 };

@@ -28,8 +28,10 @@ export default function QueuePage() {
   const [queueEntryId, setQueueEntryId] = useState<string | null>(null);
   const [joining, setJoining] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [heartbeatWarning, setHeartbeatWarning] = useState(false);
   const joinedRef = useRef(false);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const heartbeatFailuresRef = useRef(0);
 
   // Query ticketType info for display
   const { data: ticketData } = db.useQuery({
@@ -153,13 +155,21 @@ export default function QueuePage() {
 
     const sendHeartbeat = async () => {
       try {
-        await fetch("/api/queue-heartbeat", {
+        const res = await fetch("/api/queue-heartbeat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ queueEntryId }),
         });
+        if (res.ok) {
+          heartbeatFailuresRef.current = 0;
+          setHeartbeatWarning(false);
+        } else {
+          heartbeatFailuresRef.current++;
+          if (heartbeatFailuresRef.current >= 3) setHeartbeatWarning(true);
+        }
       } catch {
-        // Heartbeat failure is non-fatal
+        heartbeatFailuresRef.current++;
+        if (heartbeatFailuresRef.current >= 3) setHeartbeatWarning(true);
       }
     };
 
@@ -280,6 +290,13 @@ export default function QueuePage() {
                 >
                   Rejoin Queue
                 </button>
+              </div>
+            )}
+
+            {/* Heartbeat warning */}
+            {heartbeatWarning && (
+              <div className="bg-warning/10 border border-warning/30 rounded-xl px-4 py-3 mb-4 text-sm text-warning font-medium">
+                Connection issues — your queue position may be lost.
               </div>
             )}
 

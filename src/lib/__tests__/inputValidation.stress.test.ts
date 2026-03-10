@@ -114,6 +114,7 @@ function baseTicketType() {
     orders: [],
     phases: [],
     reservations: [],
+    queueEntries: [],
   };
 }
 
@@ -437,7 +438,7 @@ describe("POST /api/create-order — input validation", () => {
           reservationId,
           purchaseGroupId,
           referenceNumber: "REF-123",
-          paymentProofPath: "/uploads/proof.jpg",
+          paymentProofPath: "payment-proofs/1234-proof.jpg",
           queueToken: "f0000000-0000-4000-8000-000000000001",
         }),
       );

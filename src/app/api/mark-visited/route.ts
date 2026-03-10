@@ -27,22 +27,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Fetch order — needed for both scope check and visited/status guard
+    const { orders } = await adminDb.query({
+      orders: {
+        $: { where: { id: orderId } },
+        ticketType: { concert: {} },
+      },
+    });
+    const order = orders[0] as { id: string; visited?: boolean; status?: string; ticketType?: { concert?: { id: string } } } | undefined;
+    if (!order) {
+      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
+
     // If scanner token, verify the order belongs to the scoped concert
     if (scopedConcertId) {
-      const { orders } = await adminDb.query({
-        orders: {
-          $: { where: { id: orderId } },
-          ticketType: { concert: {} },
-        },
-      });
-      const order = orders[0];
-      if (!order) {
-        return NextResponse.json({ error: "Order not found" }, { status: 404 });
-      }
       const concertId = order.ticketType?.concert?.id;
       if (concertId !== scopedConcertId) {
         return NextResponse.json({ error: "Wrong event" }, { status: 403 });
       }
+    }
+
+    // Double-scan guard
+    if (order.visited) {
+      return NextResponse.json({ error: "Already scanned" }, { status: 409 });
+    }
+    if (order.status !== "approved") {
+      return NextResponse.json({ error: "Ticket not approved" }, { status: 403 });
     }
 
     await adminDb.transact(

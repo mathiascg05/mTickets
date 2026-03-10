@@ -117,6 +117,7 @@ function baseTicketType(overrides: Record<string, unknown> = {}) {
     orders: [],
     phases: [],
     reservations: [],
+    queueEntries: [],
     ...overrides,
   };
 }
@@ -611,7 +612,7 @@ describe("POST /api/create-order — order number sequencing", () => {
     expect(mockTransact).toHaveBeenCalledTimes(2);
   });
 
-  it("fails after MAX_RETRIES (5) transact failures", async () => {
+  it("fails after MAX_RETRIES (10) transact failures", async () => {
     mockQuery
       .mockResolvedValueOnce({
         ticketTypes: [baseTicketType()],
@@ -624,7 +625,7 @@ describe("POST /api/create-order — order number sequencing", () => {
 
     const res = await handler(makeRequest(validBody()));
     expect(res.status).toBe(500);
-    expect(mockTransact).toHaveBeenCalledTimes(5);
+    expect(mockTransact).toHaveBeenCalledTimes(10);
   });
 
   it("concurrent requests both succeed when plenty of availability (unique constraint prevents duplicates in prod)", async () => {
@@ -678,7 +679,11 @@ describe("POST /api/create-order — reservation + queue cleanup", () => {
     const reservationId = "e0000000-0000-4000-8000-000000000001";
     mockQuery
       .mockResolvedValueOnce({
-        ticketTypes: [baseTicketType()],
+        ticketTypes: [baseTicketType({
+          reservations: [
+            { id: reservationId, quantity: 1, expiresAt: Date.now() + 600_000 },
+          ],
+        })],
       })
       .mockResolvedValueOnce({
         concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
@@ -705,7 +710,11 @@ describe("POST /api/create-order — reservation + queue cleanup", () => {
     const queueToken = "f0000000-0000-4000-8000-000000000001";
     mockQuery
       .mockResolvedValueOnce({
-        ticketTypes: [baseTicketType()],
+        ticketTypes: [baseTicketType({
+          queueEntries: [
+            { id: queueToken, status: "admitted", expiresAt: Date.now() + 600_000 },
+          ],
+        })],
       })
       .mockResolvedValueOnce({
         concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
