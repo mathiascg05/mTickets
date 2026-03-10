@@ -33,6 +33,7 @@ const rules = {
     fields: {
       paymentProofPath: "isAdmin",
       proofReferenceNumber: "isAdmin",
+      cedula: "isAdmin",
     },
   },
   paymentMethods: {

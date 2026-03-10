@@ -15,6 +15,17 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "maTickets - Event Ticketing",
   description: "Professional event ticketing and management platform",
+  openGraph: {
+    title: "maTickets",
+    description: "Professional event ticketing and management platform",
+    type: "website",
+    siteName: "maTickets",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "maTickets",
+    description: "Professional event ticketing and management platform",
+  },
 };
 
 export default function RootLayout({

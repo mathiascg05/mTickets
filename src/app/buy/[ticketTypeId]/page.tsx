@@ -823,9 +823,12 @@ export default function BuyPage() {
                 className="mt-1 accent-accent-light"
               />
               <span className="text-sm text-muted">
-                I accept the terms and conditions. I understand that my ticket
-                purchase is subject to approval and that no refunds will be
-                issued once the ticket is approved.
+                I accept the{" "}
+                <a href="/terms" target="_blank" className="underline text-accent-light hover:text-accent">terms and conditions</a>
+                {" "}and{" "}
+                <a href="/privacy" target="_blank" className="underline text-accent-light hover:text-accent">privacy policy</a>.
+                I understand that my ticket purchase is subject to approval
+                and that no refunds will be issued once the ticket is approved.
               </span>
             </label>
 
