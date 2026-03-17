@@ -102,7 +102,7 @@ const rules = {
   $files: {
     allow: {
       view: "auth.email == 'mcarstensg@gmail.com'",
-      create: "data.path.startsWith('payment-proofs/')",
+      create: "data.path.startsWith('payment-proofs/') || data.path.startsWith('event-assets/')",
     },
   },
 } satisfies InstantRules;

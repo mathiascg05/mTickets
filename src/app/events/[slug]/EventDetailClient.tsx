@@ -1,5 +1,6 @@
 "use client";
 
+import EventTheme from "@/components/EventTheme";
 import { db } from "@/lib/db";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import type { Phase } from "@/lib/phases";
@@ -64,18 +65,29 @@ export default function EventDetailClient() {
   }
 
   return (
+    <EventTheme concert={concert}>
     <div className="min-h-screen">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <span className="text-xl font-bold tracking-wide">ma<span className="text-white/60">Tickets</span></span>
+          {concert.logoUrl ? (
+            <img src={concert.logoUrl} alt={concert.name} className="h-8 w-auto object-contain" />
+          ) : (
+            <span className="text-xl font-bold tracking-wide">ma<span className="text-white/60">Tickets</span></span>
+          )}
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
         <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-lg">
-          <div className="h-48 bg-gradient-to-br from-accent-dark via-accent to-accent-light flex items-center justify-center relative">
-            <span className="text-7xl opacity-20 relative z-10">{"\uD83C\uDFB5"}</span>
-          </div>
+          {concert.flyerUrl ? (
+            <div className="h-64 sm:h-80 relative">
+              <img src={concert.flyerUrl} alt={concert.name} className="w-full h-full object-cover" />
+            </div>
+          ) : (
+            <div className="h-48 bg-gradient-to-br from-accent-dark via-accent to-accent-light flex items-center justify-center relative">
+              <span className="text-7xl opacity-20 relative z-10">{"\uD83C\uDFB5"}</span>
+            </div>
+          )}
 
           <div className="p-6 sm:p-8">
             <h1 className="text-3xl sm:text-4xl font-bold mb-4">
@@ -117,6 +129,7 @@ export default function EventDetailClient() {
         </div>
       </main>
     </div>
+    </EventTheme>
   );
 }
 

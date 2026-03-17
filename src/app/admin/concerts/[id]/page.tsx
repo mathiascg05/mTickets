@@ -4,8 +4,9 @@ import { db } from "@/lib/db";
 import { getActivePhase, getTodayString } from "@/lib/phases";
 import type { Phase } from "@/lib/phases";
 import { id } from "@instantdb/react";
+import { extractDominantColor } from "@/lib/colorExtract";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export default function AdminConcertEditPage() {
   const params = useParams();
@@ -66,6 +67,12 @@ export default function AdminConcertEditPage() {
           <ScannerPinSection
             concertId={concertId}
             currentPin={concert.scannerPin}
+          />
+          <BrandingSection
+            concertId={concertId}
+            flyerUrl={concert.flyerUrl}
+            logoUrl={concert.logoUrl}
+            primaryColor={concert.primaryColor}
           />
         </div>
         <TicketTypesSection
@@ -1618,6 +1625,198 @@ function ScannerPinSection({
           >
             Clear PIN
           </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BrandingSection({
+  concertId,
+  flyerUrl,
+  logoUrl,
+  primaryColor,
+}: {
+  concertId: string;
+  flyerUrl?: string;
+  logoUrl?: string;
+  primaryColor?: string;
+}) {
+  const [uploadingFlyer, setUploadingFlyer] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const flyerInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFlyerUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFlyer(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `event-assets/${concertId}/flyer.${ext}`;
+      await db.storage.upload(path, file);
+
+      // Query for the uploaded file to get its CDN URL
+      const { data: { $files } } = await db.queryOnce({ $files: { $: { where: { path } } } });
+      const uploadedUrl = $files[0]?.url;
+      if (!uploadedUrl) {
+        setUploadingFlyer(false);
+        return;
+      }
+
+      // Extract dominant color from the flyer
+      let color: string | undefined;
+      try {
+        color = await extractDominantColor(uploadedUrl);
+      } catch {
+        // Color extraction failed — proceed without it
+      }
+
+      await db.transact(
+        db.tx.concerts[concertId].update({
+          flyerUrl: uploadedUrl,
+          ...(color ? { primaryColor: color } : {}),
+        }),
+      );
+    } catch (err) {
+      console.error("Flyer upload failed:", err);
+    }
+    setUploadingFlyer(false);
+    if (flyerInputRef.current) flyerInputRef.current.value = "";
+  }
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const ext = file.name.split(".").pop() || "png";
+      const path = `event-assets/${concertId}/logo.${ext}`;
+      await db.storage.upload(path, file);
+
+      const { data: { $files } } = await db.queryOnce({ $files: { $: { where: { path } } } });
+      const uploadedUrl = $files[0]?.url;
+      if (!uploadedUrl) {
+        setUploadingLogo(false);
+        return;
+      }
+
+      await db.transact(
+        db.tx.concerts[concertId].update({ logoUrl: uploadedUrl }),
+      );
+    } catch (err) {
+      console.error("Logo upload failed:", err);
+    }
+    setUploadingLogo(false);
+    if (logoInputRef.current) logoInputRef.current.value = "";
+  }
+
+  function removeFlyer() {
+    db.transact(
+      db.tx.concerts[concertId].update({
+        flyerUrl: "",
+        primaryColor: "",
+      }),
+    );
+  }
+
+  function removeLogo() {
+    db.transact(
+      db.tx.concerts[concertId].update({ logoUrl: "" }),
+    );
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-2xl p-6">
+      <h2 className="text-lg font-bold mb-4">Branding</h2>
+
+      {/* Flyer */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium mb-2">Event Flyer</label>
+        {flyerUrl ? (
+          <div className="space-y-3">
+            <div className="relative rounded-xl overflow-hidden border border-border">
+              <img
+                src={flyerUrl}
+                alt="Event flyer"
+                className="w-full h-48 object-cover"
+              />
+            </div>
+            {primaryColor && (
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-6 h-6 rounded-full border border-border"
+                  style={{ backgroundColor: primaryColor }}
+                />
+                <span className="text-sm text-muted font-mono">
+                  {primaryColor}
+                </span>
+                <span className="text-xs text-muted">Auto-extracted color</span>
+              </div>
+            )}
+            <button
+              onClick={removeFlyer}
+              className="text-sm text-danger hover:text-danger/80 transition-colors"
+            >
+              Remove flyer
+            </button>
+          </div>
+        ) : (
+          <div>
+            <input
+              ref={flyerInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFlyerUpload}
+              disabled={uploadingFlyer}
+              className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-sm file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-accent/20 file:text-accent-light file:font-medium file:cursor-pointer"
+            />
+            {uploadingFlyer && (
+              <p className="text-sm text-muted mt-1 animate-pulse">
+                Uploading & extracting color...
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Logo */}
+      <div>
+        <label className="block text-sm font-medium mb-2">Event Logo</label>
+        {logoUrl ? (
+          <div className="space-y-3">
+            <div className="inline-block rounded-xl overflow-hidden border border-border bg-background p-2">
+              <img
+                src={logoUrl}
+                alt="Event logo"
+                className="h-16 w-auto object-contain"
+              />
+            </div>
+            <div>
+              <button
+                onClick={removeLogo}
+                className="text-sm text-danger hover:text-danger/80 transition-colors"
+              >
+                Remove logo
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleLogoUpload}
+              disabled={uploadingLogo}
+              className="w-full px-4 py-2.5 bg-background border border-border rounded-lg text-sm file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-accent/20 file:text-accent-light file:font-medium file:cursor-pointer"
+            />
+            {uploadingLogo && (
+              <p className="text-sm text-muted mt-1 animate-pulse">
+                Uploading logo...
+              </p>
+            )}
+          </div>
         )}
       </div>
     </div>

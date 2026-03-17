@@ -1,5 +1,6 @@
 "use client";
 
+import EventTheme from "@/components/EventTheme";
 import { db } from "@/lib/db";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -217,12 +218,17 @@ export default function QueuePage() {
   };
 
   return (
+    <EventTheme concert={concert || {}}>
     <div className="min-h-screen">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4">
-          <span className="text-xl font-bold tracking-wide">
-            ma<span className="text-white/60">Tickets</span>
-          </span>
+          {concert?.logoUrl ? (
+            <img src={concert.logoUrl} alt={concert.name} className="h-8 w-auto object-contain" />
+          ) : (
+            <span className="text-xl font-bold tracking-wide">
+              ma<span className="text-white/60">Tickets</span>
+            </span>
+          )}
         </div>
       </header>
 
@@ -392,5 +398,6 @@ export default function QueuePage() {
         }
       `}</style>
     </div>
+    </EventTheme>
   );
 }

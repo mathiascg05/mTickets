@@ -1,5 +1,6 @@
 "use client";
 
+import EventTheme from "@/components/EventTheme";
 import { db } from "@/lib/db";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
@@ -478,10 +479,17 @@ export default function BuyPage() {
         : "bg-accent-dark text-white/90";
 
   return (
+    <EventTheme concert={concert || {}}>
     <div className="min-h-screen">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4">
-          <a href="/" className="text-xl font-bold tracking-wide text-white">ma<span className="text-white/60">Tickets</span></a>
+          {concert?.logoUrl ? (
+            <a href={`/events/${concert.slug}`}>
+              <img src={concert.logoUrl} alt={concert.name} className="h-8 w-auto object-contain" />
+            </a>
+          ) : (
+            <a href="/" className="text-xl font-bold tracking-wide text-white">ma<span className="text-white/60">Tickets</span></a>
+          )}
         </div>
         {secondsLeft !== null && (
           <div className={`text-center py-2 text-sm font-semibold tracking-wide border-t border-white/10 ${timerClasses}`}>
@@ -849,5 +857,6 @@ export default function BuyPage() {
         </div>
       </main>
     </div>
+    </EventTheme>
   );
 }
