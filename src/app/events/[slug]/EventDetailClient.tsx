@@ -80,8 +80,20 @@ export default function EventDetailClient() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
         <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-lg">
           {concert.flyerUrl ? (
-            <div className="h-64 sm:h-80 relative">
-              <img src={concert.flyerUrl} alt={concert.name} className="w-full h-full object-cover" />
+            <div className="relative max-h-[480px] overflow-hidden bg-black/90">
+              {/* Blurred background fill */}
+              <img
+                src={concert.flyerUrl}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover scale-110 blur-xl opacity-60"
+              />
+              {/* Sharp centered image */}
+              <img
+                src={concert.flyerUrl}
+                alt={concert.name}
+                className="relative w-full max-h-[480px] object-contain"
+              />
             </div>
           ) : (
             <div className="h-48 bg-gradient-to-br from-accent-dark via-accent to-accent-light flex items-center justify-center relative">
