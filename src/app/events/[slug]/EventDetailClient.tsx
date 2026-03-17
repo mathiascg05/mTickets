@@ -123,13 +123,15 @@ export default function EventDetailClient() {
 
             <h2 className="text-2xl font-semibold mb-4">Tickets</h2>
 
-            {concert.ticketTypes.length === 0 ? (
+            {concert.ticketTypes.filter((tt) => tt.visibility !== "hidden").length === 0 ? (
               <p className="text-muted">
                 No tickets available for this event yet.
               </p>
             ) : (
               <div className="space-y-4">
-                {concert.ticketTypes.map((ticketType) => (
+                {concert.ticketTypes
+                  .filter((tt) => tt.visibility !== "hidden")
+                  .map((ticketType) => (
                   <TicketTypeRow
                     key={ticketType.id}
                     ticketType={ticketType}
@@ -154,6 +156,8 @@ function TicketTypeRow({
     price: number;
     quantity: number;
     description?: string;
+    visibility?: string;
+    hideAvailability?: boolean;
     orders: { id: string; status: string; phaseId?: string }[];
     phases: Phase[];
     reservations: { id: string; quantity: number; expiresAt: number; phaseId?: string }[];
@@ -167,8 +171,9 @@ function TicketTypeRow({
   const activeReservations = (ticketType.reservations || []).filter(
     (r) => r.expiresAt > now,
   );
-  const { price, available, totalCapacity, activePhase, soldOut } =
-    getAvailability(ticketType, ticketType.phases || [], ticketType.orders, today, activeReservations);
+  const availability = getAvailability(ticketType, ticketType.phases || [], ticketType.orders, today, activeReservations);
+  const { price, available, totalCapacity, activePhase } = availability;
+  const soldOut = ticketType.visibility === "soldOutOverride" || availability.soldOut;
   const maxQty = Math.min(available, 5);
 
   // Queue detection
@@ -201,9 +206,11 @@ function TicketTypeRow({
         {ticketType.description && (
           <p className="text-muted text-sm mt-1">{ticketType.description}</p>
         )}
-        <p className="text-sm text-muted mt-1">
-          {available} of {totalCapacity} available
-        </p>
+        {ticketType.visibility !== "soldOutOverride" && !ticketType.hideAvailability && (
+          <p className="text-sm text-muted mt-1">
+            {available} of {totalCapacity} available
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-3">
         <span className="text-2xl font-bold text-accent-light">
@@ -211,7 +218,7 @@ function TicketTypeRow({
         </span>
         {soldOut ? (
           <span className="px-4 py-2 bg-muted/20 text-muted rounded-lg font-medium">
-            Sold Out
+            Agotado
           </span>
         ) : (
           <>

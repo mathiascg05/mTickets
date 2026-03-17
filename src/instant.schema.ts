@@ -30,6 +30,8 @@ const _schema = i.schema({
       price: i.number(),
       quantity: i.number(),
       description: i.string().optional(),
+      visibility: i.string().optional(),
+      hideAvailability: i.boolean().optional(),
       lastQueuePosition: i.number().optional().indexed(),
       createdAt: i.number().indexed(),
     }),

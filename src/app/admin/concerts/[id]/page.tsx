@@ -582,6 +582,8 @@ type TicketTypeData = {
   price: number;
   quantity: number;
   description?: string;
+  visibility?: string;
+  hideAvailability?: boolean;
   orders: { id: string; status: string; phaseId?: string }[];
   phases: Phase[];
 };
@@ -757,7 +759,15 @@ function TicketTypeItem({
     <div className="border border-border rounded-lg">
       <div className="flex items-center justify-between p-4">
         <div>
-          <p className="font-medium">{tt.name}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium">{tt.name}</p>
+            {tt.visibility === "hidden" && (
+              <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-[10px] font-semibold uppercase tracking-wider">Hidden</span>
+            )}
+            {tt.visibility === "soldOutOverride" && (
+              <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded text-[10px] font-semibold uppercase tracking-wider">Forced Sold Out</span>
+            )}
+          </div>
           {tt.description && (
             <p className="text-sm text-muted">{tt.description}</p>
           )}
@@ -780,6 +790,36 @@ function TicketTypeItem({
           )}
         </div>
         <div className="flex items-center gap-2">
+          <select
+            value={tt.visibility || "visible"}
+            onChange={(e) =>
+              db.transact(
+                db.tx.ticketTypes[tt.id].update({
+                  visibility: e.target.value,
+                }),
+              )
+            }
+            className="px-2 py-1.5 bg-background border border-border rounded-lg text-xs text-muted focus:outline-none focus:border-accent-light transition-colors"
+          >
+            <option value="visible">Visible</option>
+            <option value="hidden">Hidden</option>
+            <option value="soldOutOverride">Show as Sold Out</option>
+          </select>
+          <label className="flex items-center gap-1 text-xs text-muted cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!tt.hideAvailability}
+              onChange={(e) =>
+                db.transact(
+                  db.tx.ticketTypes[tt.id].update({
+                    hideAvailability: !e.target.checked,
+                  }),
+                )
+              }
+              className="accent-accent"
+            />
+            # disp.
+          </label>
           <button
             onClick={() => setShowPhases(!showPhases)}
             className="px-3 py-1.5 border border-border hover:border-accent/50 text-muted hover:text-accent-light rounded-lg text-xs font-medium transition-colors"
