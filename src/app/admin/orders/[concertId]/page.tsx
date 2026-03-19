@@ -886,12 +886,19 @@ export default function ConcertOrdersPage() {
                     {statuses.map((s) =>
                       allPmNames.map((pm) => {
                         const cell = cells[s.key][pm] || { count: 0, amount: 0 };
+                        const currency = pmCurrencyMap[pm];
+                        const rate = currency ? rateMap[currency] : null;
                         return (
                           <td
                             key={`${s.key}-${pm}-amount`}
                             className="text-center py-2 px-2 text-muted"
                           >
                             ${cell.amount.toFixed(2)}
+                            {rate && cell.amount > 0 && (
+                              <div className="text-xs text-accent-light">
+                                {(cell.amount * rate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs
+                              </div>
+                            )}
                           </td>
                         );
                       }),
@@ -901,15 +908,28 @@ export default function ConcertOrdersPage() {
                 {/* Totals per status */}
                 <tfoot>
                   <tr className="border-t border-border">
-                    {statuses.map((st) => (
-                      <td
-                        key={st.key}
-                        colSpan={allPmNames.length}
-                        className={`text-center py-2.5 px-2 font-semibold ${st.color}`}
-                      >
-                        Total {st.label}: ${statusTotals.find((t) => t.key === st.key)!.amount.toFixed(2)}
-                      </td>
-                    ))}
+                    {statuses.map((st) => {
+                      const bsAmount = allPmNames.reduce((sum, pm) => {
+                        const currency = pmCurrencyMap[pm];
+                        const rate = currency ? rateMap[currency] : null;
+                        const cell = cells[st.key][pm] || { count: 0, amount: 0 };
+                        return sum + (rate ? cell.amount * rate : 0);
+                      }, 0);
+                      return (
+                        <td
+                          key={st.key}
+                          colSpan={allPmNames.length}
+                          className={`text-center py-2.5 px-2 font-semibold ${st.color}`}
+                        >
+                          Total {st.label}: ${statusTotals.find((t) => t.key === st.key)!.amount.toFixed(2)}
+                          {bsAmount > 0 && (
+                            <div className="text-xs font-normal text-accent-light">
+                              ({bsAmount.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs)
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                 </tfoot>
               </table>
@@ -1016,9 +1036,16 @@ export default function ConcertOrdersPage() {
                     {statuses.map((s) =>
                       allPmNames.map((pm) => {
                         const cell = cells[s.key][pm];
+                        const currency = pmCurrencyMap[pm];
+                        const rate = currency ? rateMap[currency] : null;
                         return (
                           <td key={`${s.key}-${pm}-amount`} className="text-center py-2 px-2 text-muted">
                             ${cell.amount.toFixed(2)}
+                            {rate && cell.amount > 0 && (
+                              <div className="text-xs text-accent-light">
+                                {(cell.amount * rate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs
+                              </div>
+                            )}
                           </td>
                         );
                       }),
@@ -1027,15 +1054,28 @@ export default function ConcertOrdersPage() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-border">
-                    {statuses.map((st) => (
-                      <td
-                        key={st.key}
-                        colSpan={allPmNames.length}
-                        className={`text-center py-2.5 px-2 font-semibold ${st.color}`}
-                      >
-                        Total {st.label}: ${statusTotals.find((t) => t.key === st.key)!.amount.toFixed(2)}
-                      </td>
-                    ))}
+                    {statuses.map((st) => {
+                      const bsAmount = allPmNames.reduce((sum, pm) => {
+                        const currency = pmCurrencyMap[pm];
+                        const rate = currency ? rateMap[currency] : null;
+                        const cell = cells[st.key][pm];
+                        return sum + (rate ? cell.amount * rate : 0);
+                      }, 0);
+                      return (
+                        <td
+                          key={st.key}
+                          colSpan={allPmNames.length}
+                          className={`text-center py-2.5 px-2 font-semibold ${st.color}`}
+                        >
+                          Total {st.label}: ${statusTotals.find((t) => t.key === st.key)!.amount.toFixed(2)}
+                          {bsAmount > 0 && (
+                            <div className="text-xs font-normal text-accent-light">
+                              ({bsAmount.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs)
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                 </tfoot>
               </table>
