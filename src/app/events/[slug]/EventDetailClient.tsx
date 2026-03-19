@@ -7,7 +7,7 @@ import type { Phase } from "@/lib/phases";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -139,6 +139,8 @@ export default function EventDetailClient() {
                 ))}
               </div>
             )}
+
+            <FindMyTickets concertId={concert.id} />
           </div>
         </div>
       </main>
@@ -242,6 +244,166 @@ function TicketTypeRow({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+type OrderSummary = {
+  id: string;
+  orderNumber: string | null;
+  firstName: string;
+  lastName: string;
+  status: string;
+  ticketTypeName: string;
+  createdAt: number;
+};
+
+const STATUS_BADGES: Record<string, { label: string; className: string }> = {
+  pending: { label: "Pending", className: "bg-yellow-100 text-yellow-800" },
+  approved: { label: "Approved", className: "bg-green-100 text-green-800" },
+  rejected: { label: "Rejected", className: "bg-red-100 text-red-800" },
+  cancelled: { label: "Cancelled", className: "bg-gray-100 text-gray-500" },
+};
+
+function FindMyTickets({ concertId }: { concertId: string }) {
+  const [email, setEmail] = useState("");
+  const [orders, setOrders] = useState<OrderSummary[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [resendCooldowns, setResendCooldowns] = useState<Record<string, number>>({});
+
+  const handleLookup = useCallback(async () => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) return;
+    setLoading(true);
+    setError("");
+    setOrders(null);
+    try {
+      const res = await fetch("/api/lookup-tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed, concertId }),
+      });
+      if (res.status === 429) {
+        setError("Too many requests. Please wait a moment and try again.");
+        return;
+      }
+      const data = await res.json();
+      setOrders(data.orders ?? []);
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [email, concertId]);
+
+  const handleResend = useCallback(async (orderId: string) => {
+    const trimmed = email.trim().toLowerCase();
+    setResendCooldowns((prev) => ({ ...prev, [orderId]: Date.now() + 60_000 }));
+    try {
+      const res = await fetch("/api/resend-ticket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, email: trimmed }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Failed to resend ticket.");
+        setResendCooldowns((prev) => {
+          const next = { ...prev };
+          delete next[orderId];
+          return next;
+        });
+      }
+    } catch {
+      setError("Failed to resend ticket.");
+      setResendCooldowns((prev) => {
+        const next = { ...prev };
+        delete next[orderId];
+        return next;
+      });
+    }
+  }, [email]);
+
+  const isOnCooldown = (orderId: string) => {
+    const until = resendCooldowns[orderId];
+    return until ? Date.now() < until : false;
+  };
+
+  return (
+    <div className="border-t border-border mt-10 pt-8">
+      <h2 className="text-2xl font-semibold mb-2">Find My Tickets</h2>
+      <p className="text-muted text-sm mb-4">
+        Lost your confirmation email? Enter your email to look up your orders.
+      </p>
+
+      <div className="flex gap-3">
+        <input
+          type="email"
+          placeholder="your@email.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleLookup()}
+          className="flex-1 px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+        />
+        <button
+          onClick={handleLookup}
+          disabled={loading || !email.trim()}
+          className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+        >
+          {loading ? "Looking up..." : "Look Up"}
+        </button>
+      </div>
+
+      {error && (
+        <p className="mt-3 text-sm text-red-500">{error}</p>
+      )}
+
+      {orders !== null && orders.length === 0 && (
+        <p className="mt-4 text-sm text-muted">
+          No orders found for this email.
+        </p>
+      )}
+
+      {orders !== null && orders.length > 0 && (
+        <div className="mt-4 space-y-3">
+          {orders.map((order) => {
+            const badge = STATUS_BADGES[order.status] ?? STATUS_BADGES.pending;
+            const cooldown = isOnCooldown(order.id);
+            return (
+              <div
+                key={order.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border border-border rounded-xl"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {order.orderNumber && (
+                      <span className="font-mono text-sm font-semibold">
+                        {order.orderNumber}
+                      </span>
+                    )}
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.className}`}>
+                      {badge.label}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted mt-1">
+                    {order.firstName} {order.lastName} &middot; {order.ticketTypeName}
+                  </p>
+                </div>
+                {order.status === "approved" && (
+                  <button
+                    onClick={() => handleResend(order.id)}
+                    disabled={cooldown}
+                    className="px-4 py-2 text-sm font-medium bg-accent/10 text-accent rounded-lg hover:bg-accent/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                  >
+                    {cooldown ? "Sent!" : "Resend Email"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
