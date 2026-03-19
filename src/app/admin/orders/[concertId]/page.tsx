@@ -1315,6 +1315,7 @@ export default function ConcertOrdersPage() {
                     </p>
                   )}
                   <p className="text-xs text-muted">Cedula: {order.cedula}</p>
+                  <p className="text-xs text-muted">Payment: {order.paymentMethod}</p>
                   {order.promoter && (
                     <p className="text-xs text-muted">Promoter: {order.promoter}</p>
                   )}
