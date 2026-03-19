@@ -170,6 +170,7 @@ const navItems = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/concerts", label: "Events" },
   { href: "/admin/orders", label: "Orders" },
+  { href: "/admin/communications", label: "Messages" },
   { href: "/scan", label: "Scanner" },
 ];
 

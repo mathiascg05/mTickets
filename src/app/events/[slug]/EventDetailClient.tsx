@@ -67,18 +67,18 @@ export default function EventDetailClient() {
   return (
     <EventTheme concert={concert}>
     <div className="min-h-screen">
-      <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
+      <header className="bg-accent/95 backdrop-blur-sm text-white sticky top-0 z-10 border-b border-white/10">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           {concert.logoUrl ? (
             <img src={concert.logoUrl} alt={concert.name} className="h-8 w-auto object-contain" />
           ) : (
-            <span className="text-xl font-bold tracking-wide">ma<span className="text-white/60">Tickets</span></span>
+            <span className="text-xl font-bold tracking-wide">ma<span className="text-white/50">Tickets</span></span>
           )}
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
-        <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-lg">
+        <div className="bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
           {concert.flyerUrl ? (
             <div className="relative max-h-[480px] overflow-hidden bg-black/90">
               {/* Blurred background fill */}
@@ -102,33 +102,33 @@ export default function EventDetailClient() {
           )}
 
           <div className="p-6 sm:p-8">
-            <h1 className="text-3xl sm:text-4xl font-bold mb-4">
+            <h1 className="text-3xl sm:text-4xl font-bold mb-5 tracking-tight font-heading">
               {concert.name}
             </h1>
 
-            <div className="flex flex-wrap gap-4 text-muted mb-6">
-              <div className="flex items-center gap-2">
-                <span>{"\uD83D\uDCC5"}</span>
-                <span>{formatDate(concert.date)}</span>
+            <div className="flex flex-wrap gap-6 mb-6">
+              <div>
+                <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-0.5">Date</p>
+                <p className="text-sm text-foreground">{formatDate(concert.date)}</p>
               </div>
-              <div className="flex items-center gap-2">
-                <span>{"\uD83D\uDCCD"}</span>
-                <span>{concert.venue}</span>
+              <div>
+                <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-0.5">Venue</p>
+                <p className="text-sm text-foreground">{concert.venue}</p>
               </div>
             </div>
 
-            <p className="text-foreground/80 leading-relaxed mb-8 whitespace-pre-wrap">
+            <p className="text-foreground/80 leading-relaxed mb-10 whitespace-pre-wrap">
               {concert.description}
             </p>
 
-            <h2 className="text-2xl font-semibold mb-4">Tickets</h2>
+            <h2 className="text-2xl font-semibold mb-5 font-heading tracking-tight">Tickets</h2>
 
             {concert.ticketTypes.filter((tt) => tt.visibility !== "hidden").length === 0 ? (
               <p className="text-muted">
                 No tickets available for this event yet.
               </p>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {concert.ticketTypes
                   .filter((tt) => tt.visibility !== "hidden")
                   .map((ticketType) => (
@@ -141,6 +141,7 @@ export default function EventDetailClient() {
             )}
 
             <FindMyTickets concertId={concert.id} />
+            <ContactOrganizer concertId={concert.id} />
           </div>
         </div>
       </main>
@@ -197,7 +198,7 @@ function TicketTypeRow({
     : `${basePath}?qty=${qty}`;
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 border border-border rounded-xl hover:border-accent/40 transition-colors">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 border border-border rounded-lg hover:border-accent/30 hover:shadow-sm transition-all">
       <div className="flex-1">
         <h3 className="font-semibold text-lg">{ticketType.name}</h3>
         {activePhase && (
@@ -219,15 +220,15 @@ function TicketTypeRow({
           ${price.toFixed(2)}
         </span>
         {soldOut ? (
-          <span className="px-4 py-2 bg-muted/20 text-muted rounded-lg font-medium">
-            Agotado
+          <span className="px-4 py-2 text-xs font-semibold uppercase tracking-widest text-muted bg-muted/10 border border-muted/20 rounded-md">
+            Sold Out
           </span>
         ) : (
           <>
             <select
               value={qty}
               onChange={(e) => setQty(Number(e.target.value))}
-              className="px-3 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+              className="px-3 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
             >
               {Array.from({ length: maxQty }, (_, i) => i + 1).map((n) => (
                 <option key={n} value={n}>
@@ -237,7 +238,7 @@ function TicketTypeRow({
             </select>
             <Link
               href={buyHref}
-              className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors shadow-lg shadow-accent/20"
+              className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium text-sm uppercase tracking-wider transition-colors"
             >
               Buy
             </Link>
@@ -332,7 +333,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
 
   return (
     <div className="border-t border-border mt-10 pt-8">
-      <h2 className="text-2xl font-semibold mb-2">Find My Tickets</h2>
+      <h2 className="text-2xl font-semibold mb-2 font-heading tracking-tight">Find My Tickets</h2>
       <p className="text-muted text-sm mb-4">
         Lost your confirmation email? Enter your email to look up your orders.
       </p>
@@ -344,12 +345,12 @@ function FindMyTickets({ concertId }: { concertId: string }) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleLookup()}
-          className="flex-1 px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+          className="flex-1 px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
         />
         <button
           onClick={handleLookup}
           disabled={loading || !email.trim()}
-          className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
         >
           {loading ? "Looking up..." : "Look Up"}
         </button>
@@ -373,7 +374,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
             return (
               <div
                 key={order.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border border-border rounded-xl"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border border-border rounded-lg"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -394,7 +395,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
                   <button
                     onClick={() => handleResend(order.id)}
                     disabled={cooldown}
-                    className="px-4 py-2 text-sm font-medium bg-accent/10 text-accent rounded-lg hover:bg-accent/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                    className="px-4 py-2 text-sm font-medium bg-accent/10 text-accent rounded-md hover:bg-accent/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                   >
                     {cooldown ? "Sent!" : "Resend Email"}
                   </button>
@@ -402,6 +403,173 @@ function FindMyTickets({ concertId }: { concertId: string }) {
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ContactOrganizer({ concertId }: { concertId: string }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    subject: "",
+    body: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
+  const [cooldown, setCooldown] = useState(false);
+
+  const handleChange = (field: string, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = useCallback(async () => {
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim() || !form.subject.trim() || !form.body.trim()) {
+      setError("All fields are required.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/contact-organizer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ concertId, ...form }),
+      });
+      if (res.status === 429) {
+        setError("Too many messages. Please wait before sending another.");
+        return;
+      }
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Failed to send message.");
+        return;
+      }
+      setSuccess(true);
+      setForm({ firstName: "", lastName: "", email: "", subject: "", body: "" });
+      setCooldown(true);
+      setTimeout(() => setCooldown(false), 30_000);
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [form, concertId]);
+
+  return (
+    <div className="border-t border-border mt-10 pt-8">
+      {success ? (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+          Your message has been sent! The organizer will reply to your email.
+        </div>
+      ) : !open ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="w-full flex items-center justify-center gap-2 py-3 border border-border rounded-lg text-sm font-medium text-muted hover:text-foreground hover:border-accent/40 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+          Contact Organizer
+        </button>
+      ) : (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-semibold font-heading tracking-tight">Contact Organizer</h2>
+            <button
+              onClick={() => setOpen(false)}
+              className="text-muted hover:text-foreground transition-colors p-1"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <p className="text-muted text-sm mb-5">
+            Have a question about this event? Send a message to the organizer.
+          </p>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] font-medium text-muted uppercase tracking-widest mb-1.5">
+                  First Name
+                </label>
+                <input
+                  type="text"
+                  value={form.firstName}
+                  onChange={(e) => handleChange("firstName", e.target.value)}
+                  className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  placeholder="Your first name"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-muted uppercase tracking-widest mb-1.5">
+                  Last Name
+                </label>
+                <input
+                  type="text"
+                  value={form.lastName}
+                  onChange={(e) => handleChange("lastName", e.target.value)}
+                  className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  placeholder="Your last name"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-muted uppercase tracking-widest mb-1.5">
+                Email
+              </label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => handleChange("email", e.target.value)}
+                className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
+                placeholder="your@email.com"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-muted uppercase tracking-widest mb-1.5">
+                Subject
+              </label>
+              <input
+                type="text"
+                value={form.subject}
+                onChange={(e) => handleChange("subject", e.target.value)}
+                maxLength={200}
+                className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
+                placeholder="What is your question about?"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-muted uppercase tracking-widest mb-1.5">
+                Message
+              </label>
+              <textarea
+                value={form.body}
+                onChange={(e) => handleChange("body", e.target.value)}
+                maxLength={2000}
+                rows={4}
+                className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm resize-none"
+                placeholder="Type your message here..."
+              />
+              <p className="text-right text-xs text-muted mt-1">{form.body.length}/2000</p>
+            </div>
+
+            {error && <p className="text-sm text-red-500">{error}</p>}
+
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || cooldown}
+              className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
+            >
+              {submitting ? "Sending..." : cooldown ? "Message Sent" : "Send Message"}
+            </button>
+          </div>
         </div>
       )}
     </div>

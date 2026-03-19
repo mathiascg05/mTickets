@@ -99,6 +99,15 @@ const rules = {
     },
     bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
   },
+  messages: {
+    allow: {
+      view: "isAdmin",
+      create: "false",
+      update: "isAdmin",
+      delete: "isAdmin",
+    },
+    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+  },
   $files: {
     allow: {
       view: "auth.email == 'mcarstensg@gmail.com'",

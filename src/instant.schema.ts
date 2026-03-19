@@ -101,6 +101,17 @@ const _schema = i.schema({
       expiresAt: i.number().indexed(),
       createdAt: i.number().indexed(),
     }),
+    messages: i.entity({
+      firstName: i.string(),
+      lastName: i.string(),
+      email: i.string().indexed(),
+      subject: i.string(),
+      body: i.string(),
+      status: i.string().indexed(),
+      adminReply: i.string().optional(),
+      repliedAt: i.number().optional().indexed(),
+      createdAt: i.number().indexed(),
+    }),
   },
   links: {
     concertTicketTypes: {
@@ -205,6 +216,19 @@ const _schema = i.schema({
         on: "ticketTypes",
         has: "many",
         label: "queueEntries",
+      },
+    },
+    concertMessages: {
+      forward: {
+        on: "messages",
+        has: "one",
+        label: "concert",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "concerts",
+        has: "many",
+        label: "messages",
       },
     },
   },

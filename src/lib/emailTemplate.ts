@@ -1,4 +1,4 @@
-function escapeHtml(str: string): string {
+export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -296,4 +296,108 @@ export function buildTicketEmailHtml(params: {
   </table>
 </body>
 </html>`;
+}
+
+export function buildReplyEmailHtml(params: {
+  firstName: string;
+  eventName: string;
+  subject: string;
+  originalMessage: string;
+  reply: string;
+}) {
+  const firstName = escapeHtml(params.firstName);
+  const eventName = escapeHtml(params.eventName);
+  const subject = escapeHtml(params.subject);
+  const originalMessage = escapeHtml(params.originalMessage).replace(/\n/g, "<br />");
+  const reply = escapeHtml(params.reply).replace(/\n/g, "<br />");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+<body style="margin:0;padding:0;background-color:#f5f7fa;font-family:system-ui,-apple-system,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(26,43,74,0.08);">
+        <!-- Header -->
+        <tr>
+          <td style="background-color:#1a2b4a;padding:24px 32px;text-align:center;">
+            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">ma<span style="color:rgba(255,255,255,0.6);">Tickets</span></h1>
+          </td>
+        </tr>
+        <!-- Greeting -->
+        <tr>
+          <td style="padding:32px 32px 16px;">
+            <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">Hi ${firstName},</p>
+            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">The organizer of <strong style="color:#1a2b4a;">${eventName}</strong> has replied to your message.</p>
+          </td>
+        </tr>
+        <!-- Reply -->
+        <tr>
+          <td style="padding:8px 32px 16px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;border-radius:12px;padding:20px;">
+              <tr>
+                <td style="padding:6px 20px;">
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Subject</p>
+                  <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">Re: ${subject}</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:6px 20px;">
+                  <p style="margin:0 0 8px;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Reply</p>
+                  <p style="margin:0;font-size:14px;color:#1a2b4a;line-height:1.6;">${reply}</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <!-- Original message -->
+        <tr>
+          <td style="padding:0 32px 24px;">
+            <p style="margin:0 0 8px;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Your original message</p>
+            <div style="padding:12px 16px;background-color:#f5f7fa;border-left:3px solid #d8dde6;border-radius:4px;">
+              <p style="margin:0;font-size:13px;color:#7a8599;line-height:1.5;">${originalMessage}</p>
+            </div>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="padding:20px 32px;border-top:1px solid #d8dde6;text-align:center;">
+            <p style="margin:0;font-size:12px;color:#7a8599;">maTickets &mdash; Digital ticketing system</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function buildReplyEmailText(params: {
+  firstName: string;
+  eventName: string;
+  subject: string;
+  originalMessage: string;
+  reply: string;
+}) {
+  const { firstName, eventName, subject, originalMessage, reply } = params;
+
+  return `maTickets
+========
+
+Hi ${firstName},
+
+The organizer of ${eventName} has replied to your message.
+
+--- Re: ${subject} ---
+
+${reply}
+
+--- Your original message ---
+
+${originalMessage}
+
+---
+
+maTickets - Digital ticketing system
+`;
 }
