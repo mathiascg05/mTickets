@@ -33,6 +33,8 @@ const _schema = i.schema({
       description: i.string().optional(),
       visibility: i.string().optional(),
       hideAvailability: i.boolean().optional(),
+      feePercent: i.number().optional(),
+      feeFixed: i.number().optional(),
       lastQueuePosition: i.number().optional().indexed(),
       createdAt: i.number().indexed(),
     }),

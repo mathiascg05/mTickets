@@ -335,7 +335,10 @@ export default function BuyPage() {
       ? Math.min(subtotal, subtotal * (appliedCoupon.discountValue / 100))
       : Math.min(appliedCoupon.discountValue, subtotal)
     : 0;
-  const total = subtotal - discount;
+  const feePercent = ticketType.feePercent ?? 0;
+  const feeFixed = ticketType.feeFixed ?? 0;
+  const feeAmount = (subtotal * feePercent) / 100 + feeFixed * qty;
+  const total = subtotal - discount + feeAmount;
 
   function applyCoupon() {
     setCouponError(null);
@@ -523,24 +526,22 @@ export default function BuyPage() {
               ${effectivePrice.toFixed(2)} x {qty} = ${subtotal.toFixed(2)}
             </p>
             {appliedCoupon && discount > 0 && (
-              <div className="mt-1 space-y-1">
-                <p className="text-sm text-success">
-                  Coupon {appliedCoupon.code}:{" "}
-                  {appliedCoupon.discountType === "percentage"
-                    ? `${appliedCoupon.discountValue}% off`
-                    : `$${appliedCoupon.discountValue.toFixed(2)} off`}{" "}
-                  (-${discount.toFixed(2)})
-                </p>
-                <p className="text-2xl font-bold text-foreground">
-                  Total: ${total.toFixed(2)}
-                </p>
-              </div>
-            )}
-            {!appliedCoupon && (
-              <p className="text-2xl font-bold mt-1 text-foreground">
-                Total: ${subtotal.toFixed(2)}
+              <p className="text-sm text-success mt-1">
+                Coupon {appliedCoupon.code}:{" "}
+                {appliedCoupon.discountType === "percentage"
+                  ? `${appliedCoupon.discountValue}% off`
+                  : `$${appliedCoupon.discountValue.toFixed(2)} off`}{" "}
+                (-${discount.toFixed(2)})
               </p>
             )}
+            {feeAmount > 0 && (
+              <p className="text-sm text-muted mt-1">
+                Service fee: +${feeAmount.toFixed(2)}
+              </p>
+            )}
+            <p className="text-2xl font-bold mt-1 text-foreground">
+              Total: ${total.toFixed(2)}
+            </p>
           </div>
 
           {/* Coupon section */}

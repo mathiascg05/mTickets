@@ -216,9 +216,15 @@ function TicketTypeRow({
         )}
       </div>
       <div className="flex items-center gap-3">
-        <span className="text-2xl font-bold text-accent-light">
-          ${price.toFixed(2)}
-        </span>
+        <div className="text-right">
+          <span className="text-2xl font-bold text-accent-light">
+            ${price.toFixed(2)}
+          </span>
+          {((ticketType as { feePercent?: number }).feePercent ?? 0) > 0 ||
+          ((ticketType as { feeFixed?: number }).feeFixed ?? 0) > 0 ? (
+            <p className="text-[11px] text-muted">+ service fee</p>
+          ) : null}
+        </div>
         {soldOut ? (
           <span className="px-4 py-2 text-xs font-semibold uppercase tracking-widest text-muted bg-muted/10 border border-muted/20 rounded-md">
             Sold Out

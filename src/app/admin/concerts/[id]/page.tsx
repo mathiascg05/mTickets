@@ -75,10 +75,13 @@ export default function AdminConcertEditPage() {
             primaryColor={concert.primaryColor}
           />
         </div>
-        <TicketTypesSection
-          concertId={concertId}
-          ticketTypes={concert.ticketTypes}
-        />
+        <div className="space-y-6">
+          <TicketTypesSection
+            concertId={concertId}
+            ticketTypes={concert.ticketTypes}
+          />
+          <FeesSection ticketTypes={concert.ticketTypes} />
+        </div>
       </div>
     </div>
   );
@@ -584,6 +587,8 @@ type TicketTypeData = {
   description?: string;
   visibility?: string;
   hideAvailability?: boolean;
+  feePercent?: number;
+  feeFixed?: number;
   orders: { id: string; status: string; phaseId?: string }[];
   phases: Phase[];
 };
@@ -1108,6 +1113,123 @@ function PhaseManagement({
             );
           })}
         </div>
+      )}
+    </div>
+  );
+}
+
+function FeesSection({ ticketTypes }: { ticketTypes: TicketTypeData[] }) {
+  if (ticketTypes.length === 0) {
+    return (
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h2 className="text-xl font-semibold mb-2">Service Fees</h2>
+        <p className="text-muted text-sm text-center py-6">
+          Add ticket types first to configure fees.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <h2 className="text-xl font-semibold mb-1">Service Fees</h2>
+      <p className="text-muted text-xs mb-4">
+        Set a percentage and/or fixed USD fee per ticket type. Both are combined.
+      </p>
+      <div className="space-y-3">
+        {ticketTypes.map((tt) => (
+          <FeeRow key={tt.id} tt={tt} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FeeRow({ tt }: { tt: TicketTypeData }) {
+  const today = getTodayString();
+  const phases = tt.phases || [];
+  const hasPhases = phases.length > 0;
+  const activePhase = hasPhases ? getActivePhase(phases, tt.orders, today) : null;
+  const currentPrice = activePhase ? activePhase.price : tt.price;
+
+  const feePercent = tt.feePercent ?? 0;
+  const feeFixed = tt.feeFixed ?? 0;
+  const calculatedFee = (currentPrice * feePercent) / 100 + feeFixed;
+
+  function updateFee(field: "feePercent" | "feeFixed", value: string) {
+    const num = parseFloat(value);
+    db.transact(
+      db.tx.ticketTypes[tt.id].update({
+        [field]: isNaN(num) ? 0 : num,
+      }),
+    );
+  }
+
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-3">
+      <div>
+        <p className="font-medium text-sm">{tt.name}</p>
+        {hasPhases && phases.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {phases.map((p) => (
+              <span
+                key={p.id}
+                className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                  activePhase?.id === p.id
+                    ? "bg-success/10 text-success border-success/30"
+                    : "bg-muted/10 text-muted border-muted/30"
+                }`}
+              >
+                {p.name}: ${p.price.toFixed(2)}
+              </span>
+            ))}
+          </div>
+        )}
+        {!hasPhases && (
+          <p className="text-xs text-muted mt-0.5">
+            Base price: ${tt.price.toFixed(2)}
+          </p>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium mb-1">Fee %</label>
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            defaultValue={feePercent || ""}
+            onBlur={(e) => updateFee("feePercent", e.target.value)}
+            className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+            placeholder="0"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">Fee $ (USD)</label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            defaultValue={feeFixed || ""}
+            onBlur={(e) => updateFee("feeFixed", e.target.value)}
+            className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+            placeholder="0.00"
+          />
+        </div>
+      </div>
+      {(feePercent > 0 || feeFixed > 0) && (
+        <p className="text-xs text-muted">
+          On ${currentPrice.toFixed(2)} ticket:{" "}
+          {feePercent > 0 && (
+            <span>${((currentPrice * feePercent) / 100).toFixed(2)} ({feePercent}%)</span>
+          )}
+          {feePercent > 0 && feeFixed > 0 && " + "}
+          {feeFixed > 0 && <span>${feeFixed.toFixed(2)} fixed</span>}
+          {" = "}
+          <span className="font-medium text-foreground">
+            ${calculatedFee.toFixed(2)} fee
+          </span>
+        </p>
       )}
     </div>
   );

@@ -574,7 +574,7 @@ export default function ConcertOrdersPage() {
         // Prefer live data for 'visited' to ensure real-time scanner updates
         visited: live ? live.visited : order.visited,
         ticketTypeName: tt.name,
-        ticketTypePrice: phase ? phase.price : tt.price,
+        ticketTypePrice: (phase ? phase.price : tt.price) + ((phase ? phase.price : tt.price) * (tt.feePercent ?? 0)) / 100 + (tt.feeFixed ?? 0),
       };
     }),
   );
@@ -624,7 +624,11 @@ export default function ConcertOrdersPage() {
 
   const getOrderPrice = (tt: (typeof concert.ticketTypes)[number], order: { phaseId?: string; discountAmount?: number }) => {
     const phase = (tt.phases || []).find((p: { id: string }) => p.id === order.phaseId);
-    return (phase ? phase.price : tt.price) - (order.discountAmount || 0);
+    const basePrice = phase ? phase.price : tt.price;
+    const feePercent = tt.feePercent ?? 0;
+    const feeFixed = tt.feeFixed ?? 0;
+    const fee = (basePrice * feePercent) / 100 + feeFixed;
+    return basePrice + fee - (order.discountAmount || 0);
   };
 
   const totalRevenue = concert.ticketTypes.reduce((sum, tt) => {
@@ -784,7 +788,9 @@ export default function ConcertOrdersPage() {
           const s = order.status;
           const pm = order.paymentMethod;
           const orderPhase = (tt.phases || []).find((p: { id: string }) => p.id === order.phaseId);
-          const finalPrice = (orderPhase ? orderPhase.price : tt.price) - (order.discountAmount || 0);
+          const basePrice = orderPhase ? orderPhase.price : tt.price;
+          const fee = (basePrice * (tt.feePercent ?? 0)) / 100 + (tt.feeFixed ?? 0);
+          const finalPrice = basePrice + fee - (order.discountAmount || 0);
           if (cells[s] && cells[s][pm]) {
             cells[s][pm].count += 1;
             cells[s][pm].amount += finalPrice;
