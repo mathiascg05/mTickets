@@ -8,9 +8,12 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 function LoginForm() {
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
   const [sentTo, setSentTo] = useState("");
+  const [usesPassword, setUsesPassword] = useState(false);
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,13 +26,14 @@ function LoginForm() {
       const res = await fetch("/api/admin-auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim(), action: mode }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Failed to send code");
       } else {
         setSentTo(email.trim());
+        setUsesPassword(!!data.requiresPassword);
       }
     } catch {
       setError("Failed to send code. Please try again.");
@@ -38,21 +42,23 @@ function LoginForm() {
     }
   }
 
-  async function handleVerifyCode(e: React.FormEvent) {
+  async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setVerifying(true);
     try {
+      const body = usesPassword
+        ? { email: sentTo, password: password.trim() }
+        : { email: sentTo, code: code.trim() };
       const res = await fetch("/api/admin-auth", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: sentTo, code: code.trim() }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Invalid code");
+        setError(data.error || "Verification failed");
       } else {
-        // Sign in with the InstantDB token
         db.auth.signInWithToken(data.token);
       }
     } catch {
@@ -70,7 +76,7 @@ function LoginForm() {
       const res = await fetch("/api/admin-auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: sentTo }),
+        body: JSON.stringify({ email: sentTo, action: mode }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -83,12 +89,23 @@ function LoginForm() {
     }
   }
 
+  function switchMode() {
+    setMode(mode === "login" ? "register" : "login");
+    setError(null);
+    setSentTo("");
+    setCode("");
+    setPassword("");
+    setUsesPassword(false);
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-background">
       <div className="bg-surface border border-border rounded-2xl p-8 w-full max-w-sm shadow-lg">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-accent">ma<span className="text-accent/60">Tickets</span></h1>
-          <p className="text-sm text-muted mt-1">Admin Login</p>
+          <p className="text-sm text-muted mt-1">
+            {mode === "login" ? "Log In" : "Create Account"}
+          </p>
         </div>
 
         {!sentTo ? (
@@ -103,7 +120,7 @@ function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
-                placeholder="admin@email.com"
+                placeholder="you@email.com"
               />
             </div>
             {error && <p className="text-danger text-sm">{error}</p>}
@@ -112,47 +129,95 @@ function LoginForm() {
               disabled={sending}
               className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
-              {sending ? "Sending..." : "Send Login Code"}
+              {sending
+                ? "Sending..."
+                : mode === "login"
+                  ? "Send Login Code"
+                  : "Send Verification Code"}
             </button>
+            <p className="text-center text-sm text-muted">
+              {mode === "login" ? (
+                <>
+                  Don&apos;t have an account?{" "}
+                  <button type="button" onClick={switchMode} className="text-accent-light hover:text-accent font-medium transition-colors">
+                    Create one
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?{" "}
+                  <button type="button" onClick={switchMode} className="text-accent-light hover:text-accent font-medium transition-colors">
+                    Log in
+                  </button>
+                </>
+              )}
+            </p>
           </form>
         ) : (
-          <form onSubmit={handleVerifyCode} className="space-y-4">
-            <p className="text-sm text-muted">
-              Code sent to <strong className="text-foreground">{sentTo}</strong>
-            </p>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">
-                Verification Code
-              </label>
-              <input
-                type="text"
-                required
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
-                placeholder="Enter code"
-              />
-            </div>
+          <form onSubmit={handleVerify} className="space-y-4">
+            {usesPassword ? (
+              <>
+                <p className="text-sm text-muted">
+                  Enter password for <strong className="text-foreground">{sentTo}</strong>
+                </p>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
+                    placeholder="Enter password"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted">
+                  Code sent to <strong className="text-foreground">{sentTo}</strong>
+                </p>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">
+                    Verification Code
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
+                    placeholder="Enter code"
+                  />
+                </div>
+              </>
+            )}
             {error && <p className="text-danger text-sm">{error}</p>}
             <button
               type="submit"
               disabled={verifying}
               className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
-              {verifying ? "Verifying..." : "Verify"}
+              {verifying ? "Verifying..." : usesPassword ? "Log In" : "Verify"}
             </button>
-            <button
-              type="button"
-              onClick={handleResendCode}
-              className="w-full py-2 text-sm text-accent-light hover:text-accent transition-colors font-medium"
-            >
-              Resend Code
-            </button>
+            {!usesPassword && (
+              <button
+                type="button"
+                onClick={handleResendCode}
+                className="w-full py-2 text-sm text-accent-light hover:text-accent transition-colors font-medium"
+              >
+                Resend Code
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
                 setSentTo("");
                 setCode("");
+                setPassword("");
+                setUsesPassword(false);
                 setError(null);
               }}
               className="w-full py-2 text-sm text-muted hover:text-foreground transition-colors"

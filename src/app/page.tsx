@@ -11,12 +11,7 @@ export default function HomePage() {
           <span className="text-2xl font-bold tracking-wide">
             ma<span className="text-white/60">Tickets</span>
           </span>
-          <Link
-            href="/admin"
-            className="text-sm text-white/70 hover:text-white transition-colors"
-          >
-            Admin
-          </Link>
+{/* Single login entry point is the hero button below */}
         </div>
       </header>
 
