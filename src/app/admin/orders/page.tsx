@@ -39,7 +39,7 @@ export default function AdminOrdersPage() {
             const total = allOrders.length;
             const revenue = concert.ticketTypes.reduce((sum, tt) => {
               const approvedCount = tt.orders.filter((o) => o.status === "approved").length;
-              const fee = (tt.price * (tt.feePercent ?? 0)) / 100 + (tt.feeFixed ?? 0);
+              const fee = (tt.price * ((tt as { feePercent?: number }).feePercent ?? 0)) / 100 + ((tt as { feeFixed?: number }).feeFixed ?? 0);
               return sum + approvedCount * (tt.price + fee);
             }, 0);
 

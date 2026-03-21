@@ -199,7 +199,11 @@ export default function TicketPage() {
   const phase = order.phaseId
     ? (ticketType?.phases || []).find((p: { id: string }) => p.id === order.phaseId)
     : null;
-  const displayPrice = phase ? (phase as { price: number }).price : ticketType?.price;
+  const basePrice = phase ? (phase as { price: number }).price : ticketType?.price;
+  const feePercent = (ticketType as { feePercent?: number })?.feePercent ?? 0;
+  const feeFixed = (ticketType as { feeFixed?: number })?.feeFixed ?? 0;
+  const feeAmount = basePrice != null ? (basePrice * feePercent) / 100 + feeFixed : 0;
+  const displayPrice = basePrice != null ? basePrice + feeAmount : null;
   const ticketUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/ticket/${order.id}`
@@ -322,22 +326,28 @@ export default function TicketPage() {
                     <p className="text-muted">Ticket Type</p>
                     <p className="font-medium">{ticketType.name}</p>
                   </div>
-                  <div>
-                    <p className="text-muted">Price</p>
-                    <p className="font-medium">
-                      {order.discountAmount && displayPrice != null ? (
-                        <>
-                          <span className="line-through text-muted">
-                            ${displayPrice.toFixed(2)}
-                          </span>{" "}
-                          ${Math.max(0, displayPrice - order.discountAmount).toFixed(2)}
-                        </>
-                      ) : displayPrice != null ? (
-                        `$${displayPrice.toFixed(2)}`
-                      ) : (
-                        "N/A"
+                  <div className="col-span-2">
+                    <p className="text-muted mb-1">Price</p>
+                    <div className="text-sm space-y-0.5">
+                      {basePrice != null && (
+                        <p className="font-medium">${basePrice.toFixed(2)}</p>
                       )}
-                    </p>
+                      {feeAmount > 0 && (
+                        <p className="text-muted">
+                          Service fee: +${feeAmount.toFixed(2)}
+                        </p>
+                      )}
+                      {order.discountAmount != null && order.discountAmount > 0 && (
+                        <p className="text-success">
+                          Discount: -${order.discountAmount.toFixed(2)}
+                        </p>
+                      )}
+                      <p className="font-bold text-base">
+                        Total: ${displayPrice != null
+                          ? Math.max(0, displayPrice - (order.discountAmount || 0)).toFixed(2)
+                          : "N/A"}
+                      </p>
+                    </div>
                   </div>
                   {order.couponCode && (
                     <div>

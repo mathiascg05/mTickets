@@ -260,7 +260,10 @@ function CreateOrderModal({
 
   const ticketOptions = concert.ticketTypes.map((tt) => {
     const avail = getAvailability(tt, tt.phases || [], tt.orders, today);
-    return { id: tt.id, name: tt.name, price: avail.price, available: avail.available, activePhase: avail.activePhase };
+    const fp = (tt as { feePercent?: number }).feePercent ?? 0;
+    const ff = (tt as { feeFixed?: number }).feeFixed ?? 0;
+    const fee = (avail.price * fp) / 100 + ff;
+    return { id: tt.id, name: tt.name, price: avail.price + fee, available: avail.available, activePhase: avail.activePhase };
   });
 
   const selectedOption = ticketOptions.find((o) => o.id === selectedTicketTypeId);
@@ -574,7 +577,7 @@ export default function ConcertOrdersPage() {
         // Prefer live data for 'visited' to ensure real-time scanner updates
         visited: live ? live.visited : order.visited,
         ticketTypeName: tt.name,
-        ticketTypePrice: (phase ? phase.price : tt.price) + ((phase ? phase.price : tt.price) * (tt.feePercent ?? 0)) / 100 + (tt.feeFixed ?? 0),
+        ticketTypePrice: (phase ? phase.price : tt.price) + ((phase ? phase.price : tt.price) * ((tt as { feePercent?: number }).feePercent ?? 0)) / 100 + ((tt as { feeFixed?: number }).feeFixed ?? 0),
       };
     }),
   );
@@ -625,8 +628,8 @@ export default function ConcertOrdersPage() {
   const getOrderPrice = (tt: (typeof concert.ticketTypes)[number], order: { phaseId?: string; discountAmount?: number }) => {
     const phase = (tt.phases || []).find((p: { id: string }) => p.id === order.phaseId);
     const basePrice = phase ? phase.price : tt.price;
-    const feePercent = tt.feePercent ?? 0;
-    const feeFixed = tt.feeFixed ?? 0;
+    const feePercent = (tt as { feePercent?: number }).feePercent ?? 0;
+    const feeFixed = (tt as { feeFixed?: number }).feeFixed ?? 0;
     const fee = (basePrice * feePercent) / 100 + feeFixed;
     return basePrice + fee - (order.discountAmount || 0);
   };
@@ -789,7 +792,7 @@ export default function ConcertOrdersPage() {
           const pm = order.paymentMethod;
           const orderPhase = (tt.phases || []).find((p: { id: string }) => p.id === order.phaseId);
           const basePrice = orderPhase ? orderPhase.price : tt.price;
-          const fee = (basePrice * (tt.feePercent ?? 0)) / 100 + (tt.feeFixed ?? 0);
+          const fee = (basePrice * ((tt as { feePercent?: number }).feePercent ?? 0)) / 100 + ((tt as { feeFixed?: number }).feeFixed ?? 0);
           const finalPrice = basePrice + fee - (order.discountAmount || 0);
           if (cells[s] && cells[s][pm]) {
             cells[s][pm].count += 1;
@@ -832,7 +835,7 @@ export default function ConcertOrdersPage() {
               <div>
                 <h2 className="text-lg font-semibold">{tt.name}</h2>
                 <p className="text-sm text-muted">
-                  ${tt.price.toFixed(2)} per ticket &middot;{" "}
+                  ${(tt.price + (tt.price * ((tt as { feePercent?: number }).feePercent ?? 0)) / 100 + ((tt as { feeFixed?: number }).feeFixed ?? 0)).toFixed(2)} per ticket &middot;{" "}
                   {statusTotals[0].count + statusTotals[1].count}/{tt.quantity} sold
                 </p>
               </div>
