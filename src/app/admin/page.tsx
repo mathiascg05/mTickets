@@ -12,16 +12,16 @@ export default function AdminDashboard() {
       $: {
         ...(isSuperAdmin ? {} : { where: { organizerEmail: email } }),
       },
-      ticketTypes: {},
+      ticketTypes: { orders: {} },
     },
-    orders: {},
   });
 
   if (isLoading || !data) {
     return <div className="animate-pulse text-muted">Loading...</div>;
   }
 
-  const { concerts, orders } = data;
+  const { concerts } = data;
+  const orders = concerts.flatMap((c) => c.ticketTypes.flatMap((tt) => tt.orders));
   const activeConcerts = concerts.filter((c) => c.status === "active");
   const pendingOrders = orders.filter((o) => o.status === "pending");
   const approvedOrders = orders.filter((o) => o.status === "approved");

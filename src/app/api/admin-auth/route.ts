@@ -151,7 +151,8 @@ export async function PUT(req: NextRequest) {
       const { $users } = await adminDb.query({
         $users: { $: { where: { email: normalizedEmail } } },
       });
-      if ($users.length > 0 && (!$users[0].type || isRegistration)) {
+      const isSuperAdminEmail = normalizedEmail === SUPER_ADMIN_EMAIL;
+      if ($users.length > 0 && (!$users[0].type || isRegistration || isSuperAdminEmail)) {
         const userType =
           normalizedEmail === SUPER_ADMIN_EMAIL ? "superadmin" : "organizer";
         await adminDb.transact(
