@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { transporter, generateMessageId } from "@/lib/mailer";
 import { adminDb } from "@/lib/adminDb";
+import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
 
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 const CODE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // In-memory store for pending codes (single-server is fine here)
@@ -22,17 +22,6 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-
-    if (normalizedEmail !== ADMIN_EMAIL.toLowerCase()) {
-      // Don't reveal whether the email is valid — just pretend we sent it
-      return NextResponse.json({ sent: true });
-    }
-
-    if (action === "verify") {
-      // ── Verify code and return token ──
-      const { code } = await req.json().catch(() => ({ code: undefined }));
-      // code is already in the original body, re-parse
-    }
 
     // ── Send code ──
     const code = generateCode();
@@ -96,6 +85,22 @@ export async function PUT(req: NextRequest) {
     const token = await adminDb.auth.createToken({
       email: normalizedEmail,
     });
+
+    // Ensure user has a role type set
+    try {
+      const { $users } = await adminDb.query({
+        $users: { $: { where: { email: normalizedEmail } } },
+      });
+      if ($users.length > 0 && !$users[0].type) {
+        const userType =
+          normalizedEmail === SUPER_ADMIN_EMAIL ? "superadmin" : "organizer";
+        await adminDb.transact(
+          adminDb.tx.$users[$users[0].id].update({ type: userType }),
+        );
+      }
+    } catch (e) {
+      console.error("[admin-auth] Failed to set user type:", e);
+    }
 
     return NextResponse.json({ token });
   } catch (err) {

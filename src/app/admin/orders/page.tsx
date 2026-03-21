@@ -1,15 +1,19 @@
 "use client";
 
 import { db } from "@/lib/db";
+import { useAuthContext } from "@/lib/AuthContext";
 import Link from "next/link";
 
 export default function AdminOrdersPage() {
+  const { email, isSuperAdmin } = useAuthContext();
+
   const { isLoading, data } = db.useQuery({
     concerts: {
-      $: { order: { createdAt: "desc" } },
-      ticketTypes: {
-        orders: {},
+      $: {
+        ...(isSuperAdmin ? {} : { where: { organizerEmail: email } }),
+        order: { createdAt: "desc" as const },
       },
+      ticketTypes: { orders: {} },
     },
   });
 

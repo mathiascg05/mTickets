@@ -1,11 +1,11 @@
 "use client";
 
 import { db } from "@/lib/db";
+import { AuthProvider } from "@/lib/AuthContext";
+import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
 
 function LoginForm() {
   const [email, setEmail] = useState("");
@@ -182,6 +182,17 @@ export default function AdminLayout({
   const { isLoading, user } = db.useAuth();
   const pathname = usePathname();
 
+  const userEmail = user?.email ?? "";
+
+  const { data: userData } = db.useQuery(
+    userEmail
+      ? { $users: { $: { where: { email: userEmail } } } }
+      : null,
+  );
+
+  const currentUser = userData?.$users?.[0];
+  const userIsSuperAdmin = currentUser?.type === "superadmin" || userEmail === SUPER_ADMIN_EMAIL;
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -190,11 +201,12 @@ export default function AdminLayout({
     );
   }
 
-  if (!user || user.email !== ADMIN_EMAIL) {
+  if (!user || !userEmail) {
     return <LoginForm />;
   }
 
   return (
+    <AuthProvider value={{ email: userEmail, isSuperAdmin: userIsSuperAdmin }}>
     <div className="min-h-screen bg-background">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-0 flex items-center justify-between">
@@ -251,5 +263,6 @@ export default function AdminLayout({
       </header>
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">{children}</main>
     </div>
+    </AuthProvider>
   );
 }

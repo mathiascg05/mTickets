@@ -1,12 +1,14 @@
 "use client";
 
 import { db } from "@/lib/db";
+import { useAuthContext } from "@/lib/AuthContext";
 import { toSlug } from "@/lib/slug";
 import { id } from "@instantdb/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export default function AdminConcertsPage() {
+  const { email, isSuperAdmin } = useAuthContext();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
@@ -15,7 +17,10 @@ export default function AdminConcertsPage() {
 
   const { isLoading, data } = db.useQuery({
     concerts: {
-      $: { order: { createdAt: "desc" } },
+      $: {
+        ...(isSuperAdmin ? {} : { where: { organizerEmail: email } }),
+        order: { createdAt: "desc" as const },
+      },
       ticketTypes: {},
     },
   });
@@ -45,6 +50,7 @@ export default function AdminConcertsPage() {
         venue,
         description,
         status: "draft",
+        organizerEmail: email,
         createdAt: Date.now(),
       }),
     );

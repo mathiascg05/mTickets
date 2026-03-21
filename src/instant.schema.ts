@@ -23,6 +23,7 @@ const _schema = i.schema({
       logoUrl: i.string().optional(),
       primaryColor: i.string().optional(),
       lastOrderSeq: i.number().optional().indexed(),
+      organizerEmail: i.string().indexed(),
       createdAt: i.number().indexed(),
     }),
     ticketTypes: i.entity({

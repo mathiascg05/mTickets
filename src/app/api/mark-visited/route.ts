@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { verifyScannerToken } from "@/lib/scannerToken";
-
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
+import { isAuthorizedForConcert } from "@/lib/authHelpers";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,8 +11,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "orderId is required" }, { status: 400 });
     }
 
-    // Auth: either admin email or scanner token
+    // Auth: either organizer/super-admin email or scanner token
     let scopedConcertId: string | null = null;
+    let authenticatedEmail: string | null = null;
 
     if (scannerToken) {
       const result = verifyScannerToken(scannerToken);
@@ -21,8 +21,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid or expired scanner token" }, { status: 401 });
       }
       scopedConcertId = result.concertId;
-    } else if (ADMIN_EMAIL && userEmail && userEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
-      // Admin — no concert scope restriction
+    } else if (userEmail) {
+      authenticatedEmail = userEmail.toLowerCase();
     } else {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
         ticketType: { concert: {} },
       },
     });
-    const order = orders[0] as { id: string; visited?: boolean; status?: string; ticketType?: { concert?: { id: string } } } | undefined;
+    const order = orders[0] as { id: string; visited?: boolean; status?: string; ticketType?: { concert?: { id: string; organizerEmail?: string } } } | undefined;
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
@@ -44,6 +44,14 @@ export async function POST(req: NextRequest) {
       const concertId = order.ticketType?.concert?.id;
       if (concertId !== scopedConcertId) {
         return NextResponse.json({ error: "Wrong event" }, { status: 403 });
+      }
+    }
+
+    // If email auth, verify user is organizer or super admin
+    if (authenticatedEmail) {
+      const organizerEmail = order.ticketType?.concert?.organizerEmail ?? "";
+      if (!isAuthorizedForConcert(authenticatedEmail, organizerEmail)) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
     }
 

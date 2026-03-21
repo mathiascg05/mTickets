@@ -6,14 +6,13 @@ import { buildReplyEmailHtml, buildReplyEmailText } from "@/lib/emailTemplate";
 
 export async function POST(req: NextRequest) {
   try {
-    // Verify caller is authenticated admin
+    // Verify caller is authenticated
     const authToken = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!authToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
     const user = await adminDb.auth.verifyToken(authToken);
-    if (!user || !adminEmail || user.email !== adminEmail) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -42,6 +41,13 @@ export async function POST(req: NextRequest) {
     const rawConcert = message.concert as unknown;
     const concert = Array.isArray(rawConcert) ? rawConcert[0] : rawConcert;
     const eventName = concert?.name ?? "Event";
+
+    // Verify user is organizer of this concert or super admin
+    const { isAuthorizedForConcert } = await import("@/lib/authHelpers");
+    const organizerEmail: string = concert?.organizerEmail ?? "";
+    if (!user.email || !isAuthorizedForConcert(user.email, organizerEmail)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     // Update message status
     await adminDb.transact(

@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { useState, useEffect } from "react";
 
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "";
+import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -129,7 +129,7 @@ export default function TicketPage() {
 
   useEffect(() => {
     const isAdmin =
-      ADMIN_EMAIL && user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+      user?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
     const sessionVerified =
       sessionStorage.getItem(`ticket-verified-${orderId}`) === "true";
     if (isAdmin || sessionVerified) {

@@ -81,7 +81,7 @@ describe("POST /api/mark-visited", () => {
           id: VALID_ORDER_ID,
           status: "approved",
           visited: false,
-          ticketType: { concert: { id: CONCERT_ID } },
+          ticketType: { concert: { id: CONCERT_ID, organizerEmail: "admin@example.com" } },
         },
       ],
     });
@@ -106,7 +106,7 @@ describe("POST /api/mark-visited", () => {
           id: VALID_ORDER_ID,
           status: "approved",
           visited: false,
-          ticketType: { concert: { id: CONCERT_ID } },
+          ticketType: { concert: { id: CONCERT_ID, organizerEmail: "admin@example.com" } },
         },
       ],
     });
@@ -152,7 +152,7 @@ describe("POST /api/mark-visited", () => {
       orders: [
         {
           id: VALID_ORDER_ID,
-          ticketType: { concert: { id: OTHER_CONCERT_ID } },
+          ticketType: { concert: { id: OTHER_CONCERT_ID, organizerEmail: "other@example.com" } },
         },
       ],
     });
@@ -168,14 +168,14 @@ describe("POST /api/mark-visited", () => {
     expect(body.error).toMatch(/wrong event/i);
   });
 
-  it("admin email bypasses concert scope restriction", async () => {
+  it("super admin email bypasses concert scope restriction", async () => {
     mockQuery.mockResolvedValueOnce({
       orders: [
         {
           id: VALID_ORDER_ID,
           status: "approved",
           visited: false,
-          ticketType: { concert: { id: OTHER_CONCERT_ID } },
+          ticketType: { concert: { id: OTHER_CONCERT_ID, organizerEmail: "other@example.com" } },
         },
       ],
     });
@@ -183,15 +183,25 @@ describe("POST /api/mark-visited", () => {
     const res = await handler(
       makeRequest("/api/mark-visited", {
         orderId: VALID_ORDER_ID,
-        userEmail: "admin@example.com",
+        userEmail: "matickets.ve@gmail.com",
       }),
     );
     expect(res.status).toBe(200);
-    // Admin queries the order (for visited/status check) but skips concert scope check
     expect(mockQuery).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects non-admin email → 401", async () => {
+  it("rejects non-organizer email → 401", async () => {
+    mockQuery.mockResolvedValueOnce({
+      orders: [
+        {
+          id: VALID_ORDER_ID,
+          status: "approved",
+          visited: false,
+          ticketType: { concert: { id: CONCERT_ID, organizerEmail: "admin@example.com" } },
+        },
+      ],
+    });
+
     const res = await handler(
       makeRequest("/api/mark-visited", {
         orderId: VALID_ORDER_ID,
@@ -209,7 +219,7 @@ describe("POST /api/mark-visited", () => {
           id: VALID_ORDER_ID,
           status: "approved",
           visited: false,
-          ticketType: { concert: { id: CONCERT_ID } },
+          ticketType: { concert: { id: CONCERT_ID, organizerEmail: "admin@example.com" } },
         },
       ],
     });
@@ -220,7 +230,7 @@ describe("POST /api/mark-visited", () => {
           id: VALID_ORDER_ID,
           status: "approved",
           visited: true,
-          ticketType: { concert: { id: CONCERT_ID } },
+          ticketType: { concert: { id: CONCERT_ID, organizerEmail: "admin@example.com" } },
         },
       ],
     });

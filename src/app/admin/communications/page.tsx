@@ -1,6 +1,7 @@
 "use client";
 
 import { db } from "@/lib/db";
+import { useAuthContext } from "@/lib/AuthContext";
 import { useState, useCallback } from "react";
 
 type StatusFilter = "all" | "new" | "read" | "replied";
@@ -24,6 +25,7 @@ function timeAgo(ts: number): string {
 
 export default function AdminCommunicationsPage() {
   const { user } = db.useAuth();
+  const { email, isSuperAdmin } = useAuthContext();
   const refreshToken = user?.refresh_token || "";
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -31,10 +33,11 @@ export default function AdminCommunicationsPage() {
 
   const { isLoading, data } = db.useQuery({
     concerts: {
-      $: { order: { createdAt: "desc" } },
-      messages: {
-        $: { order: { createdAt: "desc" } },
+      $: {
+        ...(isSuperAdmin ? {} : { where: { organizerEmail: email } }),
+        order: { createdAt: "desc" as const },
       },
+      messages: { $: { order: { createdAt: "desc" as const } } },
     },
   });
 

@@ -1,11 +1,19 @@
 "use client";
 
 import { db } from "@/lib/db";
+import { useAuthContext } from "@/lib/AuthContext";
 import Link from "next/link";
 
 export default function AdminDashboard() {
+  const { email, isSuperAdmin } = useAuthContext();
+
   const { isLoading, data } = db.useQuery({
-    concerts: { ticketTypes: {} },
+    concerts: {
+      $: {
+        ...(isSuperAdmin ? {} : { where: { organizerEmail: email } }),
+      },
+      ticketTypes: {},
+    },
     orders: {},
   });
 

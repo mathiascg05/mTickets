@@ -1,117 +1,170 @@
 import type { InstantRules } from "@instantdb/react";
 
+const SUPER_ADMIN = "matickets.ve@gmail.com";
+
 const rules = {
   concerts: {
     allow: {
       view: "true",
-      create: "isAdmin",
-      update: "isAdmin",
-      delete: "isAdmin",
+      create: "auth.email != null",
+      update: "isOwner || isSuperAdmin",
+      delete: "isOwner || isSuperAdmin",
     },
-    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+    bind: [
+      "isOwner",
+      "auth.email == data.organizerEmail",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
     fields: {
-      scannerPin: "isAdmin",
+      scannerPin: "isOwner || isSuperAdmin",
     },
   },
   ticketTypes: {
     allow: {
       view: "true",
-      create: "isAdmin",
-      update: "isAdmin",
-      delete: "isAdmin",
+      create: "isOwner || isSuperAdmin",
+      update: "isOwner || isSuperAdmin",
+      delete: "isOwner || isSuperAdmin",
     },
-    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('concert.organizerEmail')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
   },
   orders: {
     allow: {
       view: "true",
       create: "false",
-      update: "isAdmin",
-      delete: "isAdmin",
+      update: "isOwner || isSuperAdmin",
+      delete: "isOwner || isSuperAdmin",
     },
-    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('ticketType.concert.organizerEmail')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
     fields: {
-      paymentProofPath: "isAdmin",
-      proofReferenceNumber: "isAdmin",
-      cedula: "isAdmin",
+      paymentProofPath: "isOwner || isSuperAdmin",
+      proofReferenceNumber: "isOwner || isSuperAdmin",
+      cedula: "isOwner || isSuperAdmin",
     },
   },
   paymentMethods: {
     allow: {
       view: "true",
-      create: "isAdmin",
-      update: "isAdmin",
-      delete: "isAdmin",
+      create: "isOwner || isSuperAdmin",
+      update: "isOwner || isSuperAdmin",
+      delete: "isOwner || isSuperAdmin",
     },
-    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('concert.organizerEmail')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
   },
   promoters: {
     allow: {
       view: "true",
-      create: "isAdmin",
-      update: "isAdmin",
-      delete: "isAdmin",
+      create: "isOwner || isSuperAdmin",
+      update: "isOwner || isSuperAdmin",
+      delete: "isOwner || isSuperAdmin",
     },
-    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('concert.organizerEmail')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
   },
   ticketPhases: {
     allow: {
       view: "true",
-      create: "isAdmin",
-      update: "isAdmin",
-      delete: "isAdmin",
+      create: "isOwner || isSuperAdmin",
+      update: "isOwner || isSuperAdmin",
+      delete: "isOwner || isSuperAdmin",
     },
-    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('ticketType.concert.organizerEmail')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
   },
   coupons: {
     allow: {
       view: "true",
-      create: "isAdmin",
-      update: "isAdmin",
-      delete: "isAdmin",
+      create: "isOwner || isSuperAdmin",
+      update: "isOwner || isSuperAdmin",
+      delete: "isOwner || isSuperAdmin",
     },
-    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('concert.organizerEmail')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
   },
   reservations: {
     allow: {
       view: "true",
       create: "false",
-      update: "isAdmin",
+      update: "isOwner || isSuperAdmin",
       delete: "false",
     },
-    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('ticketType.concert.organizerEmail')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
   },
   queueEntries: {
     allow: {
       view: "true",
       create: "false",
-      update: "isAdmin",
+      update: "isOwner || isSuperAdmin",
       delete: "false",
     },
-    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('ticketType.concert.organizerEmail')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
   },
   exchangeRates: {
     allow: {
       view: "true",
-      create: "isAdmin",
-      update: "isAdmin",
-      delete: "isAdmin",
+      create: "isSuperAdmin",
+      update: "isSuperAdmin",
+      delete: "isSuperAdmin",
     },
-    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+    bind: ["isSuperAdmin", `auth.email == '${SUPER_ADMIN}'`],
   },
   messages: {
     allow: {
-      view: "isAdmin",
+      view: "isOwner || isSuperAdmin",
       create: "false",
-      update: "isAdmin",
-      delete: "isAdmin",
+      update: "isOwner || isSuperAdmin",
+      delete: "isOwner || isSuperAdmin",
     },
-    bind: ["isAdmin", "auth.email == 'mcarstensg@gmail.com'"],
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('concert.organizerEmail')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
   },
   $files: {
     allow: {
-      view: "auth.email == 'mcarstensg@gmail.com'",
-      create: "data.path.startsWith('payment-proofs/') || data.path.startsWith('event-assets/')",
+      view: `auth.email == '${SUPER_ADMIN}'`,
+      create:
+        "data.path.startsWith('payment-proofs/') || data.path.startsWith('event-assets/')",
     },
   },
 } satisfies InstantRules;
