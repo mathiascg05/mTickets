@@ -54,6 +54,9 @@ const _schema = i.schema({
       phaseId: i.string().optional(),
       orderNumber: i.string().optional().unique().indexed(),
       purchaseGroupId: i.string().optional().indexed(),
+      purchaseRate: i.number().optional(),
+      purchaseRateCurrency: i.string().optional(),
+      purchaseAmountBs: i.number().optional(),
       createdAt: i.number().indexed(),
     }),
     paymentMethods: i.entity({

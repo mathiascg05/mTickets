@@ -447,6 +447,11 @@ export default function BuyPage() {
           paymentProofPath: filePath || undefined,
           purchaseGroupId,
           queueToken: queueToken || undefined,
+          ...(cachedRate ? {
+            purchaseRate: cachedRate.rate,
+            purchaseRateCurrency: cachedRate.currency,
+            purchaseAmountBs: Math.round((total / qty) * cachedRate.rate * 100) / 100,
+          } : {}),
         }),
       });
 

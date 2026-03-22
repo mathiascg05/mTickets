@@ -33,6 +33,9 @@ type CreateOrderBody = {
   paymentProofPath?: string;
   purchaseGroupId?: string;
   queueToken?: string;
+  purchaseRate?: number;
+  purchaseRateCurrency?: string;
+  purchaseAmountBs?: number;
 };
 
 const MAX_RETRIES = 10;
@@ -52,6 +55,9 @@ export async function POST(req: NextRequest) {
       paymentProofPath,
       purchaseGroupId,
       queueToken,
+      purchaseRate,
+      purchaseRateCurrency,
+      purchaseAmountBs,
     } = body;
 
     // Input validation
@@ -312,6 +318,8 @@ export async function POST(req: NextRequest) {
               : {}),
             ...(activePhase ? { phaseId: activePhase.id } : {}),
             ...(purchaseGroupId ? { purchaseGroupId } : {}),
+            ...(purchaseRate ? { purchaseRate, purchaseRateCurrency } : {}),
+            ...(purchaseAmountBs != null ? { purchaseAmountBs } : {}),
           })
           .link({ ticketType: ticketTypeId });
       });

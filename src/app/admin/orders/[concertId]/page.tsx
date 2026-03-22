@@ -41,6 +41,9 @@ type FlatOrder = {
   createdAt: number;
   ticketTypeName: string;
   ticketTypePrice: number;
+  purchaseRate?: number;
+  purchaseRateCurrency?: string;
+  purchaseAmountBs?: number;
 };
 
 function ExportSection({
@@ -81,10 +84,11 @@ function ExportSection({
       const effectivePrice =
         order.ticketTypePrice - (order.discountAmount || 0);
       const currency = pmCurrencyMap[order.paymentMethod];
-      const rate = currency ? rateMap[currency] : null;
+      const rate = order.purchaseRate ?? (currency ? rateMap[currency] : null);
       const amountUsd = currency ? "" : effectivePrice.toFixed(2);
-      const amountBs =
-        rate != null ? (effectivePrice * rate).toFixed(2) : "";
+      const amountBs = order.purchaseAmountBs != null
+        ? order.purchaseAmountBs.toFixed(2)
+        : (rate != null ? (effectivePrice * rate).toFixed(2) : "");
 
       return [
         escapeCsv(order.orderNumber || "---"),
@@ -228,6 +232,8 @@ function CreateOrderModal({
   concert,
   onClose,
   refreshToken,
+  pmCurrencyMap,
+  rateMap,
 }: {
   refreshToken: string;
   concert: {
@@ -242,6 +248,8 @@ function CreateOrderModal({
     paymentMethods: { id: string; name: string }[];
   };
   onClose: () => void;
+  pmCurrencyMap: Record<string, string>;
+  rateMap: Record<string, number>;
 }) {
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState(
     concert.ticketTypes[0]?.id || "",
@@ -302,6 +310,13 @@ function CreateOrderModal({
               ? { phaseId: selectedOption.activePhase.id }
               : {}),
             ...(purchaseGroupId ? { purchaseGroupId } : {}),
+            ...(pmCurrencyMap[paymentMethod] && rateMap[pmCurrencyMap[paymentMethod]]
+              ? {
+                  purchaseRate: rateMap[pmCurrencyMap[paymentMethod]],
+                  purchaseRateCurrency: pmCurrencyMap[paymentMethod],
+                  purchaseAmountBs: Math.round(selectedOption.price * rateMap[pmCurrencyMap[paymentMethod]] * 100) / 100,
+                }
+              : {}),
           })
           .link({ ticketType: selectedTicketTypeId });
       });
@@ -578,6 +593,9 @@ export default function ConcertOrdersPage() {
         visited: live ? live.visited : order.visited,
         ticketTypeName: tt.name,
         ticketTypePrice: (phase ? phase.price : tt.price) + ((phase ? phase.price : tt.price) * ((tt as { feePercent?: number }).feePercent ?? 0)) / 100 + ((tt as { feeFixed?: number }).feeFixed ?? 0),
+        purchaseRate: (order as { purchaseRate?: number }).purchaseRate,
+        purchaseRateCurrency: (order as { purchaseRateCurrency?: string }).purchaseRateCurrency,
+        purchaseAmountBs: (order as { purchaseAmountBs?: number }).purchaseAmountBs,
       };
     }),
   );
@@ -779,12 +797,12 @@ export default function ConcertOrdersPage() {
           { key: "rejected", label: "Rejected", color: "text-danger", headerBg: "bg-danger/10 border-danger/30" },
         ];
 
-        // Build data: for each status × payment method, count and amount
-        const cells: Record<string, Record<string, { count: number; amount: number }>> = {};
+        // Build data: for each status × payment method, count, amount, and Bs amount
+        const cells: Record<string, Record<string, { count: number; amount: number; amountBs: number }>> = {};
         for (const s of statuses) {
           cells[s.key] = {};
           for (const pm of pmNames) {
-            cells[s.key][pm] = { count: 0, amount: 0 };
+            cells[s.key][pm] = { count: 0, amount: 0, amountBs: 0 };
           }
         }
         for (const order of tt.orders) {
@@ -794,14 +812,19 @@ export default function ConcertOrdersPage() {
           const basePrice = orderPhase ? orderPhase.price : tt.price;
           const fee = (basePrice * ((tt as { feePercent?: number }).feePercent ?? 0)) / 100 + ((tt as { feeFixed?: number }).feeFixed ?? 0);
           const finalPrice = basePrice + fee - (order.discountAmount || 0);
+          const orderRate = (order as { purchaseRate?: number }).purchaseRate;
+          const currency = pmCurrencyMap[pm];
+          const rate = orderRate ?? (currency ? rateMap[currency] : null);
+          const bsAmount = (order as { purchaseAmountBs?: number }).purchaseAmountBs ?? (rate != null ? finalPrice * rate : 0);
           if (cells[s] && cells[s][pm]) {
             cells[s][pm].count += 1;
             cells[s][pm].amount += finalPrice;
+            cells[s][pm].amountBs += bsAmount;
           } else if (cells[s]) {
-            // payment method not in concert.paymentMethods (edge case)
-            cells[s][pm] = cells[s][pm] || { count: 0, amount: 0 };
+            cells[s][pm] = cells[s][pm] || { count: 0, amount: 0, amountBs: 0 };
             cells[s][pm].count += 1;
             cells[s][pm].amount += finalPrice;
+            cells[s][pm].amountBs += bsAmount;
           }
         }
 
@@ -894,18 +917,16 @@ export default function ConcertOrdersPage() {
                   <tr className="border-b border-border/50">
                     {statuses.map((s) =>
                       allPmNames.map((pm) => {
-                        const cell = cells[s.key][pm] || { count: 0, amount: 0 };
-                        const currency = pmCurrencyMap[pm];
-                        const rate = currency ? rateMap[currency] : null;
+                        const cell = cells[s.key][pm] || { count: 0, amount: 0, amountBs: 0 };
                         return (
                           <td
                             key={`${s.key}-${pm}-amount`}
                             className="text-center py-2 px-2 text-muted"
                           >
                             ${cell.amount.toFixed(2)}
-                            {rate && cell.amount > 0 && (
-                              <div className="text-xs text-accent-light">
-                                {(cell.amount * rate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs
+                            {cell.amountBs > 0 && (
+                              <div className="text-xs text-muted">
+                                {cell.amountBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs
                               </div>
                             )}
                           </td>
@@ -919,10 +940,8 @@ export default function ConcertOrdersPage() {
                   <tr className="border-t border-border">
                     {statuses.map((st) => {
                       const bsAmount = allPmNames.reduce((sum, pm) => {
-                        const currency = pmCurrencyMap[pm];
-                        const rate = currency ? rateMap[currency] : null;
-                        const cell = cells[st.key][pm] || { count: 0, amount: 0 };
-                        return sum + (rate ? cell.amount * rate : 0);
+                        const cell = cells[st.key][pm] || { count: 0, amount: 0, amountBs: 0 };
+                        return sum + cell.amountBs;
                       }, 0);
                       return (
                         <td
@@ -932,9 +951,9 @@ export default function ConcertOrdersPage() {
                         >
                           Total {st.label}: ${statusTotals.find((t) => t.key === st.key)!.amount.toFixed(2)}
                           {bsAmount > 0 && (
-                            <div className="text-xs font-normal text-accent-light">
-                              ({bsAmount.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs)
-                            </div>
+                            <span className="ml-2 text-sm font-normal text-accent-light">
+                              / {bsAmount.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs
+                            </span>
                           )}
                         </td>
                       );
@@ -964,11 +983,11 @@ export default function ConcertOrdersPage() {
           { key: "rejected", label: "Rejected", color: "text-danger", headerBg: "bg-danger/10 border-danger/30" },
         ];
 
-        const cells: Record<string, Record<string, { count: number; amount: number }>> = {};
+        const cells: Record<string, Record<string, { count: number; amount: number; amountBs: number }>> = {};
         for (const s of statuses) {
           cells[s.key] = {};
           for (const pm of allPmNames) {
-            cells[s.key][pm] = { count: 0, amount: 0 };
+            cells[s.key][pm] = { count: 0, amount: 0, amountBs: 0 };
           }
         }
 
@@ -976,9 +995,13 @@ export default function ConcertOrdersPage() {
           const s = order.status;
           const pm = order.paymentMethod;
           const finalPrice = order.ticketTypePrice - (order.discountAmount || 0);
+          const currency = pmCurrencyMap[pm];
+          const rate = order.purchaseRate ?? (currency ? rateMap[currency] : null);
+          const bsAmount = order.purchaseAmountBs ?? (rate != null ? finalPrice * rate : 0);
           if (cells[s]?.[pm]) {
             cells[s][pm].count += 1;
             cells[s][pm].amount += finalPrice;
+            cells[s][pm].amountBs += bsAmount;
           }
         }
 
@@ -1045,14 +1068,12 @@ export default function ConcertOrdersPage() {
                     {statuses.map((s) =>
                       allPmNames.map((pm) => {
                         const cell = cells[s.key][pm];
-                        const currency = pmCurrencyMap[pm];
-                        const rate = currency ? rateMap[currency] : null;
                         return (
                           <td key={`${s.key}-${pm}-amount`} className="text-center py-2 px-2 text-muted">
                             ${cell.amount.toFixed(2)}
-                            {rate && cell.amount > 0 && (
-                              <div className="text-xs text-accent-light">
-                                {(cell.amount * rate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs
+                            {cell.amountBs > 0 && (
+                              <div className="text-xs text-muted">
+                                {cell.amountBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs
                               </div>
                             )}
                           </td>
@@ -1065,10 +1086,8 @@ export default function ConcertOrdersPage() {
                   <tr className="border-t border-border">
                     {statuses.map((st) => {
                       const bsAmount = allPmNames.reduce((sum, pm) => {
-                        const currency = pmCurrencyMap[pm];
-                        const rate = currency ? rateMap[currency] : null;
                         const cell = cells[st.key][pm];
-                        return sum + (rate ? cell.amount * rate : 0);
+                        return sum + cell.amountBs;
                       }, 0);
                       return (
                         <td
@@ -1078,9 +1097,9 @@ export default function ConcertOrdersPage() {
                         >
                           Total {st.label}: ${statusTotals.find((t) => t.key === st.key)!.amount.toFixed(2)}
                           {bsAmount > 0 && (
-                            <div className="text-xs font-normal text-accent-light">
-                              ({bsAmount.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs)
-                            </div>
+                            <span className="ml-2 text-sm font-normal text-accent-light">
+                              / {bsAmount.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs
+                            </span>
                           )}
                         </td>
                       );
@@ -1335,6 +1354,16 @@ export default function ConcertOrdersPage() {
                         {" "}(coupon: {order.couponCode}, -${(order.discountAmount || 0).toFixed(2)})
                       </span>
                     )}
+                    {(() => {
+                      const currency = pmCurrencyMap[order.paymentMethod];
+                      const rate = order.purchaseRate ?? (currency ? rateMap[currency] : null);
+                      const bsAmt = order.purchaseAmountBs ?? (rate != null ? (order.ticketTypePrice - (order.discountAmount || 0)) * rate : null);
+                      return bsAmt != null ? (
+                        <span className="text-accent-light font-medium">
+                          {" / "}{bsAmt.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs
+                        </span>
+                      ) : null;
+                    })()}
                     {" "}&middot;{" "}
                     {new Date(order.createdAt).toLocaleString()}
                   </p>
@@ -1493,6 +1522,8 @@ export default function ConcertOrdersPage() {
           concert={concert}
           onClose={() => setShowCreateModal(false)}
           refreshToken={refreshToken}
+          pmCurrencyMap={pmCurrencyMap}
+          rateMap={rateMap}
         />
       )}
 
