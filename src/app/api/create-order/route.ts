@@ -27,6 +27,7 @@ type CreateOrderBody = {
   }[];
   paymentMethodName: string;
   promoter?: string;
+  customFieldValues?: string;
   couponCode?: string;
   reservationId?: string;
   referenceNumber?: string;
@@ -49,6 +50,7 @@ export async function POST(req: NextRequest) {
       attendees,
       paymentMethodName,
       promoter,
+      customFieldValues,
       couponCode,
       reservationId,
       referenceNumber,
@@ -115,6 +117,28 @@ export async function POST(req: NextRequest) {
         { error: "Invalid reference number" },
         { status: 400 },
       );
+    }
+    if (customFieldValues) {
+      if (typeof customFieldValues !== "string" || customFieldValues.length > 5000) {
+        return NextResponse.json(
+          { error: "Invalid custom field values" },
+          { status: 400 },
+        );
+      }
+      try {
+        const parsed = JSON.parse(customFieldValues);
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+          return NextResponse.json(
+            { error: "Invalid custom field values format" },
+            { status: 400 },
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { error: "Invalid custom field values JSON" },
+          { status: 400 },
+        );
+      }
     }
     if (couponCode && (typeof couponCode !== "string" || couponCode.length > 50 || !/^[A-Z0-9_-]+$/i.test(couponCode))) {
       return NextResponse.json(
@@ -313,6 +337,7 @@ export async function POST(req: NextRequest) {
             ...(paymentProofPath ? { paymentProofPath } : {}),
             ...(referenceNumber ? { proofReferenceNumber: referenceNumber } : {}),
             ...(promoter ? { promoter } : {}),
+            ...(customFieldValues ? { customFieldValues } : {}),
             ...(validatedCouponCode
               ? { couponCode: validatedCouponCode, discountAmount }
               : {}),

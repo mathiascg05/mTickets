@@ -32,6 +32,7 @@ type FlatOrder = {
   cedula: string;
   paymentMethod: string;
   promoter?: string;
+  customFieldValues?: string;
   status: string;
   paymentProofPath?: string;
   proofReferenceNumber?: string;
@@ -65,6 +66,21 @@ function ExportSection({
   }
 
   function downloadCsv() {
+    // Collect all custom field keys across orders
+    const cfKeys = new Set<string>();
+    for (const order of allOrders) {
+      if (order.customFieldValues) {
+        try {
+          for (const key of Object.keys(JSON.parse(order.customFieldValues))) {
+            cfKeys.add(key);
+          }
+        } catch { /* ignore */ }
+      }
+    }
+    // Fall back to promoter column if any old orders have it and no custom fields use that key
+    const hasLegacyPromoter = allOrders.some((o) => o.promoter && !o.customFieldValues);
+    const cfKeyList = [...cfKeys];
+
     const headers = [
       "Order #",
       "First Name",
@@ -72,7 +88,8 @@ function ExportSection({
       "Payment Method",
       "Amount ($)",
       "Amount (Bs)",
-      "Promoter",
+      ...(hasLegacyPromoter ? ["Promoter"] : []),
+      ...cfKeyList,
       "Status",
       "Date",
       "Coupon",
@@ -90,6 +107,11 @@ function ExportSection({
         ? order.purchaseAmountBs.toFixed(2)
         : (rate != null ? (effectivePrice * rate).toFixed(2) : "");
 
+      let cfVals: Record<string, string> = {};
+      if (order.customFieldValues) {
+        try { cfVals = JSON.parse(order.customFieldValues); } catch { /* ignore */ }
+      }
+
       return [
         escapeCsv(order.orderNumber || "---"),
         escapeCsv(order.firstName),
@@ -97,7 +119,8 @@ function ExportSection({
         escapeCsv(order.paymentMethod),
         amountUsd,
         amountBs,
-        escapeCsv(order.promoter || ""),
+        ...(hasLegacyPromoter ? [escapeCsv(order.promoter || "")] : []),
+        ...cfKeyList.map((key) => escapeCsv(cfVals[key] || "")),
         order.status,
         escapeCsv(new Date(order.createdAt).toLocaleString()),
         escapeCsv(order.couponCode || ""),
@@ -246,6 +269,7 @@ function CreateOrderModal({
       phases: { id: string; name: string; price: number; quantity: number; endDate?: string; sortOrder: number }[];
     }[];
     paymentMethods: { id: string; name: string }[];
+    customFields?: { id: string; label: string; fieldType: string; required: boolean; options?: string; sortOrder: number }[];
   };
   onClose: () => void;
   pmCurrencyMap: Record<string, string>;
@@ -259,6 +283,7 @@ function CreateOrderModal({
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [cedula, setCedula] = useState("");
+  const [cfValues, setCfValues] = useState<Record<string, string>>({});
   const [isCortesia, setIsCortesia] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState(concert.paymentMethods[0]?.name || "");
   const [proofFile, setProofFile] = useState<File | null>(null);
@@ -321,6 +346,17 @@ function CreateOrderModal({
                     purchaseAmountBs: Math.round(selectedOption.price * rateMap[pmCurrencyMap[paymentMethod]] * 100) / 100,
                   }
                 : {}),
+            ...(Object.keys(cfValues).length > 0
+              ? {
+                  customFieldValues: JSON.stringify(
+                    Object.fromEntries(
+                      (concert.customFields || [])
+                        .filter((cf) => cfValues[cf.id])
+                        .map((cf) => [cf.label, cfValues[cf.id]]),
+                    ),
+                  ),
+                }
+              : {}),
           })
           .link({ ticketType: selectedTicketTypeId });
       });
@@ -445,6 +481,78 @@ function CreateOrderModal({
               className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
             />
           </div>
+
+          {/* Custom Fields */}
+          {(concert.customFields || [])
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((cf) => {
+              const val = cfValues[cf.id] || "";
+              let parsedOptions: string[] = [];
+              try { parsedOptions = cf.options ? JSON.parse(cf.options) : []; } catch { /* ignore */ }
+              return (
+                <div key={cf.id}>
+                  <label className="block text-sm font-medium mb-1">
+                    {cf.label}{cf.required ? " *" : ""}
+                  </label>
+                  {(cf.fieldType === "text" || cf.fieldType === "number" || cf.fieldType === "email" || cf.fieldType === "date") && (
+                    <input
+                      type={cf.fieldType}
+                      required={cf.required}
+                      value={val}
+                      onChange={(e) => setCfValues((p) => ({ ...p, [cf.id]: e.target.value }))}
+                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+                    />
+                  )}
+                  {cf.fieldType === "checkbox" && (
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={val === "true"}
+                        onChange={(e) => setCfValues((p) => ({ ...p, [cf.id]: e.target.checked ? "true" : "false" }))}
+                        className="accent-accent"
+                      />
+                      <span className="text-sm">{cf.label}</span>
+                    </label>
+                  )}
+                  {cf.fieldType === "select" && (
+                    <select
+                      required={cf.required}
+                      value={val}
+                      onChange={(e) => setCfValues((p) => ({ ...p, [cf.id]: e.target.value }))}
+                      className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+                    >
+                      <option value="">Select...</option>
+                      {parsedOptions.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  )}
+                  {cf.fieldType === "multiselect" && (
+                    <div className="space-y-1">
+                      {parsedOptions.map((opt) => {
+                        let selected: string[] = [];
+                        try { selected = val ? JSON.parse(val) : []; } catch { /* ignore */ }
+                        const isChecked = selected.includes(opt);
+                        return (
+                          <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                const next = isChecked ? selected.filter((s) => s !== opt) : [...selected, opt];
+                                setCfValues((p) => ({ ...p, [cf.id]: JSON.stringify(next) }));
+                              }}
+                              className="accent-accent"
+                            />
+                            <span className="text-sm">{opt}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
 
           {/* Cortesia Toggle */}
           <div className="flex items-center gap-3">
@@ -585,6 +693,9 @@ export default function ConcertOrdersPage() {
       paymentMethods: {
         $: { order: { createdAt: "asc" } },
       },
+      customFields: {
+        $: { order: { sortOrder: "asc" } },
+      },
       coupons: {},
     },
     exchangeRates: {},
@@ -650,6 +761,10 @@ export default function ConcertOrdersPage() {
     if (ticketTypeFilter !== "all" && o.ticketTypeName !== ticketTypeFilter) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
+      let cfText = "";
+      if (o.customFieldValues) {
+        try { cfText = Object.values(JSON.parse(o.customFieldValues)).join(" "); } catch { /* ignore */ }
+      }
       const fields = [
         o.firstName,
         o.lastName,
@@ -661,6 +776,7 @@ export default function ConcertOrdersPage() {
         o.promoter,
         o.couponCode,
         o.orderNumber,
+        cfText,
       ];
       if (!fields.some((f) => f && f.toLowerCase().includes(q))) return false;
     }
@@ -1377,6 +1493,14 @@ export default function ConcertOrdersPage() {
                   {order.promoter && (
                     <p className="text-xs text-muted">Promoter: {order.promoter}</p>
                   )}
+                  {order.customFieldValues && (() => {
+                    try {
+                      const vals = JSON.parse(order.customFieldValues);
+                      return Object.entries(vals).map(([key, val]) => (
+                        <p key={key} className="text-xs text-muted">{key}: {String(val)}</p>
+                      ));
+                    } catch { return null; }
+                  })()}
                   <p className="text-xs text-muted mt-0.5">
                     ${order.ticketTypePrice.toFixed(2)}
                     {order.couponCode && (

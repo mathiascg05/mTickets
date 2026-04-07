@@ -66,7 +66,7 @@ export default function BuyPage() {
     Array.from({ length: qty }, emptyAttendee),
   );
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
-  const [selectedPromoter, setSelectedPromoter] = useState("");
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [referenceNumber, setReferenceNumber] = useState("");
@@ -97,8 +97,8 @@ export default function BuyPage() {
         paymentMethods: {
           $: { order: { createdAt: "asc" } },
         },
-        promoters: {
-          $: { order: { createdAt: "asc" } },
+        customFields: {
+          $: { order: { sortOrder: "asc" } },
         },
         coupons: {
           $: { where: { active: true } },
@@ -289,7 +289,7 @@ export default function BuyPage() {
 
   const concert = ticketType.concert;
   const paymentMethods = concert?.paymentMethods || [];
-  const promoters = concert?.promoters || [];
+  const customFields = (concert?.customFields || []).sort((a, b) => a.sortOrder - b.sortOrder);
   const coupons = concert?.coupons || [];
   const allOrders = ticketType.orders;
   const selectedPm = paymentMethods.find((pm) => pm.id === selectedPaymentMethod);
@@ -398,6 +398,13 @@ export default function BuyPage() {
       setError("Please select a payment method.");
       return;
     }
+    const missingField = customFields.find(
+      (cf) => cf.required && !customFieldValues[cf.id]?.trim(),
+    );
+    if (missingField) {
+      setError(`Please fill in the required field: ${missingField.label}`);
+      return;
+    }
     const needsScreenshot = selectedPm?.requireScreenshot !== false;
     const needsReference = selectedPm?.requireReferenceNumber === true;
     if (needsScreenshot && !file) {
@@ -440,7 +447,15 @@ export default function BuyPage() {
             cedula: a.cedula.trim(),
           })),
           paymentMethodName: selectedPm?.name || "",
-          promoter: selectedPromoter || undefined,
+          customFieldValues: Object.keys(customFieldValues).length > 0
+            ? JSON.stringify(
+                Object.fromEntries(
+                  customFields
+                    .filter((cf) => customFieldValues[cf.id])
+                    .map((cf) => [cf.label, customFieldValues[cf.id]]),
+                ),
+              )
+            : undefined,
           couponCode: appliedCoupon?.code || undefined,
           reservationId: reservationId || undefined,
           referenceNumber: referenceNumber.trim() || undefined,
@@ -679,26 +694,104 @@ export default function BuyPage() {
               </div>
             ))}
 
-            {/* Promoter selection */}
-            {promoters.length > 0 && (
-              <div>
-                <label className="block text-sm font-medium mb-1.5">
-                  Promoter
-                </label>
-                <select
-                  value={selectedPromoter}
-                  onChange={(e) => setSelectedPromoter(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
-                >
-                  <option value="">Select a promoter</option>
-                  {promoters.map((p) => (
-                    <option key={p.id} value={p.name}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            {/* Custom fields */}
+            {customFields.length > 0 && customFields.map((cf) => {
+              const fieldId = cf.id;
+              const val = customFieldValues[fieldId] || "";
+              let parsedOptions: string[] = [];
+              try { parsedOptions = cf.options ? JSON.parse(cf.options) : []; } catch { /* ignore */ }
+
+              return (
+                <div key={fieldId}>
+                  <label className="block text-sm font-medium mb-1.5">
+                    {cf.label}{cf.required && " *"}
+                  </label>
+                  {cf.fieldType === "text" && (
+                    <input
+                      type="text"
+                      required={cf.required}
+                      value={val}
+                      onChange={(e) => setCustomFieldValues((p) => ({ ...p, [fieldId]: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                    />
+                  )}
+                  {cf.fieldType === "number" && (
+                    <input
+                      type="number"
+                      required={cf.required}
+                      value={val}
+                      onChange={(e) => setCustomFieldValues((p) => ({ ...p, [fieldId]: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                    />
+                  )}
+                  {cf.fieldType === "email" && (
+                    <input
+                      type="email"
+                      required={cf.required}
+                      value={val}
+                      onChange={(e) => setCustomFieldValues((p) => ({ ...p, [fieldId]: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                    />
+                  )}
+                  {cf.fieldType === "date" && (
+                    <input
+                      type="date"
+                      required={cf.required}
+                      value={val}
+                      onChange={(e) => setCustomFieldValues((p) => ({ ...p, [fieldId]: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                    />
+                  )}
+                  {cf.fieldType === "checkbox" && (
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={val === "true"}
+                        onChange={(e) => setCustomFieldValues((p) => ({ ...p, [fieldId]: e.target.checked ? "true" : "false" }))}
+                        className="accent-accent-light"
+                      />
+                      <span className="text-sm">{cf.label}</span>
+                    </label>
+                  )}
+                  {cf.fieldType === "select" && (
+                    <select
+                      required={cf.required}
+                      value={val}
+                      onChange={(e) => setCustomFieldValues((p) => ({ ...p, [fieldId]: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                    >
+                      <option value="">Select...</option>
+                      {parsedOptions.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  )}
+                  {cf.fieldType === "multiselect" && (
+                    <div className="space-y-1.5">
+                      {parsedOptions.map((opt) => {
+                        let selected: string[] = [];
+                        try { selected = val ? JSON.parse(val) : []; } catch { /* ignore */ }
+                        const isChecked = selected.includes(opt);
+                        return (
+                          <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                const next = isChecked ? selected.filter((s) => s !== opt) : [...selected, opt];
+                                setCustomFieldValues((p) => ({ ...p, [fieldId]: JSON.stringify(next) }));
+                              }}
+                              className="accent-accent-light"
+                            />
+                            <span className="text-sm">{opt}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
 
             {/* Payment method selection */}
             {paymentMethods.length > 0 && (

@@ -67,7 +67,7 @@ const rules = {
       `auth.email == '${SUPER_ADMIN}'`,
     ],
   },
-  promoters: {
+  customFields: {
     allow: {
       view: "true",
       create: "isOwner || isSuperAdmin",

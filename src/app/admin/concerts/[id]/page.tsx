@@ -25,8 +25,8 @@ export default function AdminConcertEditPage() {
       paymentMethods: {
         $: { order: { createdAt: "asc" } },
       },
-      promoters: {
-        $: { order: { createdAt: "asc" } },
+      customFields: {
+        $: { order: { sortOrder: "asc" } },
       },
       coupons: {
         $: { order: { createdAt: "asc" } },
@@ -55,9 +55,9 @@ export default function AdminConcertEditPage() {
             concertId={concertId}
             paymentMethods={concert.paymentMethods}
           />
-          <PromotersSection
+          <CustomFieldsSection
             concertId={concertId}
-            promoters={concert.promoters}
+            customFields={concert.customFields}
           />
           <CouponsSection
             concertId={concertId}
@@ -235,14 +235,173 @@ function ConcertEditForm({ concert }: { concert: ConcertData }) {
   );
 }
 
+const BASE_METHODS = [
+  { type: "efectivo", name: "Efectivo" },
+  { type: "zelle", name: "Zelle" },
+  { type: "pago_movil", name: "Pago Movil" },
+] as const;
+
 type PaymentMethodData = {
   id: string;
+  type?: string;
   name: string;
   instructions: string;
   convertCurrency?: string;
   requireScreenshot?: boolean;
   requireReferenceNumber?: boolean;
 };
+
+function PaymentMethodCard({
+  concertId,
+  base,
+  existing,
+}: {
+  concertId: string;
+  base: (typeof BASE_METHODS)[number];
+  existing: PaymentMethodData | undefined;
+}) {
+  const [instructions, setInstructions] = useState(existing?.instructions || "");
+  const [convertCurrency, setConvertCurrency] = useState(existing?.convertCurrency || "");
+  const [requireScreenshot, setRequireScreenshot] = useState(existing?.requireScreenshot !== false);
+  const [requireReferenceNumber, setRequireReferenceNumber] = useState(existing?.requireReferenceNumber === true);
+  const [dirty, setDirty] = useState(false);
+
+  const enabled = !!existing;
+
+  function toggle() {
+    if (enabled) {
+      if (confirm(`Disable ${base.name}?`)) {
+        db.transact(db.tx.paymentMethods[existing!.id].delete());
+      }
+    } else {
+      db.transact(
+        db.tx.paymentMethods[id()]
+          .update({
+            type: base.type,
+            name: base.name,
+            instructions: "",
+            requireScreenshot: true,
+            requireReferenceNumber: false,
+            createdAt: Date.now(),
+          })
+          .link({ concert: concertId }),
+      );
+    }
+  }
+
+  function saveConfig() {
+    if (!existing) return;
+    db.transact(
+      db.tx.paymentMethods[existing.id].update({
+        instructions,
+        convertCurrency: convertCurrency || undefined,
+        requireScreenshot,
+        requireReferenceNumber,
+      }),
+    );
+    setDirty(false);
+  }
+
+  return (
+    <div className={`border rounded-lg transition-colors ${enabled ? "border-accent/40 bg-background" : "border-border"}`}>
+      <div className="flex items-center justify-between p-4">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={toggle}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              enabled ? "bg-accent" : "bg-border"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                enabled ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+          <span className="font-medium">{base.name}</span>
+        </div>
+        {enabled && (
+          <div className="flex items-center gap-2">
+            {existing?.convertCurrency && (
+              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent/15 text-accent-light">
+                {existing.convertCurrency} &rarr; Bs
+              </span>
+            )}
+            {existing?.requireScreenshot !== false && (
+              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-success/15 text-success">
+                Screenshot
+              </span>
+            )}
+            {existing?.requireReferenceNumber && (
+              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-warning/15 text-warning">
+                Ref. #
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {enabled && (
+        <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">Instructions</label>
+            <textarea
+              value={instructions}
+              onChange={(e) => { setInstructions(e.target.value); setDirty(true); }}
+              rows={2}
+              className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm resize-none"
+              placeholder="e.g., Transfer to Account #12345..."
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Currency Conversion</label>
+            <select
+              value={convertCurrency}
+              onChange={(e) => { setConvertCurrency(e.target.value); setDirty(true); }}
+              className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+            >
+              <option value="">None</option>
+              <option value="USD">USD &rarr; Bs</option>
+              <option value="EUR">EUR &rarr; Bs</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Required Proof Fields</label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={requireScreenshot}
+                  onChange={(e) => { setRequireScreenshot(e.target.checked); setDirty(true); }}
+                  className="accent-accent-light"
+                />
+                <span className="text-sm">Require screenshot upload</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={requireReferenceNumber}
+                  onChange={(e) => { setRequireReferenceNumber(e.target.checked); setDirty(true); }}
+                  className="accent-accent-light"
+                />
+                <span className="text-sm">Require reference number</span>
+              </label>
+            </div>
+          </div>
+          {dirty && (
+            <button
+              onClick={saveConfig}
+              className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              Save Changes
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function PaymentMethodsSection({
   concertId,
@@ -251,64 +410,6 @@ function PaymentMethodsSection({
   concertId: string;
   paymentMethods: PaymentMethodData[];
 }) {
-  const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState("");
-  const [instructions, setInstructions] = useState("");
-  const [convertCurrency, setConvertCurrency] = useState("");
-  const [requireScreenshot, setRequireScreenshot] = useState(true);
-  const [requireReferenceNumber, setRequireReferenceNumber] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editInstructions, setEditInstructions] = useState("");
-  const [editConvertCurrency, setEditConvertCurrency] = useState("");
-  const [editRequireScreenshot, setEditRequireScreenshot] = useState(true);
-  const [editRequireReferenceNumber, setEditRequireReferenceNumber] = useState(false);
-
-  function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    db.transact(
-      db.tx.paymentMethods[id()]
-        .update({
-          name,
-          instructions,
-          convertCurrency: convertCurrency || undefined,
-          requireScreenshot,
-          requireReferenceNumber,
-          createdAt: Date.now(),
-        })
-        .link({ concert: concertId }),
-    );
-    setName("");
-    setInstructions("");
-    setConvertCurrency("");
-    setRequireScreenshot(true);
-    setRequireReferenceNumber(false);
-    setShowForm(false);
-  }
-
-  function startEdit(pm: PaymentMethodData) {
-    setEditingId(pm.id);
-    setEditName(pm.name);
-    setEditInstructions(pm.instructions);
-    setEditConvertCurrency(pm.convertCurrency || "");
-    setEditRequireScreenshot(pm.requireScreenshot !== false);
-    setEditRequireReferenceNumber(pm.requireReferenceNumber === true);
-  }
-
-  function saveEdit() {
-    if (!editingId) return;
-    db.transact(
-      db.tx.paymentMethods[editingId].update({
-        name: editName,
-        instructions: editInstructions,
-        convertCurrency: editConvertCurrency || undefined,
-        requireScreenshot: editRequireScreenshot,
-        requireReferenceNumber: editRequireReferenceNumber,
-      }),
-    );
-    setEditingId(null);
-  }
-
   const [refreshingRate, setRefreshingRate] = useState(false);
   const [rateRefreshed, setRateRefreshed] = useState(false);
 
@@ -340,240 +441,34 @@ function PaymentMethodsSection({
     }
   }
 
-  function deletePaymentMethod(pmId: string) {
-    if (confirm("Delete this payment method?")) {
-      db.transact(db.tx.paymentMethods[pmId].delete());
-    }
-  }
-
   const hasConversionMethods = paymentMethods.some((pm) => pm.convertCurrency);
 
   return (
     <div className="bg-surface border border-border rounded-xl p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold">Payment Methods</h2>
-        <div className="flex items-center gap-2">
-          {hasConversionMethods && (
-            <button
-              onClick={refreshBcvRates}
-              disabled={refreshingRate}
-              className="px-3 py-1.5 border border-border hover:border-accent/50 text-muted hover:text-accent-light rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              {rateRefreshed ? "Refreshed!" : refreshingRate ? "Refreshing..." : "Refresh BCV Rate"}
-            </button>
-          )}
+        {hasConversionMethods && (
           <button
-            onClick={() => setShowForm(!showForm)}
-            className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
+            onClick={refreshBcvRates}
+            disabled={refreshingRate}
+            className="px-3 py-1.5 border border-border hover:border-accent/50 text-muted hover:text-accent-light rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
           >
-            {showForm ? "Cancel" : "+ Add"}
+            {rateRefreshed ? "Refreshed!" : refreshingRate ? "Refreshing..." : "Refresh BCV Rate"}
           </button>
-        </div>
+        )}
       </div>
 
-      {showForm && (
-        <form
-          onSubmit={handleCreate}
-          className="bg-background border border-border rounded-lg p-4 mb-4 space-y-3"
-        >
-          <div>
-            <label className="block text-sm font-medium mb-1">Name</label>
-            <input
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-              placeholder="e.g., Bank Transfer, Zelle, Venmo"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Instructions
-            </label>
-            <textarea
-              required
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm resize-none"
-              placeholder="e.g., Transfer to Account #12345..."
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Currency Conversion
-            </label>
-            <select
-              value={convertCurrency}
-              onChange={(e) => setConvertCurrency(e.target.value)}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-            >
-              <option value="">None</option>
-              <option value="USD">USD &rarr; Bs</option>
-              <option value="EUR">EUR &rarr; Bs</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">Required Proof Fields</label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={requireScreenshot}
-                  onChange={(e) => setRequireScreenshot(e.target.checked)}
-                  className="accent-accent-light"
-                />
-                <span className="text-sm">Require screenshot upload</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={requireReferenceNumber}
-                  onChange={(e) => setRequireReferenceNumber(e.target.checked)}
-                  className="accent-accent-light"
-                />
-                <span className="text-sm">Require reference number</span>
-              </label>
-            </div>
-          </div>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            Add Payment Method
-          </button>
-        </form>
-      )}
-
       <div className="space-y-3">
-        {paymentMethods.length === 0 ? (
-          <p className="text-muted text-sm text-center py-6">
-            No payment methods yet. Add one so buyers can see payment instructions.
-          </p>
-        ) : (
-          paymentMethods.map((pm) =>
-            editingId === pm.id ? (
-              <div
-                key={pm.id}
-                className="bg-background border border-accent/30 rounded-lg p-4 space-y-3"
-              >
-                <div>
-                  <label className="block text-sm font-medium mb-1">Name</label>
-                  <input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Instructions
-                  </label>
-                  <textarea
-                    value={editInstructions}
-                    onChange={(e) => setEditInstructions(e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm resize-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Currency Conversion
-                  </label>
-                  <select
-                    value={editConvertCurrency}
-                    onChange={(e) => setEditConvertCurrency(e.target.value)}
-                    className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  >
-                    <option value="">None</option>
-                    <option value="USD">USD &rarr; Bs</option>
-                    <option value="EUR">EUR &rarr; Bs</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Required Proof Fields</label>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editRequireScreenshot}
-                        onChange={(e) => setEditRequireScreenshot(e.target.checked)}
-                        className="accent-accent-light"
-                      />
-                      <span className="text-sm">Require screenshot upload</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editRequireReferenceNumber}
-                        onChange={(e) => setEditRequireReferenceNumber(e.target.checked)}
-                        className="accent-accent-light"
-                      />
-                      <span className="text-sm">Require reference number</span>
-                    </label>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={saveEdit}
-                    className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => setEditingId(null)}
-                    className="px-3 py-1.5 text-muted hover:text-foreground text-sm transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div
-                key={pm.id}
-                className="flex items-start justify-between p-4 border border-border rounded-lg"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-medium">{pm.name}</p>
-                    {pm.convertCurrency && (
-                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent/15 text-accent-light">
-                        {pm.convertCurrency} &rarr; Bs
-                      </span>
-                    )}
-                    {pm.requireScreenshot !== false && (
-                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-success/15 text-success">
-                        Screenshot
-                      </span>
-                    )}
-                    {pm.requireReferenceNumber && (
-                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-warning/15 text-warning">
-                        Ref. #
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted mt-1 whitespace-pre-wrap">
-                    {pm.instructions}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-                  <button
-                    onClick={() => startEdit(pm)}
-                    className="text-muted hover:text-accent-light transition-colors text-sm"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => deletePaymentMethod(pm.id)}
-                    className="text-muted hover:text-danger transition-colors text-sm"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ),
-          )
-        )}
+        {BASE_METHODS.map((base) => (
+          <PaymentMethodCard
+            key={base.type}
+            concertId={concertId}
+            base={base}
+            existing={paymentMethods.find(
+              (pm) => pm.type === base.type || (!pm.type && pm.name.toLowerCase() === base.name.toLowerCase()),
+            )}
+          />
+        ))}
       </div>
     </div>
   );
@@ -1574,58 +1469,130 @@ function CouponsSection({
   );
 }
 
-type PromoterData = {
+const FIELD_TYPES = [
+  { value: "text", label: "Texto" },
+  { value: "number", label: "Numero" },
+  { value: "checkbox", label: "Casilla de verificacion" },
+  { value: "date", label: "Fecha" },
+  { value: "email", label: "Correo electronico" },
+  { value: "select", label: "Lista desplegable" },
+  { value: "multiselect", label: "Seleccion multiple" },
+] as const;
+
+type CustomFieldData = {
   id: string;
-  name: string;
+  label: string;
+  fieldType: string;
+  required: boolean;
+  options?: string;
+  sortOrder: number;
 };
 
-function PromotersSection({
+function CustomFieldsSection({
   concertId,
-  promoters,
+  customFields,
 }: {
   concertId: string;
-  promoters: PromoterData[];
+  customFields: CustomFieldData[];
 }) {
   const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState("");
+  const [label, setLabel] = useState("");
+  const [fieldType, setFieldType] = useState("text");
+  const [required, setRequired] = useState(false);
+  const [options, setOptions] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
+  const [editLabel, setEditLabel] = useState("");
+  const [editFieldType, setEditFieldType] = useState("text");
+  const [editRequired, setEditRequired] = useState(false);
+  const [editOptions, setEditOptions] = useState("");
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const hasOptions = fieldType === "select" || fieldType === "multiselect";
+  const editHasOptions = editFieldType === "select" || editFieldType === "multiselect";
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    const maxSort = customFields.reduce((max, f) => Math.max(max, f.sortOrder), -1);
     db.transact(
-      db.tx.promoters[id()]
+      db.tx.customFields[id()]
         .update({
-          name,
+          label,
+          fieldType,
+          required,
+          ...(hasOptions ? { options: JSON.stringify(options.split(",").map((o) => o.trim()).filter(Boolean)) } : {}),
+          sortOrder: maxSort + 1,
           createdAt: Date.now(),
         })
         .link({ concert: concertId }),
     );
-    setName("");
+    setLabel("");
+    setFieldType("text");
+    setRequired(false);
+    setOptions("");
     setShowForm(false);
   }
 
-  function startEdit(p: PromoterData) {
-    setEditingId(p.id);
-    setEditName(p.name);
+  function startEdit(f: CustomFieldData) {
+    setEditingId(f.id);
+    setEditLabel(f.label);
+    setEditFieldType(f.fieldType);
+    setEditRequired(f.required);
+    try {
+      setEditOptions(f.options ? JSON.parse(f.options).join(", ") : "");
+    } catch {
+      setEditOptions("");
+    }
   }
 
   function saveEdit() {
     if (!editingId) return;
-    db.transact(db.tx.promoters[editingId].update({ name: editName }));
+    db.transact(
+      db.tx.customFields[editingId].update({
+        label: editLabel,
+        fieldType: editFieldType,
+        required: editRequired,
+        ...(editHasOptions
+          ? { options: JSON.stringify(editOptions.split(",").map((o) => o.trim()).filter(Boolean)) }
+          : { options: undefined }),
+      }),
+    );
     setEditingId(null);
   }
 
-  function deletePromoter(pId: string) {
-    if (confirm("Delete this promoter?")) {
-      db.transact(db.tx.promoters[pId].delete());
+  function deleteField(fId: string) {
+    if (confirm("Delete this field?")) {
+      db.transact(db.tx.customFields[fId].delete());
     }
   }
+
+  function handleDragStart(e: React.DragEvent, fieldId: string) {
+    e.dataTransfer.setData("text/plain", fieldId);
+  }
+
+  function handleDrop(e: React.DragEvent, targetId: string) {
+    e.preventDefault();
+    setDragOverId(null);
+    const sourceId = e.dataTransfer.getData("text/plain");
+    if (sourceId === targetId) return;
+    const sorted = [...customFields].sort((a, b) => a.sortOrder - b.sortOrder);
+    const sourceIdx = sorted.findIndex((f) => f.id === sourceId);
+    const targetIdx = sorted.findIndex((f) => f.id === targetId);
+    if (sourceIdx === -1 || targetIdx === -1) return;
+    const reordered = [...sorted];
+    const [moved] = reordered.splice(sourceIdx, 1);
+    reordered.splice(targetIdx, 0, moved);
+    db.transact(reordered.map((f, i) => db.tx.customFields[f.id].update({ sortOrder: i })));
+  }
+
+  const fieldTypeLabel = (ft: string) => FIELD_TYPES.find((t) => t.value === ft)?.label || ft;
 
   return (
     <div className="bg-surface border border-border rounded-xl p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">Promoters</h2>
+        <div>
+          <h2 className="text-xl font-semibold">Custom Fields</h2>
+          <p className="text-sm text-muted mt-0.5">Add custom fields to the checkout form. Drag to reorder.</p>
+        </div>
         <button
           onClick={() => setShowForm(!showForm)}
           className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
@@ -1637,77 +1604,175 @@ function PromotersSection({
       {showForm && (
         <form
           onSubmit={handleCreate}
-          className="bg-background border border-border rounded-lg p-4 mb-4 flex gap-3"
+          className="bg-background border border-border rounded-lg p-4 mb-4 space-y-3"
         >
-          <input
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="flex-1 px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-            placeholder="Promoter name"
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Label</label>
+              <input
+                required
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                placeholder="e.g., Promotor, Instagram"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Type</label>
+              <select
+                value={fieldType}
+                onChange={(e) => setFieldType(e.target.value)}
+                className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+              >
+                {FIELD_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {hasOptions && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Options (comma-separated)</label>
+              <input
+                required
+                value={options}
+                onChange={(e) => setOptions(e.target.value)}
+                className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                placeholder="e.g., Option A, Option B, Option C"
+              />
+            </div>
+          )}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={required}
+              onChange={(e) => setRequired(e.target.checked)}
+              className="accent-accent-light"
+            />
+            <span className="text-sm">Required field</span>
+          </label>
           <button
             type="submit"
             className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
           >
-            Add
+            Add Field
           </button>
         </form>
       )}
 
       <div className="space-y-2">
-        {promoters.length === 0 ? (
+        {customFields.length === 0 ? (
           <p className="text-muted text-sm text-center py-6">
-            No promoters yet. Add promoters so buyers can select one during purchase.
+            No custom fields yet. Add fields to collect additional info during checkout.
           </p>
         ) : (
-          promoters.map((p) =>
-            editingId === p.id ? (
-              <div
-                key={p.id}
-                className="flex items-center gap-2 p-3 border border-accent/30 rounded-lg bg-background"
-              >
-                <input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="flex-1 px-3 py-1.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                />
-                <button
-                  onClick={saveEdit}
-                  className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-medium transition-colors"
+          [...customFields]
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((f) =>
+              editingId === f.id ? (
+                <div
+                  key={f.id}
+                  className="bg-background border border-accent/30 rounded-lg p-4 space-y-3"
                 >
-                  Save
-                </button>
-                <button
-                  onClick={() => setEditingId(null)}
-                  className="px-3 py-1.5 text-muted hover:text-foreground text-xs transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <div
-                key={p.id}
-                className="flex items-center justify-between p-3 border border-border rounded-lg"
-              >
-                <p className="font-medium text-sm">{p.name}</p>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => startEdit(p)}
-                    className="text-muted hover:text-accent-light transition-colors text-xs"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => deletePromoter(p.id)}
-                    className="text-muted hover:text-danger transition-colors text-xs"
-                  >
-                    Delete
-                  </button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Label</label>
+                      <input
+                        value={editLabel}
+                        onChange={(e) => setEditLabel(e.target.value)}
+                        className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Type</label>
+                      <select
+                        value={editFieldType}
+                        onChange={(e) => setEditFieldType(e.target.value)}
+                        className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                      >
+                        {FIELD_TYPES.map((t) => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  {editHasOptions && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Options (comma-separated)</label>
+                      <input
+                        value={editOptions}
+                        onChange={(e) => setEditOptions(e.target.value)}
+                        className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                      />
+                    </div>
+                  )}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editRequired}
+                      onChange={(e) => setEditRequired(e.target.checked)}
+                      className="accent-accent-light"
+                    />
+                    <span className="text-sm">Required field</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveEdit}
+                      className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="px-3 py-1.5 text-muted hover:text-foreground text-sm transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ),
-          )
+              ) : (
+                <div
+                  key={f.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, f.id)}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverId(f.id); }}
+                  onDragLeave={() => setDragOverId(null)}
+                  onDrop={(e) => handleDrop(e, f.id)}
+                  className={`flex items-center justify-between p-3 border rounded-lg cursor-grab active:cursor-grabbing transition-colors ${
+                    dragOverId === f.id ? "border-accent/50 bg-accent/5" : "border-border"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-muted select-none">&#x2630;</span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-sm">{f.label}</p>
+                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent/15 text-accent-light">
+                        {fieldTypeLabel(f.fieldType)}
+                      </span>
+                      {f.required && (
+                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-warning/15 text-warning">
+                          Required
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => startEdit(f)}
+                      className="text-muted hover:text-accent-light transition-colors text-xs"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => deleteField(f.id)}
+                      className="text-muted hover:text-danger transition-colors text-xs"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ),
+            )
         )}
       </div>
     </div>

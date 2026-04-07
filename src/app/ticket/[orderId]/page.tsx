@@ -320,6 +320,19 @@ export default function TicketPage() {
                   <p className="font-medium">{order.promoter}</p>
                 </div>
               )}
+              {order.customFieldValues && (() => {
+                try {
+                  const vals = JSON.parse(order.customFieldValues as string);
+                  return Object.entries(vals)
+                    .filter(([, v]) => v)
+                    .map(([key, val]) => (
+                      <div key={key}>
+                        <p className="text-muted">{key}</p>
+                        <p className="font-medium">{String(val)}</p>
+                      </div>
+                    ));
+                } catch { return null; }
+              })()}
               {ticketType && (
                 <>
                   <div>

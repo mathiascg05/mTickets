@@ -45,6 +45,7 @@ const _schema = i.schema({
       cedula: i.string().indexed(),
       paymentMethod: i.string(),
       promoter: i.string().optional(),
+      customFieldValues: i.string().optional(),
       status: i.string().indexed(),
       paymentProofPath: i.string().optional(),
       proofReferenceNumber: i.string().optional(),
@@ -60,6 +61,7 @@ const _schema = i.schema({
       createdAt: i.number().indexed(),
     }),
     paymentMethods: i.entity({
+      type: i.string().indexed(),
       name: i.string(),
       instructions: i.string(),
       convertCurrency: i.string().optional(),
@@ -67,8 +69,12 @@ const _schema = i.schema({
       requireReferenceNumber: i.boolean().optional(),
       createdAt: i.number().indexed(),
     }),
-    promoters: i.entity({
-      name: i.string(),
+    customFields: i.entity({
+      label: i.string(),
+      fieldType: i.string(),
+      required: i.boolean(),
+      options: i.string().optional(),
+      sortOrder: i.number().indexed(),
       createdAt: i.number().indexed(),
     }),
     exchangeRates: i.entity({
@@ -159,9 +165,9 @@ const _schema = i.schema({
         label: "paymentMethods",
       },
     },
-    concertPromoters: {
+    concertCustomFields: {
       forward: {
-        on: "promoters",
+        on: "customFields",
         has: "one",
         label: "concert",
         onDelete: "cascade",
@@ -169,7 +175,7 @@ const _schema = i.schema({
       reverse: {
         on: "concerts",
         has: "many",
-        label: "promoters",
+        label: "customFields",
       },
     },
     ticketTypePhases: {
