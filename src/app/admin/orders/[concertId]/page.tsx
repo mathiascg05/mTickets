@@ -259,6 +259,7 @@ function CreateOrderModal({
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [cedula, setCedula] = useState("");
+  const [isCortesia, setIsCortesia] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState(concert.paymentMethods[0]?.name || "");
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [orderStatus, setOrderStatus] = useState<"approved" | "pending">("approved");
@@ -282,8 +283,9 @@ function CreateOrderModal({
     setSubmitting(true);
 
     try {
-      let filePath = "admin-created";
-      if (proofFile) {
+      const effectivePaymentMethod = isCortesia ? "Cortesia" : paymentMethod;
+      let filePath = isCortesia ? "cortesia" : "admin-created";
+      if (!isCortesia && proofFile) {
         const ext = proofFile.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") || "jpg";
         const storagePath = `payment-proofs/${Date.now()}-admin.${ext}`;
         await db.storage.upload(storagePath, proofFile);
@@ -301,7 +303,7 @@ function CreateOrderModal({
             lastName,
             email,
             cedula,
-            paymentMethod,
+            paymentMethod: effectivePaymentMethod,
             status: orderStatus,
             paymentProofPath: filePath,
             visited: false,
@@ -310,13 +312,15 @@ function CreateOrderModal({
               ? { phaseId: selectedOption.activePhase.id }
               : {}),
             ...(purchaseGroupId ? { purchaseGroupId } : {}),
-            ...(pmCurrencyMap[paymentMethod] && rateMap[pmCurrencyMap[paymentMethod]]
-              ? {
-                  purchaseRate: rateMap[pmCurrencyMap[paymentMethod]],
-                  purchaseRateCurrency: pmCurrencyMap[paymentMethod],
-                  purchaseAmountBs: Math.round(selectedOption.price * rateMap[pmCurrencyMap[paymentMethod]] * 100) / 100,
-                }
-              : {}),
+            ...(isCortesia
+              ? { discountAmount: selectedOption.price }
+              : pmCurrencyMap[paymentMethod] && rateMap[pmCurrencyMap[paymentMethod]]
+                ? {
+                    purchaseRate: rateMap[pmCurrencyMap[paymentMethod]],
+                    purchaseRateCurrency: pmCurrencyMap[paymentMethod],
+                    purchaseAmountBs: Math.round(selectedOption.price * rateMap[pmCurrencyMap[paymentMethod]] * 100) / 100,
+                  }
+                : {}),
           })
           .link({ ticketType: selectedTicketTypeId });
       });
@@ -442,34 +446,56 @@ function CreateOrderModal({
             />
           </div>
 
-          {/* Payment Method */}
-          <div>
-            <label className="block text-sm font-medium mb-1">Payment Method</label>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+          {/* Cortesia Toggle */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsCortesia(!isCortesia)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                isCortesia ? "bg-accent" : "bg-border"
+              }`}
             >
-              {(concert.paymentMethods || []).map((pm) => (
-                <option key={pm.id} value={pm.name}>
-                  {pm.name}
-                </option>
-              ))}
-            </select>
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  isCortesia ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
+            <label className="text-sm font-medium">Cortesia</label>
           </div>
 
-          {/* Payment Proof (optional) */}
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Payment Proof <span className="text-muted font-normal">(optional)</span>
-            </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setProofFile(e.target.files?.[0] || null)}
-              className="w-full text-sm text-muted file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-border file:text-sm file:font-medium file:bg-surface-hover file:text-foreground hover:file:bg-surface-hover/80 file:transition-colors"
-            />
-          </div>
+          {!isCortesia && (
+            <>
+              {/* Payment Method */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Payment Method</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+                >
+                  {(concert.paymentMethods || []).map((pm) => (
+                    <option key={pm.id} value={pm.name}>
+                      {pm.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Payment Proof (optional) */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Payment Proof <span className="text-muted font-normal">(optional)</span>
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setProofFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm text-muted file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-border file:text-sm file:font-medium file:bg-surface-hover file:text-foreground hover:file:bg-surface-hover/80 file:transition-colors"
+                />
+              </div>
+            </>
+          )}
 
           {/* Status Toggle */}
           <div>
@@ -504,7 +530,11 @@ function CreateOrderModal({
           {selectedOption && (
             <div className="bg-background border border-border rounded-lg p-3 text-sm">
               <p className="text-muted">
-                Total: <span className="text-foreground font-semibold">{quantity}x ${selectedOption.price.toFixed(2)} = ${(quantity * selectedOption.price).toFixed(2)}</span>
+                {isCortesia ? (
+                  <>Total: <span className="text-foreground font-semibold">{quantity}x Cortesia = $0.00</span></>
+                ) : (
+                  <>Total: <span className="text-foreground font-semibold">{quantity}x ${selectedOption.price.toFixed(2)} = ${(quantity * selectedOption.price).toFixed(2)}</span></>
+                )}
               </p>
             </div>
           )}
