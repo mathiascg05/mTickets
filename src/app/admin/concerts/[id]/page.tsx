@@ -1488,6 +1488,161 @@ type CustomFieldData = {
   sortOrder: number;
 };
 
+function CustomFieldCard({
+  field,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  isDragOver,
+}: {
+  field: CustomFieldData;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent) => void;
+  isDragOver: boolean;
+}) {
+  const hasOptions = field.fieldType === "select" || field.fieldType === "multiselect";
+  let parsedOptions: string[] = [];
+  try { parsedOptions = field.options ? JSON.parse(field.options) : []; } catch { /* ignore */ }
+
+  function updateField(updates: Partial<{ label: string; fieldType: string; required: boolean; options: string }>) {
+    db.transact(db.tx.customFields[field.id].update(updates));
+  }
+
+  function updateOption(index: number, value: string) {
+    const next = [...parsedOptions];
+    next[index] = value;
+    updateField({ options: JSON.stringify(next) });
+  }
+
+  function addOption() {
+    const next = [...parsedOptions, ""];
+    updateField({ options: JSON.stringify(next) });
+  }
+
+  function removeOption(index: number) {
+    const next = parsedOptions.filter((_, i) => i !== index);
+    updateField({ options: JSON.stringify(next) });
+  }
+
+  function deleteField() {
+    if (confirm("Delete this field?")) {
+      db.transact(db.tx.customFields[field.id].delete());
+    }
+  }
+
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      className={`border rounded-lg p-4 bg-background transition-colors cursor-grab active:cursor-grabbing ${
+        isDragOver ? "border-accent/50 bg-accent/5" : "border-border"
+      }`}
+    >
+      {/* Top row: drag handle, label, type, required, delete */}
+      <div className="flex items-center gap-3">
+        <span className="text-muted select-none text-lg flex-shrink-0">&#x2630;</span>
+
+        <div className="flex-1 grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-muted mb-1">Etiqueta del Campo *</label>
+            <input
+              value={field.label}
+              onChange={(e) => updateField({ label: e.target.value })}
+              className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+              placeholder="e.g., Promotor"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-muted mb-1">Tipo de Campo *</label>
+            <select
+              value={field.fieldType}
+              onChange={(e) => {
+                const newType = e.target.value;
+                const willHaveOptions = newType === "select" || newType === "multiselect";
+                updateField({
+                  fieldType: newType,
+                  ...(willHaveOptions && parsedOptions.length === 0
+                    ? { options: JSON.stringify([""]) }
+                    : !willHaveOptions
+                      ? { options: undefined }
+                      : {}),
+                });
+              }}
+              className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+            >
+              {FIELD_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <label className="flex items-center gap-1.5 cursor-pointer flex-shrink-0 text-sm">
+          <input
+            type="checkbox"
+            checked={field.required}
+            onChange={(e) => updateField({ required: e.target.checked })}
+            className="accent-accent-light"
+          />
+          <span className="text-xs whitespace-nowrap">Campo Obligatorio</span>
+        </label>
+
+        <button
+          onClick={deleteField}
+          className="flex-shrink-0 p-1.5 bg-danger/90 hover:bg-danger text-white rounded-md transition-colors"
+          title="Delete field"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Options section for select/multiselect */}
+      {hasOptions && (
+        <div className="mt-4 ml-8">
+          <label className="block text-xs text-muted mb-2">
+            Opciones de {field.fieldType === "select" ? "Lista Desplegable" : "Seleccion Multiple"} (Opcional)
+          </label>
+          <div className="space-y-2">
+            {parsedOptions.map((opt, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  value={opt}
+                  onChange={(e) => updateOption(i, e.target.value)}
+                  className="flex-1 px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  placeholder={`Opcion ${i + 1}`}
+                />
+                <button
+                  onClick={() => removeOption(i)}
+                  className="flex-shrink-0 p-1.5 bg-danger/90 hover:bg-danger text-white rounded-md transition-colors"
+                  title="Remove option"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={addOption}
+            className="mt-2 w-full py-2 border-2 border-dashed border-border hover:border-accent/40 text-muted hover:text-accent-light rounded-lg text-sm font-medium transition-colors"
+          >
+            + Agregar Opcion
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CustomFieldsSection({
   concertId,
   customFields,
@@ -1495,74 +1650,21 @@ function CustomFieldsSection({
   concertId: string;
   customFields: CustomFieldData[];
 }) {
-  const [showForm, setShowForm] = useState(false);
-  const [label, setLabel] = useState("");
-  const [fieldType, setFieldType] = useState("text");
-  const [required, setRequired] = useState(false);
-  const [options, setOptions] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editLabel, setEditLabel] = useState("");
-  const [editFieldType, setEditFieldType] = useState("text");
-  const [editRequired, setEditRequired] = useState(false);
-  const [editOptions, setEditOptions] = useState("");
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
-  const hasOptions = fieldType === "select" || fieldType === "multiselect";
-  const editHasOptions = editFieldType === "select" || editFieldType === "multiselect";
-
-  function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
+  function addField() {
     const maxSort = customFields.reduce((max, f) => Math.max(max, f.sortOrder), -1);
     db.transact(
       db.tx.customFields[id()]
         .update({
-          label,
-          fieldType,
-          required,
-          ...(hasOptions ? { options: JSON.stringify(options.split(",").map((o) => o.trim()).filter(Boolean)) } : {}),
+          label: "",
+          fieldType: "text",
+          required: false,
           sortOrder: maxSort + 1,
           createdAt: Date.now(),
         })
         .link({ concert: concertId }),
     );
-    setLabel("");
-    setFieldType("text");
-    setRequired(false);
-    setOptions("");
-    setShowForm(false);
-  }
-
-  function startEdit(f: CustomFieldData) {
-    setEditingId(f.id);
-    setEditLabel(f.label);
-    setEditFieldType(f.fieldType);
-    setEditRequired(f.required);
-    try {
-      setEditOptions(f.options ? JSON.parse(f.options).join(", ") : "");
-    } catch {
-      setEditOptions("");
-    }
-  }
-
-  function saveEdit() {
-    if (!editingId) return;
-    db.transact(
-      db.tx.customFields[editingId].update({
-        label: editLabel,
-        fieldType: editFieldType,
-        required: editRequired,
-        ...(editHasOptions
-          ? { options: JSON.stringify(editOptions.split(",").map((o) => o.trim()).filter(Boolean)) }
-          : { options: undefined }),
-      }),
-    );
-    setEditingId(null);
-  }
-
-  function deleteField(fId: string) {
-    if (confirm("Delete this field?")) {
-      db.transact(db.tx.customFields[fId].delete());
-    }
   }
 
   function handleDragStart(e: React.DragEvent, fieldId: string) {
@@ -1584,197 +1686,43 @@ function CustomFieldsSection({
     db.transact(reordered.map((f, i) => db.tx.customFields[f.id].update({ sortOrder: i })));
   }
 
-  const fieldTypeLabel = (ft: string) => FIELD_TYPES.find((t) => t.value === ft)?.label || ft;
-
   return (
     <div className="bg-surface border border-border rounded-xl p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-xl font-semibold">Custom Fields</h2>
-          <p className="text-sm text-muted mt-0.5">Add custom fields to the checkout form. Drag to reorder.</p>
-        </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
-        >
-          {showForm ? "Cancel" : "+ Add"}
-        </button>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-xl font-semibold">Campos de Checkout Personalizados</h2>
       </div>
+      <p className="text-sm text-muted mb-4">
+        Agrega campos personalizados para recopilar informacion durante el checkout. Arrastra y suelta para reordenar los campos.
+      </p>
 
-      {showForm && (
-        <form
-          onSubmit={handleCreate}
-          className="bg-background border border-border rounded-lg p-4 mb-4 space-y-3"
-        >
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium mb-1">Label</label>
-              <input
-                required
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                placeholder="e.g., Promotor, Instagram"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Type</label>
-              <select
-                value={fieldType}
-                onChange={(e) => setFieldType(e.target.value)}
-                className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-              >
-                {FIELD_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          {hasOptions && (
-            <div>
-              <label className="block text-sm font-medium mb-1">Options (comma-separated)</label>
-              <input
-                required
-                value={options}
-                onChange={(e) => setOptions(e.target.value)}
-                className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                placeholder="e.g., Option A, Option B, Option C"
-              />
-            </div>
-          )}
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={required}
-              onChange={(e) => setRequired(e.target.checked)}
-              className="accent-accent-light"
-            />
-            <span className="text-sm">Required field</span>
-          </label>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            Add Field
-          </button>
-        </form>
-      )}
-
-      <div className="space-y-2">
+      <div className="space-y-3">
         {customFields.length === 0 ? (
           <p className="text-muted text-sm text-center py-6">
-            No custom fields yet. Add fields to collect additional info during checkout.
+            No hay campos personalizados. Agrega campos para recopilar informacion adicional durante el checkout.
           </p>
         ) : (
           [...customFields]
             .sort((a, b) => a.sortOrder - b.sortOrder)
-            .map((f) =>
-              editingId === f.id ? (
-                <div
-                  key={f.id}
-                  className="bg-background border border-accent/30 rounded-lg p-4 space-y-3"
-                >
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Label</label>
-                      <input
-                        value={editLabel}
-                        onChange={(e) => setEditLabel(e.target.value)}
-                        className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Type</label>
-                      <select
-                        value={editFieldType}
-                        onChange={(e) => setEditFieldType(e.target.value)}
-                        className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                      >
-                        {FIELD_TYPES.map((t) => (
-                          <option key={t.value} value={t.value}>{t.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  {editHasOptions && (
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Options (comma-separated)</label>
-                      <input
-                        value={editOptions}
-                        onChange={(e) => setEditOptions(e.target.value)}
-                        className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                      />
-                    </div>
-                  )}
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editRequired}
-                      onChange={(e) => setEditRequired(e.target.checked)}
-                      className="accent-accent-light"
-                    />
-                    <span className="text-sm">Required field</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={saveEdit}
-                      className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="px-3 py-1.5 text-muted hover:text-foreground text-sm transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  key={f.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, f.id)}
-                  onDragOver={(e) => { e.preventDefault(); setDragOverId(f.id); }}
-                  onDragLeave={() => setDragOverId(null)}
-                  onDrop={(e) => handleDrop(e, f.id)}
-                  className={`flex items-center justify-between p-3 border rounded-lg cursor-grab active:cursor-grabbing transition-colors ${
-                    dragOverId === f.id ? "border-accent/50 bg-accent/5" : "border-border"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-muted select-none">&#x2630;</span>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-sm">{f.label}</p>
-                      <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent/15 text-accent-light">
-                        {fieldTypeLabel(f.fieldType)}
-                      </span>
-                      {f.required && (
-                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-warning/15 text-warning">
-                          Required
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => startEdit(f)}
-                      className="text-muted hover:text-accent-light transition-colors text-xs"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => deleteField(f.id)}
-                      className="text-muted hover:text-danger transition-colors text-xs"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ),
-            )
+            .map((f) => (
+              <CustomFieldCard
+                key={f.id}
+                field={f}
+                onDragStart={(e) => handleDragStart(e, f.id)}
+                onDragOver={(e) => { e.preventDefault(); setDragOverId(f.id); }}
+                onDragLeave={() => setDragOverId(null)}
+                onDrop={(e) => handleDrop(e, f.id)}
+                isDragOver={dragOverId === f.id}
+              />
+            ))
         )}
       </div>
+
+      <button
+        onClick={addField}
+        className="mt-4 w-full py-2.5 border-2 border-dashed border-border hover:border-accent/40 text-muted hover:text-accent-light rounded-lg text-sm font-medium transition-colors"
+      >
+        + Agregar Campo
+      </button>
     </div>
   );
 }
