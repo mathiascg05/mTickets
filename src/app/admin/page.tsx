@@ -2,10 +2,12 @@
 
 import { db } from "@/lib/db";
 import { useAuthContext } from "@/lib/AuthContext";
+import { useLanguage } from "@/lib/LanguageContext";
 import Link from "next/link";
 
 export default function AdminDashboard() {
   const { email, isSuperAdmin } = useAuthContext();
+  const { t } = useLanguage();
 
   const { isLoading, data } = db.useQuery({
     concerts: {
@@ -17,7 +19,7 @@ export default function AdminDashboard() {
   });
 
   if (isLoading || !data) {
-    return <div className="animate-pulse text-muted">Loading...</div>;
+    return <div className="animate-pulse text-muted">{t("common.loading")}</div>;
   }
 
   const { concerts } = data;
@@ -28,22 +30,22 @@ export default function AdminDashboard() {
 
   const stats = [
     {
-      label: "Active Events",
+      label: t("admin.activeEvents"),
       value: activeConcerts.length,
       color: "text-accent-light",
     },
     {
-      label: "Pending Orders",
+      label: t("admin.pendingOrders"),
       value: pendingOrders.length,
       color: "text-warning",
     },
     {
-      label: "Approved Tickets",
+      label: t("admin.approvedTickets"),
       value: approvedOrders.length,
       color: "text-success",
     },
     {
-      label: "Total Orders",
+      label: t("admin.totalOrders"),
       value: orders.length,
       color: "text-foreground",
     },
@@ -51,7 +53,7 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+      <h1 className="text-3xl font-bold mb-8">{t("admin.dashboard")}</h1>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {stats.map((stat) => (
@@ -73,10 +75,10 @@ export default function AdminDashboard() {
           className="bg-surface border border-border rounded-xl p-6 hover:border-accent/50 transition-colors group"
         >
           <h3 className="text-lg font-semibold group-hover:text-accent-light transition-colors">
-            Manage Events
+            {t("admin.manageEvents")}
           </h3>
           <p className="text-muted text-sm mt-1">
-            Create and edit events and ticket types
+            {t("admin.manageEventsSub")}
           </p>
         </Link>
 
@@ -85,13 +87,13 @@ export default function AdminDashboard() {
           className="bg-surface border border-border rounded-xl p-6 hover:border-accent/50 transition-colors group"
         >
           <h3 className="text-lg font-semibold group-hover:text-accent-light transition-colors">
-            Review Orders
+            {t("admin.reviewOrders")}
           </h3>
           <p className="text-muted text-sm mt-1">
-            Approve or reject pending ticket orders
+            {t("admin.reviewOrdersSub")}
             {pendingOrders.length > 0 && (
               <span className="ml-2 inline-flex px-2 py-0.5 bg-warning/10 text-warning rounded-full text-xs font-medium">
-                {pendingOrders.length} pending
+                {t("admin.pendingCount", { count: pendingOrders.length })}
               </span>
             )}
           </p>

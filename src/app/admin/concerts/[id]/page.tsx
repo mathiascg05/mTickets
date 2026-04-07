@@ -7,6 +7,8 @@ import { id } from "@instantdb/react";
 import { extractDominantColor } from "@/lib/colorExtract";
 import { useParams } from "next/navigation";
 import { useRef, useState } from "react";
+import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
+import { getFieldTypeLabel } from "@/lib/i18n";
 
 export default function AdminConcertEditPage() {
   const params = useParams();
@@ -34,13 +36,15 @@ export default function AdminConcertEditPage() {
     },
   });
 
+  const { t } = useLanguage();
+
   if (isLoading || !data) {
-    return <div className="animate-pulse text-muted">Loading...</div>;
+    return <div className="animate-pulse text-muted">{t("common.loading")}</div>;
   }
 
   const concert = data.concerts[0];
   if (!concert) {
-    return <div className="text-muted">Event not found</div>;
+    return <div className="text-muted">{t("admin.eventNotFound")}</div>;
   }
 
   return (
@@ -89,6 +93,7 @@ export default function AdminConcertEditPage() {
 
 function EventLink({ slug }: { slug: string }) {
   const [copied, setCopied] = useState(false);
+  const { t } = useLanguage();
   const url =
     typeof window !== "undefined"
       ? `${window.location.origin}/events/${slug}`
@@ -107,7 +112,7 @@ function EventLink({ slug }: { slug: string }) {
         onClick={handleCopy}
         className="px-3 py-1 text-xs font-medium rounded-lg border border-border hover:border-accent/50 text-muted hover:text-accent-light transition-colors flex-shrink-0"
       >
-        {copied ? "Copied!" : "Copy Link"}
+        {copied ? t("common.copied") : t("common.copyLink")}
       </button>
     </div>
   );
@@ -120,9 +125,11 @@ type ConcertData = {
   venue?: string;
   description?: string;
   status: string;
+  defaultLanguage?: string;
 };
 
 function ConcertEditForm({ concert }: { concert: ConcertData }) {
+  const { t } = useLanguage();
   const [name, setName] = useState(concert.name);
   const [date, setDate] = useState(concert.date);
   const [venue, setVenue] = useState(concert.venue);
@@ -149,7 +156,7 @@ function ConcertEditForm({ concert }: { concert: ConcertData }) {
   }
 
   function deleteConcert() {
-    if (confirm("Delete this event? This cannot be undone.")) {
+    if (confirm(t("admin.deleteEventConfirm"))) {
       db.transact(db.tx.concerts[concert.id].delete());
       window.location.href = "/admin/concerts";
     }
@@ -158,7 +165,7 @@ function ConcertEditForm({ concert }: { concert: ConcertData }) {
   return (
     <div className="bg-surface border border-border rounded-xl p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">Event Details</h2>
+        <h2 className="text-xl font-semibold">{t("admin.eventDetails")}</h2>
         <button
           onClick={toggleStatus}
           className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
@@ -167,13 +174,13 @@ function ConcertEditForm({ concert }: { concert: ConcertData }) {
               : "bg-muted/10 text-muted border-muted/30 hover:bg-muted/20"
           }`}
         >
-          {concert.status === "active" ? "Active" : "Draft"} - Click to toggle
+          {concert.status === "active" ? t("common.active") : t("common.draft")} {t("admin.clickToToggle")}
         </button>
       </div>
 
       <form onSubmit={handleSave} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1.5">Name</label>
+          <label className="block text-sm font-medium mb-1.5">{t("common.name")}</label>
           <input
             required
             value={name}
@@ -182,7 +189,7 @@ function ConcertEditForm({ concert }: { concert: ConcertData }) {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1.5">Date</label>
+          <label className="block text-sm font-medium mb-1.5">{t("common.date")}</label>
           <input
             type="date"
             required
@@ -192,7 +199,7 @@ function ConcertEditForm({ concert }: { concert: ConcertData }) {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1.5">Venue</label>
+          <label className="block text-sm font-medium mb-1.5">{t("common.venue")}</label>
           <input
             required
             value={venue}
@@ -202,7 +209,7 @@ function ConcertEditForm({ concert }: { concert: ConcertData }) {
         </div>
         <div>
           <label className="block text-sm font-medium mb-1.5">
-            Description
+            {t("common.description")}
           </label>
           <textarea
             required
@@ -210,24 +217,42 @@ function ConcertEditForm({ concert }: { concert: ConcertData }) {
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
             className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors resize-none"
+            placeholder={t("admin.descPlaceholder")}
           />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">{t("admin.eventLanguage")}</label>
+          <select
+            value={concert.defaultLanguage || "es"}
+            onChange={(e) =>
+              db.transact(
+                db.tx.concerts[concert.id].update({
+                  defaultLanguage: e.target.value,
+                }),
+              )
+            }
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+          >
+            <option value="es">Español</option>
+            <option value="en">English</option>
+          </select>
         </div>
         <div className="flex items-center gap-3">
           <button
             type="submit"
             className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors shadow-lg shadow-accent/20"
           >
-            Save Changes
+            {t("common.saveChanges")}
           </button>
           {saved && (
-            <span className="text-success text-sm">{"✓"} Saved!</span>
+            <span className="text-success text-sm">{"✓"} {t("common.saved")}</span>
           )}
           <button
             type="button"
             onClick={deleteConcert}
             className="ml-auto px-4 py-2.5 text-danger hover:bg-danger/10 rounded-lg text-sm font-medium transition-colors"
           >
-            Delete Event
+            {t("admin.deleteEvent")}
           </button>
         </div>
       </form>
@@ -265,6 +290,7 @@ function PaymentMethodCard({
   base: (typeof BASE_METHODS)[number];
   existing: PaymentMethodData | undefined;
 }) {
+  const { t } = useLanguage();
   const [instructions, setInstructions] = useState(existing?.instructions || "");
   const [convertCurrency, setConvertCurrency] = useState(existing?.convertCurrency || "");
   const [requireScreenshot, setRequireScreenshot] = useState(existing?.requireScreenshot !== false);
@@ -280,7 +306,7 @@ function PaymentMethodCard({
 
   function toggle() {
     if (enabled) {
-      if (confirm(`Disable ${base.name}?`)) {
+      if (confirm(t("admin.disable", { name: base.name }))) {
         db.transact(db.tx.paymentMethods[existing!.id].delete());
       }
     } else {
@@ -342,12 +368,12 @@ function PaymentMethodCard({
             )}
             {existing?.requireScreenshot !== false && (
               <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-success/15 text-success">
-                Screenshot
+                {t("admin.screenshotBadge")}
               </span>
             )}
             {existing?.requireReferenceNumber && (
               <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-warning/15 text-warning">
-                Ref. #
+                {t("admin.refBadge")}
               </span>
             )}
           </div>
@@ -360,7 +386,7 @@ function PaymentMethodCard({
           {base.type === "zelle" && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium mb-1">Correo Zelle</label>
+                <label className="block text-sm font-medium mb-1">{t("admin.zelleEmail")}</label>
                 <input
                   value={zelleEmail}
                   onChange={(e) => { setZelleEmail(e.target.value); setDirty(true); }}
@@ -370,7 +396,7 @@ function PaymentMethodCard({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Nombre del titular</label>
+                <label className="block text-sm font-medium mb-1">{t("admin.zelleName")}</label>
                 <input
                   value={zelleName}
                   onChange={(e) => { setZelleName(e.target.value); setDirty(true); }}
@@ -385,7 +411,7 @@ function PaymentMethodCard({
           {base.type === "pago_movil" && (
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-sm font-medium mb-1">Cedula</label>
+                <label className="block text-sm font-medium mb-1">{t("admin.pmCedula")}</label>
                 <input
                   value={pmCedula}
                   onChange={(e) => { setPmCedula(e.target.value); setDirty(true); }}
@@ -394,7 +420,7 @@ function PaymentMethodCard({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Telefono</label>
+                <label className="block text-sm font-medium mb-1">{t("admin.pmPhone")}</label>
                 <input
                   value={pmPhone}
                   onChange={(e) => { setPmPhone(e.target.value); setDirty(true); }}
@@ -403,7 +429,7 @@ function PaymentMethodCard({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Banco</label>
+                <label className="block text-sm font-medium mb-1">{t("admin.pmBank")}</label>
                 <input
                   value={pmBank}
                   onChange={(e) => { setPmBank(e.target.value); setDirty(true); }}
@@ -416,30 +442,30 @@ function PaymentMethodCard({
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              Instrucciones <span className="text-muted font-normal">(opcional)</span>
+              {t("admin.instructions")} <span className="text-muted font-normal">({t("common.optional")})</span>
             </label>
             <textarea
               value={instructions}
               onChange={(e) => { setInstructions(e.target.value); setDirty(true); }}
               rows={2}
               className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm resize-none"
-              placeholder="Instrucciones adicionales..."
+              placeholder={t("admin.instructionsOptional")}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Currency Conversion</label>
+            <label className="block text-sm font-medium mb-1">{t("admin.currencyConversion")}</label>
             <select
               value={convertCurrency}
               onChange={(e) => { setConvertCurrency(e.target.value); setDirty(true); }}
               className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
             >
-              <option value="">None</option>
+              <option value="">{t("common.none")}</option>
               <option value="USD">USD &rarr; Bs</option>
               <option value="EUR">EUR &rarr; Bs</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-2">Required Proof Fields</label>
+            <label className="block text-sm font-medium mb-2">{t("admin.requiredProof")}</label>
             <div className="space-y-2">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -448,7 +474,7 @@ function PaymentMethodCard({
                   onChange={(e) => { setRequireScreenshot(e.target.checked); setDirty(true); }}
                   className="accent-accent-light"
                 />
-                <span className="text-sm">Require screenshot upload</span>
+                <span className="text-sm">{t("admin.requireScreenshot")}</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -457,7 +483,7 @@ function PaymentMethodCard({
                   onChange={(e) => { setRequireReferenceNumber(e.target.checked); setDirty(true); }}
                   className="accent-accent-light"
                 />
-                <span className="text-sm">Require reference number</span>
+                <span className="text-sm">{t("admin.requireRefNumber")}</span>
               </label>
             </div>
           </div>
@@ -466,7 +492,7 @@ function PaymentMethodCard({
               onClick={saveConfig}
               className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
             >
-              Save Changes
+              {t("common.saveChanges")}
             </button>
           )}
         </div>
@@ -482,6 +508,7 @@ function PaymentMethodsSection({
   concertId: string;
   paymentMethods: PaymentMethodData[];
 }) {
+  const { t } = useLanguage();
   const [refreshingRate, setRefreshingRate] = useState(false);
   const [rateRefreshed, setRateRefreshed] = useState(false);
 
@@ -507,7 +534,7 @@ function PaymentMethodsSection({
       setRateRefreshed(true);
       setTimeout(() => setRateRefreshed(false), 2000);
     } catch {
-      alert("Failed to refresh rates. Please try again.");
+      alert(t("admin.refreshFailed"));
     } finally {
       setRefreshingRate(false);
     }
@@ -518,14 +545,14 @@ function PaymentMethodsSection({
   return (
     <div className="bg-surface border border-border rounded-xl p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">Payment Methods</h2>
+        <h2 className="text-xl font-semibold">{t("admin.paymentMethods")}</h2>
         {hasConversionMethods && (
           <button
             onClick={refreshBcvRates}
             disabled={refreshingRate}
             className="px-3 py-1.5 border border-border hover:border-accent/50 text-muted hover:text-accent-light rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
           >
-            {rateRefreshed ? "Refreshed!" : refreshingRate ? "Refreshing..." : "Refresh BCV Rate"}
+            {rateRefreshed ? t("common.refreshed") : refreshingRate ? t("admin.refreshing") : t("admin.refreshBcv")}
           </button>
         )}
       </div>
@@ -567,6 +594,7 @@ function TicketTypesSection({
   concertId: string;
   ticketTypes: TicketTypeData[];
 }) {
+  const { t } = useLanguage();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
@@ -594,7 +622,7 @@ function TicketTypesSection({
   }
 
   function deleteTicketType(ttId: string) {
-    if (confirm("Delete this ticket type?")) {
+    if (confirm(t("admin.deleteTicketTypeConfirm"))) {
       db.transact(db.tx.ticketTypes[ttId].delete());
     }
   }
@@ -602,12 +630,12 @@ function TicketTypesSection({
   return (
     <div className="bg-surface border border-border rounded-xl p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">Ticket Types</h2>
+        <h2 className="text-xl font-semibold">{t("admin.ticketTypesTitle")}</h2>
         <button
           onClick={() => setShowForm(!showForm)}
           className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
         >
-          {showForm ? "Cancel" : "+ Add"}
+          {showForm ? t("common.cancel") : t("common.add")}
         </button>
       </div>
 
@@ -617,18 +645,18 @@ function TicketTypesSection({
           className="bg-background border border-border rounded-lg p-4 mb-4 space-y-3"
         >
           <div>
-            <label className="block text-sm font-medium mb-1">Name</label>
+            <label className="block text-sm font-medium mb-1">{t("common.name")}</label>
             <input
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-              placeholder="e.g., General Admission"
+              placeholder={t("admin.ttNamePlaceholder")}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium mb-1">Price</label>
+              <label className="block text-sm font-medium mb-1">{t("common.price")}</label>
               <input
                 type="number"
                 step="0.01"
@@ -642,7 +670,7 @@ function TicketTypesSection({
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">
-                Quantity
+                {t("common.quantity")}
               </label>
               <input
                 type="number"
@@ -657,20 +685,19 @@ function TicketTypesSection({
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">
-              Description (optional)
+              {t("admin.descriptionOptional")}
             </label>
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-              placeholder="Includes access to..."
             />
           </div>
           <button
             type="submit"
             className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
           >
-            Add Ticket Type
+            {t("admin.addTicketType")}
           </button>
         </form>
       )}
@@ -678,7 +705,7 @@ function TicketTypesSection({
       <div className="space-y-3">
         {ticketTypes.length === 0 ? (
           <p className="text-muted text-sm text-center py-6">
-            No ticket types yet.
+            {t("admin.noTicketTypes")}
           </p>
         ) : (
           ticketTypes.map((tt) => {
@@ -725,6 +752,7 @@ function TicketTypeItem({
   activePhase: Phase | null;
   onDelete: () => void;
 }) {
+  const { t } = useLanguage();
   const [showPhases, setShowPhases] = useState(false);
 
   return (
@@ -734,10 +762,10 @@ function TicketTypeItem({
           <div className="flex items-center gap-2">
             <p className="font-medium">{tt.name}</p>
             {tt.visibility === "hidden" && (
-              <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-[10px] font-semibold uppercase tracking-wider">Hidden</span>
+              <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-[10px] font-semibold uppercase tracking-wider">{t("common.hidden")}</span>
             )}
             {tt.visibility === "soldOutOverride" && (
-              <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded text-[10px] font-semibold uppercase tracking-wider">Forced Sold Out</span>
+              <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded text-[10px] font-semibold uppercase tracking-wider">{t("admin.forcedSoldOut")}</span>
             )}
           </div>
           {tt.description && (
@@ -751,13 +779,13 @@ function TicketTypeItem({
                   {" "}@ ${activePhase.price.toFixed(2)} &middot;{" "}
                 </>
               ) : (
-                <span className="text-danger font-medium">All phases exhausted &middot; </span>
+                <span className="text-danger font-medium">{t("admin.allPhasesExhausted")} &middot; </span>
               )}
-              {sold}/{totalCapacity} sold (phases)
+              {t("admin.soldCountPhases", { sold, total: totalCapacity })}
             </p>
           ) : (
             <p className="text-sm text-muted mt-1">
-              ${tt.price.toFixed(2)} &middot; {sold}/{tt.quantity} sold
+              ${tt.price.toFixed(2)} &middot; {t("admin.soldCount", { sold, total: tt.quantity })}
             </p>
           )}
         </div>
@@ -773,9 +801,9 @@ function TicketTypeItem({
             }
             className="px-2 py-1.5 bg-background border border-border rounded-lg text-xs text-muted focus:outline-none focus:border-accent-light transition-colors"
           >
-            <option value="visible">Visible</option>
-            <option value="hidden">Hidden</option>
-            <option value="soldOutOverride">Show as Sold Out</option>
+            <option value="visible">{t("common.visible")}</option>
+            <option value="hidden">{t("common.hidden")}</option>
+            <option value="soldOutOverride">{t("admin.showAsSoldOut")}</option>
           </select>
           <label className="flex items-center gap-1 text-xs text-muted cursor-pointer select-none">
             <input
@@ -790,19 +818,19 @@ function TicketTypeItem({
               }
               className="accent-accent"
             />
-            # disp.
+            {t("admin.hideAvailability")}
           </label>
           <button
             onClick={() => setShowPhases(!showPhases)}
             className="px-3 py-1.5 border border-border hover:border-accent/50 text-muted hover:text-accent-light rounded-lg text-xs font-medium transition-colors"
           >
-            {showPhases ? "Hide Phases" : "Manage Phases"}
+            {showPhases ? t("admin.hidePhases") : t("admin.managePhases")}
           </button>
           <button
             onClick={onDelete}
             className="text-muted hover:text-danger transition-colors text-sm"
           >
-            Delete
+            {t("common.delete")}
           </button>
         </div>
       </div>
@@ -824,6 +852,7 @@ function PhaseManagement({
   phases: Phase[];
   orders: { id: string; status: string; phaseId?: string }[];
 }) {
+  const { t } = useLanguage();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
@@ -884,7 +913,7 @@ function PhaseManagement({
   }
 
   function deletePhase(phaseId: string) {
-    if (confirm("Delete this phase?")) {
+    if (confirm(t("admin.deletePhaseConfirm"))) {
       db.transact(db.tx.ticketPhases[phaseId].delete());
     }
   }
@@ -892,12 +921,12 @@ function PhaseManagement({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold">Pricing Phases</h4>
+        <h4 className="text-sm font-semibold">{t("admin.pricingPhases")}</h4>
         <button
           onClick={() => setShowForm(!showForm)}
           className="px-2.5 py-1 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-medium transition-colors"
         >
-          {showForm ? "Cancel" : "+ Add Phase"}
+          {showForm ? t("common.cancel") : t("admin.addPhase")}
         </button>
       </div>
 
@@ -907,18 +936,18 @@ function PhaseManagement({
           className="bg-background border border-border rounded-lg p-3 space-y-2"
         >
           <div>
-            <label className="block text-xs font-medium mb-1">Name</label>
+            <label className="block text-xs font-medium mb-1">{t("common.name")}</label>
             <input
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-1.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-              placeholder="e.g., Fase 1"
+              placeholder={t("admin.phaseName")}
             />
           </div>
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="block text-xs font-medium mb-1">Price</label>
+              <label className="block text-xs font-medium mb-1">{t("common.price")}</label>
               <input
                 type="number"
                 step="0.01"
@@ -931,7 +960,7 @@ function PhaseManagement({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">Qty</label>
+              <label className="block text-xs font-medium mb-1">{t("admin.qty")}</label>
               <input
                 type="number"
                 min="1"
@@ -943,7 +972,7 @@ function PhaseManagement({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">End Date</label>
+              <label className="block text-xs font-medium mb-1">{t("admin.endDate")}</label>
               <input
                 type="date"
                 value={endDate}
@@ -956,14 +985,14 @@ function PhaseManagement({
             type="submit"
             className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-medium transition-colors"
           >
-            Add Phase
+            {t("admin.addPhaseButton")}
           </button>
         </form>
       )}
 
       {phases.length === 0 ? (
         <p className="text-muted text-xs text-center py-3">
-          No phases. Add phases to enable tiered pricing.
+          {t("admin.noPhases")}
         </p>
       ) : (
         <div className="space-y-2">
@@ -982,7 +1011,7 @@ function PhaseManagement({
                   className="bg-background border border-accent/30 rounded-lg p-3 space-y-2"
                 >
                   <div>
-                    <label className="block text-xs font-medium mb-1">Name</label>
+                    <label className="block text-xs font-medium mb-1">{t("common.name")}</label>
                     <input
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
@@ -991,7 +1020,7 @@ function PhaseManagement({
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <label className="block text-xs font-medium mb-1">Price</label>
+                      <label className="block text-xs font-medium mb-1">{t("common.price")}</label>
                       <input
                         type="number"
                         step="0.01"
@@ -1002,7 +1031,7 @@ function PhaseManagement({
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium mb-1">Qty</label>
+                      <label className="block text-xs font-medium mb-1">{t("admin.qty")}</label>
                       <input
                         type="number"
                         min="1"
@@ -1012,7 +1041,7 @@ function PhaseManagement({
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium mb-1">End Date</label>
+                      <label className="block text-xs font-medium mb-1">{t("admin.endDate")}</label>
                       <input
                         type="date"
                         value={editEndDate}
@@ -1026,13 +1055,13 @@ function PhaseManagement({
                       onClick={saveEdit}
                       className="px-3 py-1 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-medium transition-colors"
                     >
-                      Save
+                      {t("common.save")}
                     </button>
                     <button
                       onClick={() => setEditingId(null)}
                       className="px-3 py-1 text-muted hover:text-foreground text-xs transition-colors"
                     >
-                      Cancel
+                      {t("common.cancel")}
                     </button>
                   </div>
                 </div>
@@ -1053,13 +1082,13 @@ function PhaseManagement({
                     <span className="font-medium text-sm">{p.name}</span>
                     {isActive && (
                       <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-success/15 text-success">
-                        Active
+                        {t("common.active")}
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-muted mt-0.5">
-                    ${p.price.toFixed(2)} &middot; {phaseSold}/{p.quantity} sold
-                    {p.endDate && <> &middot; ends {p.endDate}</>}
+                    ${p.price.toFixed(2)} &middot; {t("admin.soldCount", { sold: phaseSold, total: p.quantity })}
+                    {p.endDate && <> &middot; {t("admin.ends")} {p.endDate}</>}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 ml-2 flex-shrink-0">
@@ -1067,13 +1096,13 @@ function PhaseManagement({
                     onClick={() => startEdit(p)}
                     className="text-muted hover:text-accent-light transition-colors text-xs"
                   >
-                    Edit
+                    {t("common.edit")}
                   </button>
                   <button
                     onClick={() => deletePhase(p.id)}
                     className="text-muted hover:text-danger transition-colors text-xs"
                   >
-                    Delete
+                    {t("common.delete")}
                   </button>
                 </div>
               </div>
@@ -1086,12 +1115,13 @@ function PhaseManagement({
 }
 
 function FeesSection({ ticketTypes }: { ticketTypes: TicketTypeData[] }) {
+  const { t } = useLanguage();
   if (ticketTypes.length === 0) {
     return (
       <div className="bg-surface border border-border rounded-xl p-6">
-        <h2 className="text-xl font-semibold mb-2">Service Fees</h2>
+        <h2 className="text-xl font-semibold mb-2">{t("admin.serviceFees")}</h2>
         <p className="text-muted text-sm text-center py-6">
-          Add ticket types first to configure fees.
+          {t("admin.addTicketTypesFirst")}
         </p>
       </div>
     );
@@ -1099,9 +1129,9 @@ function FeesSection({ ticketTypes }: { ticketTypes: TicketTypeData[] }) {
 
   return (
     <div className="bg-surface border border-border rounded-xl p-6">
-      <h2 className="text-xl font-semibold mb-1">Service Fees</h2>
+      <h2 className="text-xl font-semibold mb-1">{t("admin.serviceFees")}</h2>
       <p className="text-muted text-xs mb-4">
-        Set a percentage and/or fixed USD fee per ticket type. Both are combined.
+        {t("admin.feeDescription")}
       </p>
       <div className="space-y-3">
         {ticketTypes.map((tt) => (
@@ -1113,6 +1143,7 @@ function FeesSection({ ticketTypes }: { ticketTypes: TicketTypeData[] }) {
 }
 
 function FeeRow({ tt }: { tt: TicketTypeData }) {
+  const { t } = useLanguage();
   const today = getTodayString();
   const phases = tt.phases || [];
   const hasPhases = phases.length > 0;
@@ -1154,13 +1185,13 @@ function FeeRow({ tt }: { tt: TicketTypeData }) {
         )}
         {!hasPhases && (
           <p className="text-xs text-muted mt-0.5">
-            Base price: ${tt.price.toFixed(2)}
+            {t("admin.basePrice")}: ${tt.price.toFixed(2)}
           </p>
         )}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium mb-1">Fee %</label>
+          <label className="block text-xs font-medium mb-1">{t("admin.feePercent")}</label>
           <input
             type="number"
             step="0.1"
@@ -1172,7 +1203,7 @@ function FeeRow({ tt }: { tt: TicketTypeData }) {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1">Fee $ (USD)</label>
+          <label className="block text-xs font-medium mb-1">{t("admin.feeFixed")}</label>
           <input
             type="number"
             step="0.01"
@@ -1186,15 +1217,15 @@ function FeeRow({ tt }: { tt: TicketTypeData }) {
       </div>
       {(feePercent > 0 || feeFixed > 0) && (
         <p className="text-xs text-muted">
-          On ${currentPrice.toFixed(2)} ticket:{" "}
+          {t("admin.onTicket", { price: currentPrice.toFixed(2) })}:{" "}
           {feePercent > 0 && (
-            <span>${((currentPrice * feePercent) / 100).toFixed(2)} ({feePercent}%)</span>
+            <span>{t("admin.feeCalcPercent", { amount: ((currentPrice * feePercent) / 100).toFixed(2), percent: feePercent })}</span>
           )}
           {feePercent > 0 && feeFixed > 0 && " + "}
-          {feeFixed > 0 && <span>${feeFixed.toFixed(2)} fixed</span>}
+          {feeFixed > 0 && <span>{t("admin.feeCalcFixed", { amount: feeFixed.toFixed(2) })}</span>}
           {" = "}
           <span className="font-medium text-foreground">
-            ${calculatedFee.toFixed(2)} fee
+            {t("admin.feeCalcTotal", { amount: calculatedFee.toFixed(2) })}
           </span>
         </p>
       )}
@@ -1226,6 +1257,7 @@ function CouponsSection({
   coupons: CouponData[];
   allOrders: OrderData[];
 }) {
+  const { t } = useLanguage();
   const [showForm, setShowForm] = useState(false);
   const [code, setCode] = useState("");
   const [discountType, setDiscountType] = useState("percentage");
@@ -1294,7 +1326,7 @@ function CouponsSection({
   }
 
   function deleteCoupon(couponId: string) {
-    if (confirm("Delete this coupon?")) {
+    if (confirm(t("admin.deleteCouponConfirm"))) {
       db.transact(db.tx.coupons[couponId].delete());
     }
   }
@@ -1302,12 +1334,12 @@ function CouponsSection({
   return (
     <div className="bg-surface border border-border rounded-xl p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">Coupons</h2>
+        <h2 className="text-xl font-semibold">{t("admin.coupons")}</h2>
         <button
           onClick={() => setShowForm(!showForm)}
           className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
         >
-          {showForm ? "Cancel" : "+ Add"}
+          {showForm ? t("common.cancel") : t("common.add")}
         </button>
       </div>
 
@@ -1317,32 +1349,32 @@ function CouponsSection({
           className="bg-background border border-border rounded-lg p-4 mb-4 space-y-3"
         >
           <div>
-            <label className="block text-sm font-medium mb-1">Code</label>
+            <label className="block text-sm font-medium mb-1">{t("admin.code")}</label>
             <input
               required
               value={code}
               onChange={(e) => setCode(e.target.value)}
               className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm uppercase"
-              placeholder="e.g., SALE20"
+              placeholder={t("admin.codePlaceholder")}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium mb-1">
-                Discount Type
+                {t("admin.discountType")}
               </label>
               <select
                 value={discountType}
                 onChange={(e) => setDiscountType(e.target.value)}
                 className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
               >
-                <option value="percentage">Percentage (%)</option>
-                <option value="amount">Fixed Amount ($)</option>
+                <option value="percentage">{t("admin.percentage")}</option>
+                <option value="amount">{t("admin.fixedAmount")}</option>
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">
-                {discountType === "percentage" ? "Percentage" : "Amount"}
+                {discountType === "percentage" ? t("admin.percentageLabel") : t("admin.amountLabel")}
               </label>
               <input
                 type="number"
@@ -1359,7 +1391,7 @@ function CouponsSection({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium mb-1">
-                Max Uses (optional)
+                {t("admin.maxUsesOptional")}
               </label>
               <input
                 type="number"
@@ -1367,7 +1399,7 @@ function CouponsSection({
                 value={maxUses}
                 onChange={(e) => setMaxUses(e.target.value)}
                 className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                placeholder="Unlimited"
+                placeholder={t("admin.unlimited")}
               />
             </div>
             <div className="flex items-end pb-1">
@@ -1378,7 +1410,7 @@ function CouponsSection({
                   onChange={(e) => setActive(e.target.checked)}
                   className="accent-accent-light"
                 />
-                <span className="text-sm font-medium">Active</span>
+                <span className="text-sm font-medium">{t("common.active")}</span>
               </label>
             </div>
           </div>
@@ -1386,7 +1418,7 @@ function CouponsSection({
             type="submit"
             className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
           >
-            Add Coupon
+            {t("admin.addCoupon")}
           </button>
         </form>
       )}
@@ -1394,7 +1426,7 @@ function CouponsSection({
       <div className="space-y-2">
         {coupons.length === 0 ? (
           <p className="text-muted text-sm text-center py-6">
-            No coupons yet. Add a coupon to offer discounts to buyers.
+            {t("admin.noCoupons")}
           </p>
         ) : (
           coupons.map((c) => {
@@ -1407,7 +1439,7 @@ function CouponsSection({
                 >
                   <div>
                     <label className="block text-sm font-medium mb-1">
-                      Code
+                      {t("admin.code")}
                     </label>
                     <input
                       value={editCode}
@@ -1418,22 +1450,22 @@ function CouponsSection({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium mb-1">
-                        Discount Type
+                        {t("admin.discountType")}
                       </label>
                       <select
                         value={editDiscountType}
                         onChange={(e) => setEditDiscountType(e.target.value)}
                         className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
                       >
-                        <option value="percentage">Percentage (%)</option>
-                        <option value="amount">Fixed Amount ($)</option>
+                        <option value="percentage">{t("admin.percentage")}</option>
+                        <option value="amount">{t("admin.fixedAmount")}</option>
                       </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1">
                         {editDiscountType === "percentage"
-                          ? "Percentage"
-                          : "Amount"}
+                          ? t("admin.percentageLabel")
+                          : t("admin.amountLabel")}
                       </label>
                       <input
                         type="number"
@@ -1448,7 +1480,7 @@ function CouponsSection({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium mb-1">
-                        Max Uses
+                        {t("admin.maxUses")}
                       </label>
                       <input
                         type="number"
@@ -1456,7 +1488,7 @@ function CouponsSection({
                         value={editMaxUses}
                         onChange={(e) => setEditMaxUses(e.target.value)}
                         className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                        placeholder="Unlimited"
+                        placeholder={t("admin.unlimited")}
                       />
                     </div>
                     <div className="flex items-end pb-1">
@@ -1467,7 +1499,7 @@ function CouponsSection({
                           onChange={(e) => setEditActive(e.target.checked)}
                           className="accent-accent-light"
                         />
-                        <span className="text-sm font-medium">Active</span>
+                        <span className="text-sm font-medium">{t("common.active")}</span>
                       </label>
                     </div>
                   </div>
@@ -1476,13 +1508,13 @@ function CouponsSection({
                       onClick={saveEdit}
                       className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
                     >
-                      Save
+                      {t("common.save")}
                     </button>
                     <button
                       onClick={() => setEditingId(null)}
                       className="px-3 py-1.5 text-muted hover:text-foreground text-sm transition-colors"
                     >
-                      Cancel
+                      {t("common.cancel")}
                     </button>
                   </div>
                 </div>
@@ -1506,16 +1538,15 @@ function CouponsSection({
                           : "bg-muted/15 text-muted"
                       }`}
                     >
-                      {c.active ? "Active" : "Inactive"}
+                      {c.active ? t("common.active") : t("common.inactive")}
                     </span>
                   </div>
                   <p className="text-sm text-muted mt-0.5">
                     {c.discountType === "percentage"
-                      ? `${c.discountValue}% off`
-                      : `$${c.discountValue.toFixed(2)} off`}
+                      ? t("admin.percentOff", { value: c.discountValue })
+                      : t("admin.amountOff", { value: c.discountValue.toFixed(2) })}
                     {" \u00B7 "}
-                    {usage}
-                    {c.maxUses != null ? `/${c.maxUses}` : ""} used
+                    {t("admin.usedCount", { used: usage, max: c.maxUses != null ? c.maxUses : "\u221E" })}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 ml-3 flex-shrink-0">
@@ -1523,13 +1554,13 @@ function CouponsSection({
                     onClick={() => startEdit(c)}
                     className="text-muted hover:text-accent-light transition-colors text-xs"
                   >
-                    Edit
+                    {t("common.edit")}
                   </button>
                   <button
                     onClick={() => deleteCoupon(c.id)}
                     className="text-muted hover:text-danger transition-colors text-xs"
                   >
-                    Delete
+                    {t("common.delete")}
                   </button>
                 </div>
               </div>
@@ -1541,15 +1572,7 @@ function CouponsSection({
   );
 }
 
-const FIELD_TYPES = [
-  { value: "text", label: "Texto" },
-  { value: "number", label: "Numero" },
-  { value: "checkbox", label: "Casilla de verificacion" },
-  { value: "date", label: "Fecha" },
-  { value: "email", label: "Correo electronico" },
-  { value: "select", label: "Lista desplegable" },
-  { value: "multiselect", label: "Seleccion multiple" },
-] as const;
+const FIELD_TYPE_VALUES = ["text", "number", "checkbox", "date", "email", "select", "multiselect"] as const;
 
 type CustomFieldData = {
   id: string;
@@ -1575,6 +1598,7 @@ function CustomFieldCard({
   onDrop: (e: React.DragEvent) => void;
   isDragOver: boolean;
 }) {
+  const { t, lang } = useLanguage();
   const hasOptions = field.fieldType === "select" || field.fieldType === "multiselect";
   let parsedOptions: string[] = [];
   try { parsedOptions = field.options ? JSON.parse(field.options) : []; } catch { /* ignore */ }
@@ -1600,7 +1624,7 @@ function CustomFieldCard({
   }
 
   function deleteField() {
-    if (confirm("Delete this field?")) {
+    if (confirm(t("admin.deleteField"))) {
       db.transact(db.tx.customFields[field.id].delete());
     }
   }
@@ -1622,7 +1646,7 @@ function CustomFieldCard({
 
         <div className="flex-1 grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-muted mb-1">Etiqueta del Campo *</label>
+            <label className="block text-xs text-muted mb-1">{t("admin.fieldLabel")} *</label>
             <input
               value={field.label}
               onChange={(e) => updateField({ label: e.target.value })}
@@ -1631,7 +1655,7 @@ function CustomFieldCard({
             />
           </div>
           <div>
-            <label className="block text-xs text-muted mb-1">Tipo de Campo *</label>
+            <label className="block text-xs text-muted mb-1">{t("admin.fieldType")} *</label>
             <select
               value={field.fieldType}
               onChange={(e) => {
@@ -1648,8 +1672,8 @@ function CustomFieldCard({
               }}
               className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
             >
-              {FIELD_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
+              {FIELD_TYPE_VALUES.map((ft) => (
+                <option key={ft} value={ft}>{getFieldTypeLabel(ft, lang)}</option>
               ))}
             </select>
           </div>
@@ -1662,13 +1686,13 @@ function CustomFieldCard({
             onChange={(e) => updateField({ required: e.target.checked })}
             className="accent-accent-light"
           />
-          <span className="text-xs whitespace-nowrap">Campo Obligatorio</span>
+          <span className="text-xs whitespace-nowrap">{t("admin.requiredField")}</span>
         </label>
 
         <button
           onClick={deleteField}
           className="flex-shrink-0 p-1.5 bg-danger/90 hover:bg-danger text-white rounded-md transition-colors"
-          title="Delete field"
+          title={t("common.delete")}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1680,7 +1704,7 @@ function CustomFieldCard({
       {hasOptions && (
         <div className="mt-4 ml-8">
           <label className="block text-xs text-muted mb-2">
-            Opciones de {field.fieldType === "select" ? "Lista Desplegable" : "Seleccion Multiple"} (Opcional)
+            {field.fieldType === "select" ? t("admin.selectOptions") : t("admin.multiselectOptions")} ({t("common.optional")})
           </label>
           <div className="space-y-2">
             {parsedOptions.map((opt, i) => (
@@ -1689,12 +1713,12 @@ function CustomFieldCard({
                   value={opt}
                   onChange={(e) => updateOption(i, e.target.value)}
                   className="flex-1 px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  placeholder={`Opcion ${i + 1}`}
+                  placeholder={t("admin.optionLabel", { n: i + 1 })}
                 />
                 <button
                   onClick={() => removeOption(i)}
                   className="flex-shrink-0 p-1.5 bg-danger/90 hover:bg-danger text-white rounded-md transition-colors"
-                  title="Remove option"
+                  title={t("common.delete")}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1707,7 +1731,7 @@ function CustomFieldCard({
             onClick={addOption}
             className="mt-2 w-full py-2 border-2 border-dashed border-border hover:border-accent/40 text-muted hover:text-accent-light rounded-lg text-sm font-medium transition-colors"
           >
-            + Agregar Opcion
+            {t("admin.addOption")}
           </button>
         </div>
       )}
@@ -1722,6 +1746,7 @@ function CustomFieldsSection({
   concertId: string;
   customFields: CustomFieldData[];
 }) {
+  const { t } = useLanguage();
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   function addField() {
@@ -1761,16 +1786,16 @@ function CustomFieldsSection({
   return (
     <div className="bg-surface border border-border rounded-xl p-6">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-xl font-semibold">Campos de Checkout Personalizados</h2>
+        <h2 className="text-xl font-semibold">{t("admin.customFields")}</h2>
       </div>
       <p className="text-sm text-muted mb-4">
-        Agrega campos personalizados para recopilar informacion durante el checkout. Arrastra y suelta para reordenar los campos.
+        {t("admin.customFieldsSub")}
       </p>
 
       <div className="space-y-3">
         {customFields.length === 0 ? (
           <p className="text-muted text-sm text-center py-6">
-            No hay campos personalizados. Agrega campos para recopilar informacion adicional durante el checkout.
+            {t("admin.noCustomFields")}
           </p>
         ) : (
           [...customFields]
@@ -1793,7 +1818,7 @@ function CustomFieldsSection({
         onClick={addField}
         className="mt-4 w-full py-2.5 border-2 border-dashed border-border hover:border-accent/40 text-muted hover:text-accent-light rounded-lg text-sm font-medium transition-colors"
       >
-        + Agregar Campo
+        {t("admin.addField")}
       </button>
     </div>
   );
@@ -1806,6 +1831,7 @@ function ScannerPinSection({
   concertId: string;
   currentPin?: string;
 }) {
+  const { t } = useLanguage();
   const [pin, setPin] = useState(currentPin || "");
   const [saved, setSaved] = useState(false);
 
@@ -1834,9 +1860,9 @@ function ScannerPinSection({
 
   return (
     <div className="bg-surface border border-border rounded-xl p-6">
-      <h2 className="text-lg font-semibold mb-4">Door Scanner PIN</h2>
+      <h2 className="text-lg font-semibold mb-4">{t("admin.doorScannerPin")}</h2>
       <p className="text-sm text-muted mb-4">
-        Share this PIN with door staff. They access the scanner at{" "}
+        {t("admin.sharePinDesc")}{" "}
         <code className="text-accent-light">/scan</code>.
       </p>
       <div className="flex gap-2 mb-3">
@@ -1847,14 +1873,14 @@ function ScannerPinSection({
           maxLength={6}
           value={pin}
           onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-          placeholder="4-6 digit PIN"
+          placeholder={t("admin.pinPlaceholder")}
           className="flex-1 px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-center font-mono text-xl tracking-[0.3em]"
         />
         <button
           onClick={generatePin}
           className="px-3 py-2.5 border border-border rounded-lg hover:bg-surface-hover transition-colors text-sm font-medium"
         >
-          Generate
+          {t("admin.generatePin")}
         </button>
       </div>
       <div className="flex gap-2">
@@ -1863,14 +1889,14 @@ function ScannerPinSection({
           disabled={!pin || pin.length < 4}
           className="flex-1 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
         >
-          {saved ? "Saved!" : "Save PIN"}
+          {saved ? t("common.saved") : t("admin.savePIN")}
         </button>
         {currentPin && (
           <button
             onClick={handleClear}
             className="px-4 py-2.5 border border-danger/30 text-danger rounded-lg hover:bg-danger/10 transition-colors text-sm font-medium"
           >
-            Clear PIN
+            {t("admin.clearPIN")}
           </button>
         )}
       </div>
@@ -1889,6 +1915,7 @@ function BrandingSection({
   logoUrl?: string;
   primaryColor?: string;
 }) {
+  const { t } = useLanguage();
   const [uploadingFlyer, setUploadingFlyer] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const flyerInputRef = useRef<HTMLInputElement>(null);
@@ -1975,17 +2002,17 @@ function BrandingSection({
 
   return (
     <div className="bg-surface border border-border rounded-2xl p-6">
-      <h2 className="text-lg font-bold mb-4">Branding</h2>
+      <h2 className="text-lg font-bold mb-4">{t("admin.branding")}</h2>
 
       {/* Flyer */}
       <div className="mb-6">
-        <label className="block text-sm font-medium mb-2">Event Flyer</label>
+        <label className="block text-sm font-medium mb-2">{t("admin.flyer")}</label>
         {flyerUrl ? (
           <div className="space-y-3">
             <div className="relative rounded-xl overflow-hidden border border-border">
               <img
                 src={flyerUrl}
-                alt="Event flyer"
+                alt={t("admin.flyer")}
                 className="w-full h-48 object-cover"
               />
             </div>
@@ -1998,14 +2025,14 @@ function BrandingSection({
                 <span className="text-sm text-muted font-mono">
                   {primaryColor}
                 </span>
-                <span className="text-xs text-muted">Auto-extracted color</span>
+                <span className="text-xs text-muted">{t("admin.autoExtractedColor")}</span>
               </div>
             )}
             <button
               onClick={removeFlyer}
               className="text-sm text-danger hover:text-danger/80 transition-colors"
             >
-              Remove flyer
+              {t("admin.removeFlyer")}
             </button>
           </div>
         ) : (
@@ -2020,7 +2047,7 @@ function BrandingSection({
             />
             {uploadingFlyer && (
               <p className="text-sm text-muted mt-1 animate-pulse">
-                Uploading & extracting color...
+                {t("admin.uploadingFlyer")}
               </p>
             )}
           </div>
@@ -2029,13 +2056,13 @@ function BrandingSection({
 
       {/* Logo */}
       <div>
-        <label className="block text-sm font-medium mb-2">Event Logo</label>
+        <label className="block text-sm font-medium mb-2">{t("admin.logo")}</label>
         {logoUrl ? (
           <div className="space-y-3">
             <div className="inline-block rounded-xl overflow-hidden border border-border bg-background p-2">
               <img
                 src={logoUrl}
-                alt="Event logo"
+                alt={t("admin.logo")}
                 className="h-16 w-auto object-contain"
               />
             </div>
@@ -2044,7 +2071,7 @@ function BrandingSection({
                 onClick={removeLogo}
                 className="text-sm text-danger hover:text-danger/80 transition-colors"
               >
-                Remove logo
+                {t("admin.removeLogo")}
               </button>
             </div>
           </div>
@@ -2060,7 +2087,7 @@ function BrandingSection({
             />
             {uploadingLogo && (
               <p className="text-sm text-muted mt-1 animate-pulse">
-                Uploading logo...
+                {t("admin.uploadingLogo")}
               </p>
             )}
           </div>

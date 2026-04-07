@@ -1,6 +1,7 @@
 "use client";
 
 import EventTheme from "@/components/EventTheme";
+import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { db } from "@/lib/db";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
@@ -61,6 +62,8 @@ export default function BuyPage() {
   const ticketTypeId = params.ticketTypeId as string;
   const qty = Math.max(1, Math.min(5, Number(searchParams.get("qty")) || 1));
   const queueToken = searchParams.get("queueToken") || undefined;
+
+  const { t } = useLanguage();
 
   const [attendees, setAttendees] = useState<Attendee[]>(() =>
     Array.from({ length: qty }, emptyAttendee),
@@ -271,7 +274,7 @@ export default function BuyPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted">Loading...</div>
+        <div className="animate-pulse text-muted">{t("common.loading")}</div>
       </div>
     );
   }
@@ -288,7 +291,7 @@ export default function BuyPage() {
   if (!ticketType) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted">Ticket type not found</div>
+        <div className="text-muted">{t("checkout.ticketNotFound")}</div>
       </div>
     );
   }
@@ -320,15 +323,15 @@ export default function BuyPage() {
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="bg-surface border border-border rounded-2xl p-8 text-center max-w-md">
           <div className="text-5xl mb-4">{"\uD83D\uDE14"}</div>
-          <h1 className="text-2xl font-bold mb-2">Not Enough Tickets</h1>
+          <h1 className="text-2xl font-bold mb-2">{t("checkout.notEnough")}</h1>
           <p className="text-muted mb-4">
-            Only {available} ticket{available !== 1 ? "s" : ""} remaining for {ticketType.name}.
+            {t("checkout.onlyRemaining", { available, name: ticketType.name })}
           </p>
           <a
             href={concert ? `/events/${concert.slug}` : "/"}
             className="text-accent-light hover:underline text-sm"
           >
-            &larr; Back to event
+            {t("event.backToEvent")}
           </a>
         </div>
       </div>
@@ -353,11 +356,11 @@ export default function BuyPage() {
 
     const coupon = coupons.find((c) => c.code.toUpperCase() === code);
     if (!coupon) {
-      setCouponError("Invalid coupon code");
+      setCouponError(t("checkout.invalidCoupon"));
       return;
     }
     if (!coupon.active) {
-      setCouponError("Coupon is no longer active");
+      setCouponError(t("checkout.couponInactive"));
       return;
     }
     if (coupon.maxUses != null) {
@@ -367,7 +370,7 @@ export default function BuyPage() {
           (o.status === "approved" || o.status === "pending"),
       ).length;
       if (usageCount >= coupon.maxUses) {
-        setCouponError("Coupon usage limit reached");
+        setCouponError(t("checkout.couponLimit"));
         return;
       }
     }
@@ -396,35 +399,35 @@ export default function BuyPage() {
     e.preventDefault();
 
     if (timerExpired) {
-      setError("Your reservation has expired. Please go back and try again.");
+      setError(t("checkout.timerExpired"));
       return;
     }
 
     if (!selectedPaymentMethod) {
-      setError("Please select a payment method.");
+      setError(t("checkout.selectPayment"));
       return;
     }
     const missingField = customFields.find(
       (cf) => cf.required && !customFieldValues[cf.id]?.trim(),
     );
     if (missingField) {
-      setError(`Please fill in the required field: ${missingField.label}`);
+      setError(t("checkout.fillRequired", { field: missingField.label }));
       return;
     }
     const needsScreenshot = selectedPm?.requireScreenshot !== false;
     const needsReference = selectedPm?.requireReferenceNumber === true;
     if (needsScreenshot && !file) {
-      setError("Please upload your payment proof screenshot.");
+      setError(t("checkout.uploadProof"));
       return;
     }
     if (needsReference && !referenceNumber.trim()) {
       setError((selectedPm as { type?: string }).type === "pago_movil"
-        ? "Ingresa los ultimos 4 digitos de la referencia."
-        : "Please enter the payment reference number.");
+        ? t("checkout.enterRef4")
+        : t("checkout.enterRef"));
       return;
     }
     if (!acceptedTerms) {
-      setError("Please accept the terms and conditions.");
+      setError(t("checkout.acceptTerms"));
       return;
     }
 
@@ -486,9 +489,9 @@ export default function BuyPage() {
 
       if (!res.ok) {
         if (res.status === 409) {
-          setError("Tickets are no longer available. Please go back and try again.");
+          setError(t("checkout.notAvailable"));
         } else {
-          setError(result.error || "Something went wrong.");
+          setError(result.error || t("checkout.somethingWrong"));
         }
         setSubmitting(false);
         return;
@@ -500,7 +503,7 @@ export default function BuyPage() {
       // Emails are sent in the background by the server — redirect immediately
       router.push(`/ticket/${result.orderIds[0]}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : t("checkout.somethingWrong"));
       setSubmitting(false);
     }
   }
@@ -517,7 +520,7 @@ export default function BuyPage() {
     <EventTheme concert={concert || {}}>
     <div className="min-h-screen">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           {concert?.logoUrl ? (
             <a href={`/events/${concert.slug}`}>
               <img src={concert.logoUrl} alt={concert.name} className="h-8 w-auto object-contain" />
@@ -525,10 +528,11 @@ export default function BuyPage() {
           ) : (
             <a href="/" className="text-xl font-bold tracking-wide text-white">ma<span className="text-white/60">Tickets</span></a>
           )}
+          <LanguageToggle className="border-white/30 text-white/80 hover:text-white" />
         </div>
         {secondsLeft !== null && (
           <div className={`text-center py-2 text-sm font-semibold tracking-wide border-t border-white/10 ${timerClasses}`}>
-            Time remaining to complete your purchase: {formatTime(secondsLeft)}
+            {t("checkout.timeRemaining", { time: formatTime(secondsLeft) })}
           </div>
         )}
       </header>
@@ -538,11 +542,11 @@ export default function BuyPage() {
           href={concert ? `/events/${concert.slug}` : "/"}
           className="text-sm text-muted hover:text-accent-light transition-colors mb-6 inline-block"
         >
-          &larr; Back to event
+          {t("event.backToEvent")}
         </a>
 
         <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8">
-          <h1 className="text-2xl font-bold mb-2">Purchase Tickets</h1>
+          <h1 className="text-2xl font-bold mb-2">{t("checkout.title")}</h1>
 
           <div className="bg-accent/10 border border-accent/30 rounded-xl p-4 mb-6">
             <p className="font-semibold text-accent-light">{ticketType.name}</p>
@@ -559,20 +563,16 @@ export default function BuyPage() {
             </p>
             {appliedCoupon && discount > 0 && (
               <p className="text-sm text-success mt-1">
-                Coupon {appliedCoupon.code}:{" "}
-                {appliedCoupon.discountType === "percentage"
-                  ? `${appliedCoupon.discountValue}% off`
-                  : `$${appliedCoupon.discountValue.toFixed(2)} off`}{" "}
-                (-${discount.toFixed(2)})
+                {t("checkout.discount", { code: appliedCoupon.code, amount: `$${discount.toFixed(2)}` })}
               </p>
             )}
             {feeAmount > 0 && (
               <p className="text-sm text-muted mt-1">
-                Service fee: +${feeAmount.toFixed(2)}
+                {t("checkout.serviceFee", { amount: feeAmount.toFixed(2) })}
               </p>
             )}
             <p className="text-2xl font-bold mt-1 text-foreground">
-              Total: ${total.toFixed(2)}
+              {t("common.total")}: ${total.toFixed(2)}
             </p>
           </div>
 
@@ -583,12 +583,12 @@ export default function BuyPage() {
                 <div className="flex items-center justify-between bg-success/10 border border-success/30 rounded-xl px-4 py-3">
                   <div>
                     <p className="text-sm font-medium text-success">
-                      Coupon applied: <span className="font-mono">{appliedCoupon.code}</span>
+                      {t("checkout.couponApplied", { code: appliedCoupon.code })}
                     </p>
                     <p className="text-xs text-muted">
                       {appliedCoupon.discountType === "percentage"
-                        ? `${appliedCoupon.discountValue}% off`
-                        : `$${appliedCoupon.discountValue.toFixed(2)} off`}
+                        ? t("checkout.percentOff", { value: appliedCoupon.discountValue })
+                        : t("checkout.amountOff", { value: appliedCoupon.discountValue.toFixed(2) })}
                     </p>
                   </div>
                   <button
@@ -596,13 +596,13 @@ export default function BuyPage() {
                     onClick={removeCoupon}
                     className="text-sm text-danger hover:text-danger/80 transition-colors"
                   >
-                    Remove
+                    {t("checkout.remove")}
                   </button>
                 </div>
               ) : (
                 <div>
                   <label className="block text-sm font-medium mb-1.5">
-                    Coupon Code
+                    {t("checkout.couponCode")}
                   </label>
                   <div className="flex gap-2">
                     <input
@@ -619,14 +619,14 @@ export default function BuyPage() {
                         }
                       }}
                       className="flex-1 px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors uppercase"
-                      placeholder="Enter coupon code"
+                      placeholder={t("checkout.enterCoupon")}
                     />
                     <button
                       type="button"
                       onClick={applyCoupon}
                       className="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors text-sm"
                     >
-                      Apply
+                      {t("checkout.apply")}
                     </button>
                   </div>
                   {couponError && (
@@ -645,12 +645,12 @@ export default function BuyPage() {
                 className="border border-border rounded-xl p-5 space-y-4"
               >
                 <h3 className="font-semibold text-accent-light">
-                  Attendee {i + 1}
+                  {t("checkout.attendee", { n: i + 1 })}
                 </h3>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1.5">
-                      First Name
+                      {t("common.firstName")}
                     </label>
                     <input
                       type="text"
@@ -658,12 +658,12 @@ export default function BuyPage() {
                       value={attendee.firstName}
                       onChange={(e) => updateAttendee(i, "firstName", e.target.value)}
                       className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
-                      placeholder="First name"
+                      placeholder={t("checkout.firstNamePlaceholder")}
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1.5">
-                      Last Name
+                      {t("common.lastName")}
                     </label>
                     <input
                       type="text"
@@ -671,13 +671,13 @@ export default function BuyPage() {
                       value={attendee.lastName}
                       onChange={(e) => updateAttendee(i, "lastName", e.target.value)}
                       className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
-                      placeholder="Last name"
+                      placeholder={t("checkout.lastNamePlaceholder")}
                     />
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1.5">
-                    Email
+                    {t("common.email")}
                   </label>
                   <input
                     type="email"
@@ -685,12 +685,12 @@ export default function BuyPage() {
                     value={attendee.email}
                     onChange={(e) => updateAttendee(i, "email", e.target.value)}
                     className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
-                    placeholder="email@example.com"
+                    placeholder={t("checkout.emailPlaceholder")}
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1.5">
-                    Cedula
+                    {t("common.cedula")}
                   </label>
                   <input
                     type="text"
@@ -700,7 +700,7 @@ export default function BuyPage() {
                     value={attendee.cedula}
                     onChange={(e) => updateAttendee(i, "cedula", e.target.value.replace(/\D/g, ""))}
                     className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
-                    placeholder="ID number"
+                    placeholder={t("checkout.idPlaceholder")}
                   />
                 </div>
               </div>
@@ -772,7 +772,7 @@ export default function BuyPage() {
                       onChange={(e) => setCustomFieldValues((p) => ({ ...p, [fieldId]: e.target.value }))}
                       className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                     >
-                      <option value="">Select...</option>
+                      <option value="">{t("common.select")}</option>
                       {parsedOptions.map((opt) => (
                         <option key={opt} value={opt}>{opt}</option>
                       ))}
@@ -808,7 +808,7 @@ export default function BuyPage() {
             {/* Payment method selection */}
             {paymentMethods.length > 0 && (
               <div className="space-y-3">
-                <h3 className="font-semibold">Payment Method</h3>
+                <h3 className="font-semibold">{t("checkout.paymentMethod")}</h3>
                 <div className="space-y-2">
                   {paymentMethods.map((pm) => (
                     <label
@@ -837,7 +837,7 @@ export default function BuyPage() {
                 {selectedPm && (
                   <div className="bg-warning/10 border border-warning/30 rounded-xl p-4">
                     <p className="font-semibold text-warning mb-2">
-                      Datos de Pago
+                      {t("checkout.paymentDetails")}
                     </p>
 
                     {/* Zelle structured info */}
@@ -845,10 +845,10 @@ export default function BuyPage() {
                       ((selectedPm as { zelleEmail?: string }).zelleEmail || (selectedPm as { zelleName?: string }).zelleName) && (
                       <div className="text-sm space-y-1 mb-2">
                         {(selectedPm as { zelleName?: string }).zelleName && (
-                          <p><span className="text-muted">Nombre:</span> <span className="font-medium">{(selectedPm as { zelleName?: string }).zelleName}</span></p>
+                          <p><span className="text-muted">{t("checkout.zelleNameLabel")}</span> <span className="font-medium">{(selectedPm as { zelleName?: string }).zelleName}</span></p>
                         )}
                         {(selectedPm as { zelleEmail?: string }).zelleEmail && (
-                          <p><span className="text-muted">Correo:</span> <span className="font-medium select-all">{(selectedPm as { zelleEmail?: string }).zelleEmail}</span></p>
+                          <p><span className="text-muted">{t("checkout.zelleEmailLabel")}</span> <span className="font-medium select-all">{(selectedPm as { zelleEmail?: string }).zelleEmail}</span></p>
                         )}
                       </div>
                     )}
@@ -858,13 +858,13 @@ export default function BuyPage() {
                       ((selectedPm as { pmCedula?: string }).pmCedula || (selectedPm as { pmPhone?: string }).pmPhone || (selectedPm as { pmBank?: string }).pmBank) && (
                       <div className="text-sm space-y-1 mb-2">
                         {(selectedPm as { pmCedula?: string }).pmCedula && (
-                          <p><span className="text-muted">Cedula:</span> <span className="font-medium">{(selectedPm as { pmCedula?: string }).pmCedula}</span></p>
+                          <p><span className="text-muted">{t("checkout.pmCedulaLabel")}</span> <span className="font-medium">{(selectedPm as { pmCedula?: string }).pmCedula}</span></p>
                         )}
                         {(selectedPm as { pmPhone?: string }).pmPhone && (
-                          <p><span className="text-muted">Telefono:</span> <span className="font-medium select-all">{(selectedPm as { pmPhone?: string }).pmPhone}</span></p>
+                          <p><span className="text-muted">{t("checkout.pmPhoneLabel")}</span> <span className="font-medium select-all">{(selectedPm as { pmPhone?: string }).pmPhone}</span></p>
                         )}
                         {(selectedPm as { pmBank?: string }).pmBank && (
-                          <p><span className="text-muted">Banco:</span> <span className="font-medium">{(selectedPm as { pmBank?: string }).pmBank}</span></p>
+                          <p><span className="text-muted">{t("checkout.pmBankLabel")}</span> <span className="font-medium">{(selectedPm as { pmBank?: string }).pmBank}</span></p>
                         )}
                       </div>
                     )}
@@ -880,8 +880,8 @@ export default function BuyPage() {
                       <div className="mt-3 pt-3 border-t border-warning/20">
                         <p className="text-sm font-medium text-foreground mb-1">
                           {(selectedPm as { type?: string }).type === "zelle"
-                            ? "Agrega este codigo en el memo del Zelle:"
-                            : "Agrega este codigo en la descripcion del Pago Movil:"}
+                            ? t("checkout.memoZelle")
+                            : t("checkout.memoPm")}
                         </p>
                         <div className="flex items-center gap-2">
                           <span className="px-3 py-1.5 bg-accent text-white rounded-lg font-mono text-lg font-bold tracking-wider select-all">
@@ -889,7 +889,7 @@ export default function BuyPage() {
                           </span>
                         </div>
                         <p className="text-xs text-muted mt-1.5">
-                          Este codigo es unico para tu transaccion y nos permite verificar tu pago.
+                          {t("checkout.memoInfo")}
                         </p>
                       </div>
                     )}
@@ -898,27 +898,31 @@ export default function BuyPage() {
                       <div className="mt-3 pt-3 border-t border-warning/20">
                         {rateRefreshing && !cachedRate ? (
                           <p className="text-sm text-muted animate-pulse">
-                            Loading exchange rate...
+                            {t("checkout.loadingRate")}
                           </p>
                         ) : cachedRate ? (
                           <div>
                             <p className="text-lg font-bold text-foreground">
-                              Total: {cachedRate.currency === "EUR" ? "\u20AC" : "$"}
-                              {total.toFixed(2)} ={" "}
-                              {(total * cachedRate.rate).toLocaleString("es-VE", {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}{" "}
-                              Bs
+                              {t("checkout.totalBs", {
+                                symbol: cachedRate.currency === "EUR" ? "\u20AC" : "$",
+                                total: total.toFixed(2),
+                                bs: (total * cachedRate.rate).toLocaleString("es-VE", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                }),
+                              })}
                             </p>
                             <p className="text-xs text-muted mt-1">
-                              BCV rate: {cachedRate.rate.toFixed(2)} Bs/{cachedRate.currency} &middot; Updated:{" "}
-                              {new Date(cachedRate.fetchedAt).toLocaleString()}
+                              {t("checkout.bcvRate", {
+                                rate: cachedRate.rate.toFixed(2),
+                                currency: cachedRate.currency,
+                                updated: new Date(cachedRate.fetchedAt).toLocaleString(),
+                              })}
                             </p>
                           </div>
                         ) : (
                           <p className="text-sm text-danger">
-                            Could not load exchange rate
+                            {t("checkout.rateError")}
                           </p>
                         )}
                       </div>
@@ -934,7 +938,7 @@ export default function BuyPage() {
                 {selectedPm.requireScreenshot !== false && (
                   <div>
                     <label className="block text-sm font-medium mb-1.5">
-                      Payment Proof Screenshot
+                      {t("checkout.proofScreenshot")}
                     </label>
                     <input
                       type="file"
@@ -945,13 +949,13 @@ export default function BuyPage() {
                           const MAX_SIZE = 5 * 1024 * 1024; // 5MB
                           const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"];
                           if (selected.size > MAX_SIZE) {
-                            setFileError("File must be under 5MB.");
+                            setFileError(t("checkout.fileTooBig"));
                             setFile(null);
                             e.target.value = "";
                             return;
                           }
                           if (!ALLOWED_TYPES.includes(selected.type)) {
-                            setFileError("Only JPEG, PNG, WebP, and HEIC images are allowed.");
+                            setFileError(t("checkout.fileTypeError"));
                             setFile(null);
                             e.target.value = "";
                             return;
@@ -971,8 +975,8 @@ export default function BuyPage() {
                   <div>
                     <label className="block text-sm font-medium mb-1.5">
                       {(selectedPm as { type?: string }).type === "pago_movil"
-                        ? "Ultimos 4 digitos de referencia"
-                        : "Payment Reference Number"}
+                        ? t("checkout.refLast4")
+                        : t("checkout.refNumber")}
                     </label>
                     <input
                       type="text"
@@ -987,8 +991,8 @@ export default function BuyPage() {
                       maxLength={(selectedPm as { type?: string }).type === "pago_movil" ? 4 : undefined}
                       className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                       placeholder={(selectedPm as { type?: string }).type === "pago_movil"
-                        ? "Ej: 1234"
-                        : "Enter your payment reference number"}
+                        ? t("checkout.refLast4Placeholder")
+                        : t("checkout.refPlaceholder")}
                     />
                   </div>
                 )}
@@ -1004,12 +1008,16 @@ export default function BuyPage() {
                 className="mt-1 accent-accent-light"
               />
               <span className="text-sm text-muted">
-                I accept the{" "}
-                <a href="/terms" target="_blank" className="underline text-accent-light hover:text-accent">terms and conditions</a>
-                {" "}and{" "}
-                <a href="/privacy" target="_blank" className="underline text-accent-light hover:text-accent">privacy policy</a>.
-                I understand that my ticket purchase is subject to approval
-                and that no refunds will be issued once the ticket is approved.
+                {t("checkout.terms", {
+                  terms: `<a href="/terms" target="_blank" class="underline text-accent-light hover:text-accent">${t("checkout.termsLink")}</a>`,
+                  privacy: `<a href="/privacy" target="_blank" class="underline text-accent-light hover:text-accent">${t("checkout.privacyLink")}</a>`,
+                }).split(/(<a [^>]+>[^<]+<\/a>)/).map((part, idx) =>
+                  part.startsWith("<a ") ? (
+                    <span key={idx} dangerouslySetInnerHTML={{ __html: part }} />
+                  ) : (
+                    <span key={idx}>{part}</span>
+                  )
+                )}
               </span>
             </label>
 
@@ -1024,7 +1032,7 @@ export default function BuyPage() {
               disabled={submitting || timerExpired || !!fileError}
               className="w-full py-3 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-semibold transition-colors shadow-lg shadow-accent/20"
             >
-              {submitting ? "Submitting..." : "Submit Order"}
+              {submitting ? t("checkout.submitting") : t("checkout.submit")}
             </button>
           </form>
         </div>

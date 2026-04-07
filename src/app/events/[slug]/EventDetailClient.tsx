@@ -2,6 +2,7 @@
 
 import EventTheme from "@/components/EventTheme";
 import { db } from "@/lib/db";
+import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import type { Phase } from "@/lib/phases";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
@@ -22,6 +23,7 @@ function formatDate(dateStr: string) {
 export default function EventDetailClient() {
   const params = useParams();
   const slugParam = params.slug as string;
+  const { t } = useLanguage();
 
   const { isLoading, error, data } = db.useQuery({
     concerts: {
@@ -42,7 +44,7 @@ export default function EventDetailClient() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted">Loading...</div>
+        <div className="animate-pulse text-muted">{t("common.loading")}</div>
       </div>
     );
   }
@@ -59,7 +61,7 @@ export default function EventDetailClient() {
   if (!concert) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted">Event not found</div>
+        <div className="text-muted">{t("event.notFound")}</div>
       </div>
     );
   }
@@ -74,6 +76,7 @@ export default function EventDetailClient() {
           ) : (
             <span className="text-xl font-bold tracking-wide">ma<span className="text-white/50">Tickets</span></span>
           )}
+          <LanguageToggle className="border-white/20 text-white/70 hover:text-white" />
         </div>
       </header>
 
@@ -108,11 +111,11 @@ export default function EventDetailClient() {
 
             <div className="flex flex-wrap gap-6 mb-6">
               <div>
-                <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-0.5">Date</p>
+                <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-0.5">{t("common.date")}</p>
                 <p className="text-sm text-foreground">{formatDate(concert.date)}</p>
               </div>
               <div>
-                <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-0.5">Venue</p>
+                <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-0.5">{t("common.venue")}</p>
                 <p className="text-sm text-foreground">{concert.venue}</p>
               </div>
             </div>
@@ -121,11 +124,11 @@ export default function EventDetailClient() {
               {concert.description}
             </p>
 
-            <h2 className="text-2xl font-semibold mb-5 font-heading tracking-tight">Tickets</h2>
+            <h2 className="text-2xl font-semibold mb-5 font-heading tracking-tight">{t("event.tickets")}</h2>
 
             {concert.ticketTypes.filter((tt) => tt.visibility !== "hidden").length === 0 ? (
               <p className="text-muted">
-                No tickets available for this event yet.
+                {t("event.noTickets")}
               </p>
             ) : (
               <div className="space-y-3">
@@ -168,6 +171,7 @@ function TicketTypeRow({
   };
 }) {
   const [qty, setQty] = useState(1);
+  const { t } = useLanguage();
 
   const now = Date.now();
   const today = getTodayString();
@@ -211,7 +215,7 @@ function TicketTypeRow({
         )}
         {ticketType.visibility !== "soldOutOverride" && !ticketType.hideAvailability && (
           <p className="text-sm text-muted mt-1">
-            {available} of {totalCapacity} available
+            {t("event.availableOf", { available, total: totalCapacity })}
           </p>
         )}
       </div>
@@ -222,12 +226,12 @@ function TicketTypeRow({
           </span>
           {((ticketType as { feePercent?: number }).feePercent ?? 0) > 0 ||
           ((ticketType as { feeFixed?: number }).feeFixed ?? 0) > 0 ? (
-            <p className="text-[11px] text-muted">+ service fee</p>
+            <p className="text-[11px] text-muted">{t("event.serviceFee")}</p>
           ) : null}
         </div>
         {soldOut ? (
           <span className="px-4 py-2 text-xs font-semibold uppercase tracking-widest text-muted bg-muted/10 border border-muted/20 rounded-md">
-            Sold Out
+            {t("common.soldOut")}
           </span>
         ) : (
           <>
@@ -246,7 +250,7 @@ function TicketTypeRow({
               href={buyHref}
               className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium text-sm uppercase tracking-wider transition-colors"
             >
-              Buy
+              {t("common.buy")}
             </Link>
           </>
         )}
@@ -265,14 +269,15 @@ type OrderSummary = {
   createdAt: number;
 };
 
-const STATUS_BADGES: Record<string, { label: string; className: string }> = {
-  pending: { label: "Pending", className: "bg-yellow-100 text-yellow-800" },
-  approved: { label: "Approved", className: "bg-green-100 text-green-800" },
-  rejected: { label: "Rejected", className: "bg-red-100 text-red-800" },
-  cancelled: { label: "Cancelled", className: "bg-gray-100 text-gray-500" },
+const STATUS_BADGES: Record<string, { labelKey: string; className: string }> = {
+  pending: { labelKey: "common.pending", className: "bg-yellow-100 text-yellow-800" },
+  approved: { labelKey: "common.approved", className: "bg-green-100 text-green-800" },
+  rejected: { labelKey: "common.rejected", className: "bg-red-100 text-red-800" },
+  cancelled: { labelKey: "common.cancelled", className: "bg-gray-100 text-gray-500" },
 };
 
 function FindMyTickets({ concertId }: { concertId: string }) {
+  const { t } = useLanguage();
   const [email, setEmail] = useState("");
   const [orders, setOrders] = useState<OrderSummary[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -292,17 +297,17 @@ function FindMyTickets({ concertId }: { concertId: string }) {
         body: JSON.stringify({ email: trimmed, concertId }),
       });
       if (res.status === 429) {
-        setError("Too many requests. Please wait a moment and try again.");
+        setError(t("event.tooManyRequests"));
         return;
       }
       const data = await res.json();
       setOrders(data.orders ?? []);
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError(t("event.sendFailed"));
     } finally {
       setLoading(false);
     }
-  }, [email, concertId]);
+  }, [email, concertId, t]);
 
   const handleResend = useCallback(async (orderId: string) => {
     const trimmed = email.trim().toLowerCase();
@@ -315,7 +320,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
       });
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error || "Failed to resend ticket.");
+        setError(data.error || t("event.sendFailed"));
         setResendCooldowns((prev) => {
           const next = { ...prev };
           delete next[orderId];
@@ -323,14 +328,14 @@ function FindMyTickets({ concertId }: { concertId: string }) {
         });
       }
     } catch {
-      setError("Failed to resend ticket.");
+      setError(t("event.sendFailed"));
       setResendCooldowns((prev) => {
         const next = { ...prev };
         delete next[orderId];
         return next;
       });
     }
-  }, [email]);
+  }, [email, t]);
 
   const isOnCooldown = (orderId: string) => {
     const until = resendCooldowns[orderId];
@@ -339,9 +344,9 @@ function FindMyTickets({ concertId }: { concertId: string }) {
 
   return (
     <div className="border-t border-border mt-10 pt-8">
-      <h2 className="text-2xl font-semibold mb-2 font-heading tracking-tight">Find My Tickets</h2>
+      <h2 className="text-2xl font-semibold mb-2 font-heading tracking-tight">{t("event.findTickets")}</h2>
       <p className="text-muted text-sm mb-4">
-        Lost your confirmation email? Enter your email to look up your orders.
+        {t("event.findTicketsSub")}
       </p>
 
       <div className="flex gap-3">
@@ -358,7 +363,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
           disabled={loading || !email.trim()}
           className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
         >
-          {loading ? "Looking up..." : "Look Up"}
+          {loading ? t("event.lookingUp") : t("event.lookUp")}
         </button>
       </div>
 
@@ -368,7 +373,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
 
       {orders !== null && orders.length === 0 && (
         <p className="mt-4 text-sm text-muted">
-          No orders found for this email.
+          {t("event.noOrders")}
         </p>
       )}
 
@@ -390,7 +395,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
                       </span>
                     )}
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.className}`}>
-                      {badge.label}
+                      {t(badge.labelKey)}
                     </span>
                   </div>
                   <p className="text-sm text-muted mt-1">
@@ -403,7 +408,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
                     disabled={cooldown}
                     className="px-4 py-2 text-sm font-medium bg-accent/10 text-accent rounded-md hover:bg-accent/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                   >
-                    {cooldown ? "Sent!" : "Resend Email"}
+                    {cooldown ? t("event.sent") : t("event.resendEmail")}
                   </button>
                 )}
               </div>
@@ -416,6 +421,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
 }
 
 function ContactOrganizer({ concertId }: { concertId: string }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     firstName: "",
@@ -435,7 +441,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
 
   const handleSubmit = useCallback(async () => {
     if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim() || !form.subject.trim() || !form.body.trim()) {
-      setError("All fields are required.");
+      setError(t("event.allFieldsRequired"));
       return;
     }
     setSubmitting(true);
@@ -447,12 +453,12 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
         body: JSON.stringify({ concertId, ...form }),
       });
       if (res.status === 429) {
-        setError("Too many messages. Please wait before sending another.");
+        setError(t("event.tooManyMessages"));
         return;
       }
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to send message.");
+        setError(data.error || t("event.sendFailed"));
         return;
       }
       setSuccess(true);
@@ -460,17 +466,17 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
       setCooldown(true);
       setTimeout(() => setCooldown(false), 30_000);
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError(t("event.sendFailed"));
     } finally {
       setSubmitting(false);
     }
-  }, [form, concertId]);
+  }, [form, concertId, t]);
 
   return (
     <div className="border-t border-border mt-10 pt-8">
       {success ? (
         <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
-          Your message has been sent! The organizer will reply to your email.
+          {t("event.messageSent")}
         </div>
       ) : !open ? (
         <button
@@ -480,12 +486,12 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
-          Contact Organizer
+          {t("event.contactOrganizer")}
         </button>
       ) : (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold font-heading tracking-tight">Contact Organizer</h2>
+            <h2 className="text-2xl font-semibold font-heading tracking-tight">{t("event.contactOrganizer")}</h2>
             <button
               onClick={() => setOpen(false)}
               className="text-muted hover:text-foreground transition-colors p-1"
@@ -496,14 +502,14 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
             </button>
           </div>
           <p className="text-muted text-sm mb-5">
-            Have a question about this event? Send a message to the organizer.
+            {t("event.contactSub")}
           </p>
 
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] font-medium text-muted uppercase tracking-widest mb-1.5">
-                  First Name
+                  {t("common.firstName")}
                 </label>
                 <input
                   type="text"
@@ -515,7 +521,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-muted uppercase tracking-widest mb-1.5">
-                  Last Name
+                  {t("common.lastName")}
                 </label>
                 <input
                   type="text"
@@ -528,7 +534,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
             </div>
             <div>
               <label className="block text-[11px] font-medium text-muted uppercase tracking-widest mb-1.5">
-                Email
+                {t("common.email")}
               </label>
               <input
                 type="email"
@@ -540,7 +546,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
             </div>
             <div>
               <label className="block text-[11px] font-medium text-muted uppercase tracking-widest mb-1.5">
-                Subject
+                {t("event.subject")}
               </label>
               <input
                 type="text"
@@ -553,7 +559,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
             </div>
             <div>
               <label className="block text-[11px] font-medium text-muted uppercase tracking-widest mb-1.5">
-                Message
+                {t("event.message")}
               </label>
               <textarea
                 value={form.body}
@@ -573,7 +579,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
               disabled={submitting || cooldown}
               className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
             >
-              {submitting ? "Sending..." : cooldown ? "Message Sent" : "Send Message"}
+              {submitting ? t("event.sending") : cooldown ? t("event.messageSent") : t("event.sendMessage")}
             </button>
           </div>
         </div>

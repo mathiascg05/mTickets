@@ -7,19 +7,27 @@ import { QRCodeSVG } from "qrcode.react";
 import { useState, useEffect } from "react";
 
 import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
+import { useLanguage } from "@/lib/LanguageContext";
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useLanguage();
   const styles: Record<string, string> = {
     pending: "bg-warning/10 text-warning border-warning/30",
     approved: "bg-success/10 text-success border-success/30",
     rejected: "bg-danger/10 text-danger border-danger/30",
     cancelled: "bg-muted/10 text-muted border-muted/30",
   };
+  const statusLabels: Record<string, string> = {
+    pending: t("common.pending"),
+    approved: t("common.approved"),
+    rejected: t("common.rejected"),
+    cancelled: t("common.cancelled"),
+  };
   return (
     <span
       className={`inline-flex px-3 py-1 rounded-full text-sm font-medium border ${styles[status] || "bg-muted/10 text-muted border-muted/30"}`}
     >
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {statusLabels[status] || status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
   );
 }
@@ -31,6 +39,7 @@ function EmailGate({
   orderId: string;
   onVerified: () => void;
 }) {
+  const { t } = useLanguage();
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(false);
@@ -52,13 +61,11 @@ function EmailGate({
           sessionStorage.setItem(`ticket-verified-${orderId}`, "true");
           onVerified();
         } else {
-          setError(
-            "If this email matches the order, details will be shown. Please check and try again.",
-          );
+          setError(t("ticket.emailMismatch"));
         }
       })
       .catch(() => {
-        setError("Something went wrong. Please try again.");
+        setError(t("ticket.error"));
       })
       .finally(() => setChecking(false));
   }
@@ -77,17 +84,16 @@ function EmailGate({
         <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8">
           <div className="text-center mb-6">
             <div className="text-4xl mb-3">{"🎫"}</div>
-            <h1 className="text-xl font-bold">View Your Ticket</h1>
+            <h1 className="text-xl font-bold">{t("ticket.viewTitle")}</h1>
             <p className="text-muted text-sm mt-2">
-              Enter the email address you used when purchasing to view your
-              ticket details.
+              {t("ticket.emailGate")}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1.5">
-                Email Address
+                {t("ticket.emailLabel")}
               </label>
               <input
                 type="email"
@@ -95,7 +101,7 @@ function EmailGate({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
-                placeholder="your@email.com"
+                placeholder={t("ticket.emailPlaceholder")}
               />
             </div>
             {error && (
@@ -108,7 +114,7 @@ function EmailGate({
               disabled={checking}
               className="w-full py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors disabled:opacity-50"
             >
-              {checking ? "Verifying..." : "View Ticket"}
+              {checking ? t("ticket.verifying") : t("ticket.verify")}
             </button>
           </form>
         </div>
@@ -118,6 +124,7 @@ function EmailGate({
 }
 
 export default function TicketPage() {
+  const { t } = useLanguage();
   const params = useParams();
   const orderId = params.orderId as string;
 
@@ -166,7 +173,7 @@ export default function TicketPage() {
   if (checkingSession || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted">Loading ticket...</div>
+        <div className="animate-pulse text-muted">{t("common.loading")}</div>
       </div>
     );
   }
@@ -174,7 +181,7 @@ export default function TicketPage() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-danger">Error: {error.message}</div>
+        <div className="text-danger">{t("ticket.error")}: {error.message}</div>
       </div>
     );
   }
@@ -182,7 +189,7 @@ export default function TicketPage() {
   if (!order) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted">Ticket not found</div>
+        <div className="text-muted">{t("ticket.notFound")}</div>
       </div>
     );
   }
@@ -237,9 +244,9 @@ export default function TicketPage() {
             )}
 
             <h1 className="text-2xl font-bold mt-3 mb-1">
-              {concert?.name || "Event"}
+              {concert?.name || t("event.notFound")}
             </h1>
-            <p className="text-muted mb-6">{ticketType?.name || "Ticket"}</p>
+            <p className="text-muted mb-6">{ticketType?.name || t("ticket.ticketType")}</p>
 
             {order.status === "approved" ? (
               <div className="space-y-6">
@@ -252,43 +259,40 @@ export default function TicketPage() {
                   />
                 </div>
                 <p className="text-sm text-muted">
-                  Show this QR code at the entrance
+                  {t("ticket.showQR")}
                 </p>
                 {order.visited && (
                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-success/10 text-success border border-success/30 rounded-full">
-                    <span>{"✓"}</span> Already scanned
+                    {t("ticket.scanned")}
                   </div>
                 )}
               </div>
             ) : order.status === "pending" ? (
               <div className="py-8">
                 <div className="text-5xl mb-4">{"⏳"}</div>
-                <p className="text-lg font-medium">Awaiting Approval</p>
+                <p className="text-lg font-medium">{t("ticket.awaitingApproval")}</p>
                 <p className="text-muted text-sm mt-2">
-                  Your payment is being reviewed. You will receive your QR code
-                  via email once approved.
+                  {t("ticket.awaitingDesc")}
                 </p>
               </div>
             ) : order.status === "cancelled" ? (
               <div className="py-8">
                 <div className="text-5xl mb-4">{"🚫"}</div>
                 <p className="text-lg font-medium text-muted">
-                  Ticket Cancelled
+                  {t("ticket.cancelledTitle")}
                 </p>
                 <p className="text-muted text-sm mt-2">
-                  This ticket has been cancelled and is no longer valid. Please
-                  contact the organizer for more information.
+                  {t("ticket.cancelledDesc")}
                 </p>
               </div>
             ) : (
               <div className="py-8">
                 <div className="text-5xl mb-4">{"✗"}</div>
                 <p className="text-lg font-medium text-danger">
-                  Order Rejected
+                  {t("ticket.rejectedTitle")}
                 </p>
                 <p className="text-muted text-sm mt-2">
-                  Your payment could not be verified. Please contact the
-                  organizer.
+                  {t("ticket.rejectedDesc")}
                 </p>
               </div>
             )}
@@ -297,26 +301,26 @@ export default function TicketPage() {
           <div className="border-t border-border p-6 sm:p-8 bg-background/50">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-muted">Name</p>
+                <p className="text-muted">{t("common.name")}</p>
                 <p className="font-medium">
                   {order.firstName} {order.lastName}
                 </p>
               </div>
               <div>
-                <p className="text-muted">Email</p>
+                <p className="text-muted">{t("common.email")}</p>
                 <p className="font-medium">{order.email}</p>
               </div>
               <div>
-                <p className="text-muted">Cedula</p>
+                <p className="text-muted">{t("common.cedula")}</p>
                 <p className="font-medium">{order.cedula}</p>
               </div>
               <div>
-                <p className="text-muted">Payment Method</p>
+                <p className="text-muted">{t("ticket.paymentMethod")}</p>
                 <p className="font-medium">{order.paymentMethod}</p>
               </div>
               {order.promoter && (
                 <div>
-                  <p className="text-muted">Promoter</p>
+                  <p className="text-muted">{t("ticket.promoter")}</p>
                   <p className="font-medium">{order.promoter}</p>
                 </div>
               )}
@@ -336,27 +340,27 @@ export default function TicketPage() {
               {ticketType && (
                 <>
                   <div>
-                    <p className="text-muted">Ticket Type</p>
+                    <p className="text-muted">{t("ticket.ticketType")}</p>
                     <p className="font-medium">{ticketType.name}</p>
                   </div>
                   <div className="col-span-2">
-                    <p className="text-muted mb-1">Price</p>
+                    <p className="text-muted mb-1">{t("common.price")}</p>
                     <div className="text-sm space-y-0.5">
                       {basePrice != null && (
                         <p className="font-medium">${basePrice.toFixed(2)}</p>
                       )}
                       {feeAmount > 0 && (
                         <p className="text-muted">
-                          Service fee: +${feeAmount.toFixed(2)}
+                          {t("ticket.serviceFee", { amount: feeAmount.toFixed(2) })}
                         </p>
                       )}
                       {order.discountAmount != null && order.discountAmount > 0 && (
                         <p className="text-success">
-                          Discount: -${order.discountAmount.toFixed(2)}
+                          {t("ticket.discountLabel", { amount: order.discountAmount.toFixed(2) })}
                         </p>
                       )}
                       <p className="font-bold text-base">
-                        Total: ${displayPrice != null
+                        {t("common.total")}: ${displayPrice != null
                           ? Math.max(0, displayPrice - (order.discountAmount || 0)).toFixed(2)
                           : "N/A"}
                       </p>
@@ -364,7 +368,7 @@ export default function TicketPage() {
                   </div>
                   {order.couponCode && (
                     <div>
-                      <p className="text-muted">Coupon</p>
+                      <p className="text-muted">{t("ticket.coupon")}</p>
                       <p className="font-medium text-success">
                         {order.couponCode}
                       </p>
@@ -380,7 +384,7 @@ export default function TicketPage() {
         {siblings.length > 0 && (
           <>
             <h2 className="text-lg font-semibold text-center">
-              Other tickets in this purchase ({siblings.length})
+              {t("ticket.otherTickets", { count: siblings.length })}
             </h2>
             <div className="space-y-3">
               {siblings.map((sibling) => {
@@ -436,7 +440,7 @@ export default function TicketPage() {
                       href={`/ticket/${sibling.id}`}
                       className="block text-center text-sm text-accent-light hover:underline mt-2"
                     >
-                      View full ticket
+                      {t("ticket.viewFull")}
                     </Link>
                   </div>
                 );

@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { AuthProvider } from "@/lib/AuthContext";
+import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -231,14 +232,6 @@ function LoginForm() {
   );
 }
 
-const navItems = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/concerts", label: "Events" },
-  { href: "/admin/orders", label: "Orders" },
-  { href: "/admin/communications", label: "Messages" },
-  { href: "/scan", label: "Scanner" },
-];
-
 export default function AdminLayout({
   children,
 }: {
@@ -246,6 +239,15 @@ export default function AdminLayout({
 }) {
   const { isLoading, user } = db.useAuth();
   const pathname = usePathname();
+  const { t } = useLanguage();
+
+  const navItems = [
+    { href: "/admin", label: t("admin.dashboard") },
+    { href: "/admin/concerts", label: t("admin.events") },
+    { href: "/admin/orders", label: t("admin.orders") },
+    { href: "/admin/communications", label: t("admin.messages") },
+    { href: "/scan", label: t("admin.scanner") },
+  ];
 
   const userEmail = user?.email ?? "";
 
@@ -261,7 +263,7 @@ export default function AdminLayout({
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-muted">Loading...</div>
+        <div className="animate-pulse text-muted">{t("common.loading")}</div>
       </div>
     );
   }
@@ -296,6 +298,7 @@ export default function AdminLayout({
             </nav>
           </div>
           <div className="flex items-center gap-4">
+            <LanguageToggle className="border-white/30 text-white/70 hover:text-white" />
             <Link
               href="/"
               className="text-sm text-white/60 hover:text-white transition-colors"

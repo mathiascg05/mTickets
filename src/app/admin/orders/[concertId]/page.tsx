@@ -7,19 +7,27 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import { sendTicketEmail, sendConfirmationEmail } from "@/lib/sendTicketEmail";
+import { useLanguage } from "@/lib/LanguageContext";
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useLanguage();
   const styles: Record<string, string> = {
     pending: "bg-warning/10 text-warning border-warning/30",
     approved: "bg-success/10 text-success border-success/30",
     rejected: "bg-danger/10 text-danger border-danger/30",
     cancelled: "bg-muted/10 text-muted border-muted/30",
   };
+  const labelMap: Record<string, string> = {
+    pending: t("common.pending"),
+    approved: t("common.approved"),
+    rejected: t("common.rejected"),
+    cancelled: t("common.cancelled"),
+  };
   return (
     <span
       className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles[status] || "bg-muted/10 text-muted border-muted/30"}`}
     >
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {labelMap[status] || status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
   );
 }
@@ -58,6 +66,7 @@ function ExportSection({
   pmCurrencyMap: Record<string, string>;
   rateMap: Record<string, number>;
 }) {
+  const { t } = useLanguage();
   function escapeCsv(val: string) {
     if (val.includes(",") || val.includes('"') || val.includes("\n")) {
       return `"${val.replace(/"/g, '""')}"`;
@@ -83,16 +92,16 @@ function ExportSection({
 
     const headers = [
       "Order #",
-      "First Name",
-      "Last Name",
-      "Payment Method",
+      t("common.firstName"),
+      t("common.lastName"),
+      t("checkout.paymentMethod"),
       "Amount ($)",
       "Amount (Bs)",
       ...(hasLegacyPromoter ? ["Promoter"] : []),
       ...cfKeyList,
-      "Status",
-      "Date",
-      "Coupon",
+      t("common.status"),
+      t("common.date"),
+      t("admin.coupon"),
     ];
 
     const sorted = [...allOrders].sort((a, b) => a.createdAt - b.createdAt);
@@ -143,9 +152,9 @@ function ExportSection({
     <div className="bg-surface border border-border rounded-xl p-6 mb-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Export</h2>
+          <h2 className="text-lg font-semibold">{t("admin.export")}</h2>
           <p className="text-sm text-muted">
-            Download all {allOrders.length} orders as CSV
+            {t("admin.downloadAll", { count: allOrders.length })}
           </p>
         </div>
         <button
@@ -153,7 +162,7 @@ function ExportSection({
           disabled={allOrders.length === 0}
           className="px-4 py-2 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
         >
-          Download CSV
+          {t("admin.downloadCsv")}
         </button>
       </div>
     </div>
@@ -169,6 +178,7 @@ function EmailInlineEdit({
   onSave: (email: string) => void;
   onCancel: () => void;
 }) {
+  const { t } = useLanguage();
   const [email, setEmail] = useState(currentEmail);
 
   function handleSave() {
@@ -195,7 +205,7 @@ function EmailInlineEdit({
         onClick={handleSave}
         className="px-2 py-0.5 text-xs bg-accent/10 text-accent-light border border-accent/30 rounded-lg hover:bg-accent/20 transition-colors"
       >
-        OK
+        {t("common.ok")}
       </button>
       <button
         onClick={onCancel}
@@ -214,6 +224,7 @@ function CouponInlineInput({
   onApply: (code: string) => string | null;
   onCancel: () => void;
 }) {
+  const { t } = useLanguage();
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -229,7 +240,7 @@ function CouponInlineInput({
         value={code}
         onChange={(e) => { setCode(e.target.value); setError(null); }}
         onKeyDown={(e) => e.key === "Enter" && handleApply()}
-        placeholder="Code"
+        placeholder={t("admin.code")}
         className={`w-24 px-2 py-1 text-xs bg-background border rounded-lg focus:outline-none focus:border-accent ${error ? "border-danger" : "border-border"}`}
         autoFocus
       />
@@ -237,7 +248,7 @@ function CouponInlineInput({
         onClick={handleApply}
         className="px-2 py-1 text-xs bg-accent/10 text-accent-light border border-accent/30 rounded-lg hover:bg-accent/20 transition-colors"
       >
-        OK
+        {t("common.ok")}
       </button>
       <button
         onClick={onCancel}
@@ -289,6 +300,7 @@ function CreateOrderModal({
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [orderStatus, setOrderStatus] = useState<"approved" | "pending">("approved");
   const [submitting, setSubmitting] = useState(false);
+  const { t } = useLanguage();
 
   const today = getTodayString();
 
@@ -379,7 +391,7 @@ function CreateOrderModal({
       onClose();
     } catch (err) {
       console.error("Failed to create order:", err);
-      alert("Error creating order. Check the console for details.");
+      alert(t("admin.errorCreatingOrder"));
     } finally {
       setSubmitting(false);
     }
@@ -395,7 +407,7 @@ function CreateOrderModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold">Create Order</h3>
+          <h3 className="text-lg font-semibold">{t("admin.createOrderTitle")}</h3>
           <button
             onClick={onClose}
             className="text-muted hover:text-foreground transition-colors"
@@ -407,7 +419,7 @@ function CreateOrderModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Ticket Type */}
           <div>
-            <label className="block text-sm font-medium mb-1">Ticket Type</label>
+            <label className="block text-sm font-medium mb-1">{t("admin.ticketTypeLabel")}</label>
             <select
               value={selectedTicketTypeId}
               onChange={(e) => setSelectedTicketTypeId(e.target.value)}
@@ -415,7 +427,7 @@ function CreateOrderModal({
             >
               {ticketOptions.map((opt) => (
                 <option key={opt.id} value={opt.id}>
-                  {opt.name} — ${opt.price.toFixed(2)} ({opt.available} available)
+                  {opt.name} — ${opt.price.toFixed(2)} ({t("admin.available", { count: opt.available })})
                 </option>
               ))}
             </select>
@@ -423,7 +435,7 @@ function CreateOrderModal({
 
           {/* Quantity */}
           <div>
-            <label className="block text-sm font-medium mb-1">Quantity</label>
+            <label className="block text-sm font-medium mb-1">{t("common.quantity")}</label>
             <input
               type="number"
               min={1}
@@ -437,7 +449,7 @@ function CreateOrderModal({
           {/* Name */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium mb-1">First Name</label>
+              <label className="block text-sm font-medium mb-1">{t("common.firstName")}</label>
               <input
                 type="text"
                 required
@@ -447,7 +459,7 @@ function CreateOrderModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Last Name</label>
+              <label className="block text-sm font-medium mb-1">{t("common.lastName")}</label>
               <input
                 type="text"
                 required
@@ -460,7 +472,7 @@ function CreateOrderModal({
 
           {/* Email */}
           <div>
-            <label className="block text-sm font-medium mb-1">Email</label>
+            <label className="block text-sm font-medium mb-1">{t("common.email")}</label>
             <input
               type="email"
               required
@@ -472,7 +484,7 @@ function CreateOrderModal({
 
           {/* Cedula */}
           <div>
-            <label className="block text-sm font-medium mb-1">Cedula</label>
+            <label className="block text-sm font-medium mb-1">{t("common.cedula")}</label>
             <input
               type="text"
               required
@@ -521,7 +533,7 @@ function CreateOrderModal({
                       onChange={(e) => setCfValues((p) => ({ ...p, [cf.id]: e.target.value }))}
                       className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
                     >
-                      <option value="">Select...</option>
+                      <option value="">{t("common.select")}</option>
                       {parsedOptions.map((opt) => (
                         <option key={opt} value={opt}>{opt}</option>
                       ))}
@@ -569,14 +581,14 @@ function CreateOrderModal({
                 }`}
               />
             </button>
-            <label className="text-sm font-medium">Cortesia</label>
+            <label className="text-sm font-medium">{t("admin.cortesia")}</label>
           </div>
 
           {!isCortesia && (
             <>
               {/* Payment Method */}
               <div>
-                <label className="block text-sm font-medium mb-1">Payment Method</label>
+                <label className="block text-sm font-medium mb-1">{t("admin.paymentMethodLabel")}</label>
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
@@ -593,7 +605,7 @@ function CreateOrderModal({
               {/* Payment Proof (optional) */}
               <div>
                 <label className="block text-sm font-medium mb-1">
-                  Payment Proof <span className="text-muted font-normal">(optional)</span>
+                  {t("admin.paymentProof")} <span className="text-muted font-normal">({t("common.optional")})</span>
                 </label>
                 <input
                   type="file"
@@ -607,7 +619,7 @@ function CreateOrderModal({
 
           {/* Status Toggle */}
           <div>
-            <label className="block text-sm font-medium mb-2">Status</label>
+            <label className="block text-sm font-medium mb-2">{t("common.status")}</label>
             <div className="flex gap-2">
               <button
                 type="button"
@@ -618,7 +630,7 @@ function CreateOrderModal({
                     : "border-border text-muted hover:text-foreground"
                 }`}
               >
-                Approved
+                {t("common.approved")}
               </button>
               <button
                 type="button"
@@ -629,7 +641,7 @@ function CreateOrderModal({
                     : "border-border text-muted hover:text-foreground"
                 }`}
               >
-                Pending
+                {t("common.pending")}
               </button>
             </div>
           </div>
@@ -639,9 +651,9 @@ function CreateOrderModal({
             <div className="bg-background border border-border rounded-lg p-3 text-sm">
               <p className="text-muted">
                 {isCortesia ? (
-                  <>Total: <span className="text-foreground font-semibold">{quantity}x Cortesia = $0.00</span></>
+                  <>{t("admin.orderTotal")}<span className="text-foreground font-semibold">{t("admin.cortesiaTotal", { qty: quantity })}</span></>
                 ) : (
-                  <>Total: <span className="text-foreground font-semibold">{quantity}x ${selectedOption.price.toFixed(2)} = ${(quantity * selectedOption.price).toFixed(2)}</span></>
+                  <>{t("admin.orderTotal")}<span className="text-foreground font-semibold">{quantity}x ${selectedOption.price.toFixed(2)} = ${(quantity * selectedOption.price).toFixed(2)}</span></>
                 )}
               </p>
             </div>
@@ -653,7 +665,7 @@ function CreateOrderModal({
             disabled={submitting}
             className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
           >
-            {submitting ? "Creating..." : "Create Order"}
+            {submitting ? t("admin.creating") : t("admin.createOrderTitle")}
           </button>
         </form>
       </div>
@@ -728,10 +740,11 @@ function ImportCsvModal({
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ created: number } | null>(null);
+  const { t } = useLanguage();
 
   const today = getTodayString();
   const customFields = (concert.customFields || []).sort((a, b) => a.sortOrder - b.sortOrder);
-  const fixedHeaders = ["Nombre", "Apellido", "Email", "Cedula"];
+  const fixedHeaders = [t("common.firstName"), t("common.lastName"), t("common.email"), t("common.cedula")];
   const cfHeaders = customFields.map((cf) => cf.label);
   const allHeaders = [...fixedHeaders, ...cfHeaders];
 
@@ -759,22 +772,22 @@ function ImportCsvModal({
     const cedula = values[3] || "";
     const errors: string[] = [];
 
-    if (!firstName) errors.push("Nombre requerido");
-    if (!lastName) errors.push("Apellido requerido");
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push("Email invalido");
-    if (!cedula || !/^\d+$/.test(cedula)) errors.push("Cedula invalida");
+    if (!firstName) errors.push(t("admin.nameRequired"));
+    if (!lastName) errors.push(t("admin.lastNameRequired"));
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push(t("admin.emailInvalid"));
+    if (!cedula || !/^\d+$/.test(cedula)) errors.push(t("admin.cedulaInvalid"));
 
     const cfValues: Record<string, string> = {};
     customFields.forEach((cf, i) => {
       const val = values[4 + i] || "";
       if (cf.required && !val) {
-        errors.push(`${cf.label} requerido`);
+        errors.push(t("admin.fieldRequired", { field: cf.label }));
       }
       if (val && (cf.fieldType === "select" || cf.fieldType === "multiselect")) {
         let opts: string[] = [];
         try { opts = cf.options ? JSON.parse(cf.options) : []; } catch { /* ignore */ }
         if (opts.length > 0 && !opts.includes(val)) {
-          errors.push(`${cf.label}: opcion invalida`);
+          errors.push(t("admin.invalidOption", { field: cf.label }));
         }
       }
       if (val) cfValues[cf.label] = val;
@@ -803,7 +816,7 @@ function ImportCsvModal({
   async function handleImport() {
     if (!selectedTt || validRows.length === 0 || importing) return;
     if (avail && validRows.length > avail.available) {
-      alert(`Solo hay ${avail.available} tickets disponibles, pero estas intentando importar ${validRows.length}.`);
+      alert(t("admin.notAvailable", { available: avail.available, count: validRows.length }));
       return;
     }
     setImporting(true);
@@ -854,7 +867,7 @@ function ImportCsvModal({
       setImportResult({ created: validRows.length });
     } catch (err) {
       console.error("Import failed:", err);
-      alert("Error during import. Check console for details.");
+      alert(t("admin.errorImport"));
     } finally {
       setImporting(false);
     }
@@ -870,7 +883,7 @@ function ImportCsvModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold">Importar desde CSV</h3>
+          <h3 className="text-lg font-semibold">{t("admin.importTitle")}</h3>
           <button onClick={onClose} className="text-muted hover:text-foreground transition-colors">
             {"✕"}
           </button>
@@ -879,13 +892,13 @@ function ImportCsvModal({
         {importResult ? (
           <div className="text-center py-8">
             <div className="text-4xl mb-3">{"✓"}</div>
-            <p className="text-lg font-semibold mb-1">{importResult.created} ordenes creadas</p>
-            <p className="text-sm text-muted mb-4">Las ordenes han sido importadas exitosamente.</p>
+            <p className="text-lg font-semibold mb-1">{t("admin.ordersCreated", { count: importResult.created })}</p>
+            <p className="text-sm text-muted mb-4">{t("admin.importSuccess")}</p>
             <button
               onClick={onClose}
               className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
             >
-              Cerrar
+              {t("common.close")}
             </button>
           </div>
         ) : (
@@ -893,7 +906,7 @@ function ImportCsvModal({
             {/* Config row */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium mb-1">Tipo de Ticket</label>
+                <label className="block text-sm font-medium mb-1">{t("admin.ticketTypeLabel")}</label>
                 <select
                   value={selectedTicketTypeId}
                   onChange={(e) => setSelectedTicketTypeId(e.target.value)}
@@ -903,20 +916,20 @@ function ImportCsvModal({
                     const a = getAvailability(tt, tt.phases || [], tt.orders, today);
                     return (
                       <option key={tt.id} value={tt.id}>
-                        {tt.name} — ${a.price.toFixed(2)} ({a.available} disponibles)
+                        {tt.name} — ${a.price.toFixed(2)} ({t("admin.available", { count: a.available })})
                       </option>
                     );
                   })}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Metodo de Pago</label>
+                <label className="block text-sm font-medium mb-1">{t("admin.paymentMethodLabel")}</label>
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
                   className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
                 >
-                  <option value="Cortesia">Cortesia</option>
+                  <option value="Cortesia">{t("admin.cortesia")}</option>
                   {(concert.paymentMethods || []).map((pm) => (
                     <option key={pm.id} value={pm.name}>{pm.name}</option>
                   ))}
@@ -936,7 +949,7 @@ function ImportCsvModal({
                       : "border-border text-muted hover:text-foreground"
                   }`}
                 >
-                  Approved
+                  {t("common.approved")}
                 </button>
                 <button
                   type="button"
@@ -947,7 +960,7 @@ function ImportCsvModal({
                       : "border-border text-muted hover:text-foreground"
                   }`}
                 >
-                  Pending
+                  {t("common.pending")}
                 </button>
               </div>
               <label className="flex items-center gap-2 cursor-pointer text-sm">
@@ -957,7 +970,7 @@ function ImportCsvModal({
                   onChange={(e) => setSendEmails(e.target.checked)}
                   className="accent-accent"
                 />
-                Enviar emails
+                {t("admin.sendEmails")}
               </label>
             </div>
 
@@ -967,11 +980,11 @@ function ImportCsvModal({
                 onClick={downloadTemplate}
                 className="px-3 py-2 border border-border hover:border-accent/50 text-muted hover:text-accent-light rounded-lg text-sm font-medium transition-colors"
               >
-                Descargar Plantilla
+                {t("admin.downloadTemplate")}
               </button>
               <label className="flex-1 flex items-center justify-center px-4 py-3 border-2 border-dashed border-border hover:border-accent/40 rounded-lg cursor-pointer transition-colors">
                 <span className="text-sm text-muted">
-                  {rows.length > 0 ? `${rows.length} filas cargadas` : "Seleccionar archivo CSV..."}
+                  {rows.length > 0 ? t("admin.rowsLoaded", { count: rows.length }) : t("admin.selectFile")}
                 </span>
                 <input
                   type="file"
@@ -989,9 +1002,9 @@ function ImportCsvModal({
             {rows.length > 0 && (
               <>
                 <div className="flex items-center gap-3 text-sm">
-                  <span className="text-success font-medium">{validRows.length} validas</span>
+                  <span className="text-success font-medium">{t("admin.validRows", { count: validRows.length })}</span>
                   {errorRows.length > 0 && (
-                    <span className="text-danger font-medium">{errorRows.length} con errores</span>
+                    <span className="text-danger font-medium">{t("admin.errorRows", { count: errorRows.length })}</span>
                   )}
                 </div>
 
@@ -1003,7 +1016,7 @@ function ImportCsvModal({
                         {allHeaders.map((h) => (
                           <th key={h} className="px-3 py-2 text-left font-medium text-muted whitespace-nowrap">{h}</th>
                         ))}
-                        <th className="px-3 py-2 text-left font-medium text-muted">Estado</th>
+                        <th className="px-3 py-2 text-left font-medium text-muted">{t("common.status")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1026,7 +1039,7 @@ function ImportCsvModal({
                           ))}
                           <td className="px-3 py-2">
                             {row.errors.length === 0 ? (
-                              <span className="text-success text-xs">OK</span>
+                              <span className="text-success text-xs">{t("common.ok")}</span>
                             ) : (
                               <span className="text-danger text-xs">{row.errors.join(", ")}</span>
                             )}
@@ -1043,8 +1056,8 @@ function ImportCsvModal({
                   className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
                 >
                   {importing
-                    ? "Importando..."
-                    : `Importar ${validRows.length} Orden${validRows.length !== 1 ? "es" : ""}`}
+                    ? t("admin.importing")
+                    : t("admin.importButton", { count: validRows.length })}
                 </button>
               </>
             )}
@@ -1056,6 +1069,7 @@ function ImportCsvModal({
 }
 
 export default function ConcertOrdersPage() {
+  const { t } = useLanguage();
   const params = useParams();
   const concertId = params.concertId as string;
   const { user } = db.useAuth();
@@ -1105,12 +1119,12 @@ export default function ConcertOrdersPage() {
   });
 
   if (isLoading || !data) {
-    return <div className="animate-pulse text-muted">Loading...</div>;
+    return <div className="animate-pulse text-muted">{t("common.loading")}</div>;
   }
 
   const concert = data.concerts[0];
   if (!concert) {
-    return <div className="text-muted">Event not found</div>;
+    return <div className="text-muted">{t("admin.eventNotFound")}</div>;
   }
 
   // Build a live lookup for order fields (especially 'visited') from the direct subscription
@@ -1223,7 +1237,7 @@ export default function ConcertOrdersPage() {
     const res = await sendTicketEmail(orderId, refreshToken);
     if (!res.success) {
       console.error("Email failed:", res.error);
-      alert("Order approved but email failed to send. Please notify the customer manually.");
+      alert(t("admin.approveEmailFail"));
     }
   }
 
@@ -1232,7 +1246,7 @@ export default function ConcertOrdersPage() {
   }
 
   function cancel(orderId: string) {
-    if (confirm("Cancel this ticket? The QR code will no longer work.")) {
+    if (confirm(t("admin.cancelTicketConfirm"))) {
       db.transact(db.tx.orders[orderId].update({ status: "cancelled" }));
     }
   }
@@ -1241,8 +1255,8 @@ export default function ConcertOrdersPage() {
     const coupon = (concert.coupons || []).find(
       (c) => c.code.toUpperCase() === code.trim().toUpperCase(),
     );
-    if (!coupon) return "Invalid coupon";
-    if (!coupon.active) return "Inactive coupon";
+    if (!coupon) return t("checkout.invalidCoupon");
+    if (!coupon.active) return t("checkout.couponInactive");
 
     if (coupon.maxUses != null) {
       const usageCount = allOrders.filter(
@@ -1250,7 +1264,7 @@ export default function ConcertOrdersPage() {
           o.couponCode === coupon.code &&
           (o.status === "approved" || o.status === "pending"),
       ).length;
-      if (usageCount >= coupon.maxUses) return "Coupon limit reached";
+      if (usageCount >= coupon.maxUses) return t("checkout.couponLimit");
     }
 
     const discount =
@@ -1283,11 +1297,11 @@ export default function ConcertOrdersPage() {
   }
 
   const filters: { label: string; value: FilterStatus }[] = [
-    { label: "All", value: "all" },
-    { label: "Pending", value: "pending" },
-    { label: "Approved", value: "approved" },
-    { label: "Rejected", value: "rejected" },
-    { label: "Cancelled", value: "cancelled" },
+    { label: t("common.all"), value: "all" },
+    { label: t("common.pending"), value: "pending" },
+    { label: t("common.approved"), value: "approved" },
+    { label: t("common.rejected"), value: "rejected" },
+    { label: t("common.cancelled"), value: "cancelled" },
   ];
 
   return (
@@ -1296,7 +1310,7 @@ export default function ConcertOrdersPage() {
         href="/admin/orders"
         className="text-sm text-muted hover:text-accent-light transition-colors mb-4 inline-block"
       >
-        &larr; All events
+        {t("admin.allEvents")}
       </Link>
 
       <h1 className="text-3xl font-bold mb-2">{concert.name}</h1>
@@ -1306,24 +1320,24 @@ export default function ConcertOrdersPage() {
 
       {/* Summary Stats */}
       <div className="bg-surface border border-border rounded-xl p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-4">Event Summary</h2>
+        <h2 className="text-lg font-semibold mb-4">{t("admin.eventSummary")}</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="border-l-4 border-accent-light pl-4">
-            <p className="text-sm text-muted">Total Orders</p>
+            <p className="text-sm text-muted">{t("admin.totalOrders")}</p>
             <p className="text-3xl font-bold text-accent-light">{totalOrders}</p>
           </div>
           <div className="border-l-4 border-success pl-4">
-            <p className="text-sm text-muted">Tickets Issued</p>
+            <p className="text-sm text-muted">{t("admin.ticketsIssued")}</p>
             <p className="text-3xl font-bold text-success">{totalTicketsIssued}</p>
           </div>
           <div className="border-l-4 border-accent-light pl-4">
-            <p className="text-sm text-muted">Total Revenue</p>
+            <p className="text-sm text-muted">{t("admin.totalRevenue")}</p>
             <p className="text-3xl font-bold text-accent-light">
               ${totalRevenue.toFixed(2)}
             </p>
           </div>
           <div className="border-l-4 border-warning pl-4">
-            <p className="text-sm text-muted">Pending Approval</p>
+            <p className="text-sm text-muted">{t("admin.pendingApproval")}</p>
             <p className="text-3xl font-bold text-warning">{pendingCount}</p>
           </div>
         </div>
@@ -1333,9 +1347,9 @@ export default function ConcertOrdersPage() {
       {concert.ticketTypes.map((tt) => {
         const pmNames = (concert.paymentMethods || []).map((pm) => pm.name);
         const statuses = [
-          { key: "approved", label: "Approved", color: "text-success", headerBg: "bg-success/10 border-success/30" },
-          { key: "pending", label: "Pending", color: "text-warning", headerBg: "bg-warning/10 border-warning/30" },
-          { key: "rejected", label: "Rejected", color: "text-danger", headerBg: "bg-danger/10 border-danger/30" },
+          { key: "approved", label: t("common.approved"), color: "text-success", headerBg: "bg-success/10 border-success/30" },
+          { key: "pending", label: t("common.pending"), color: "text-warning", headerBg: "bg-warning/10 border-warning/30" },
+          { key: "rejected", label: t("common.rejected"), color: "text-danger", headerBg: "bg-danger/10 border-danger/30" },
         ];
 
         // Build data: for each status × payment method, count, amount, and Bs amount
@@ -1399,8 +1413,8 @@ export default function ConcertOrdersPage() {
               <div>
                 <h2 className="text-lg font-semibold">{tt.name}</h2>
                 <p className="text-sm text-muted">
-                  ${(tt.price + (tt.price * ((tt as { feePercent?: number }).feePercent ?? 0)) / 100 + ((tt as { feeFixed?: number }).feeFixed ?? 0)).toFixed(2)} per ticket &middot;{" "}
-                  {statusTotals[0].count + statusTotals[1].count}/{tt.quantity} sold
+                  ${(tt.price + (tt.price * ((tt as { feePercent?: number }).feePercent ?? 0)) / 100 + ((tt as { feeFixed?: number }).feeFixed ?? 0)).toFixed(2)} {t("admin.perTicket")} &middot;{" "}
+                  {t("admin.sold", { sold: statusTotals[0].count + statusTotals[1].count, total: tt.quantity })}
                 </p>
               </div>
             </div>
@@ -1448,7 +1462,7 @@ export default function ConcertOrdersPage() {
                             <span className={`font-bold ${s.color}`}>
                               {cell.count}
                             </span>
-                            <span className="text-muted text-xs"> Qty.</span>
+                            <span className="text-muted text-xs"> {t("common.quantity")}</span>
                           </td>
                         );
                       }),
@@ -1490,7 +1504,7 @@ export default function ConcertOrdersPage() {
                           colSpan={allPmNames.length}
                           className={`text-center py-2.5 px-2 font-semibold ${st.color}`}
                         >
-                          Total {st.label}: ${statusTotals.find((t) => t.key === st.key)!.amount.toFixed(2)}
+                          {t("common.total")} {st.label}: ${statusTotals.find((tt) => tt.key === st.key)!.amount.toFixed(2)}
                           {bsAmount > 0 && (
                             <span className="ml-2 text-sm font-normal text-accent-light">
                               / {bsAmount.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs
@@ -1519,9 +1533,9 @@ export default function ConcertOrdersPage() {
         if (allPmNames.length === 0) return null;
 
         const statuses = [
-          { key: "approved", label: "Approved", color: "text-success", headerBg: "bg-success/10 border-success/30" },
-          { key: "pending", label: "Pending", color: "text-warning", headerBg: "bg-warning/10 border-warning/30" },
-          { key: "rejected", label: "Rejected", color: "text-danger", headerBg: "bg-danger/10 border-danger/30" },
+          { key: "approved", label: t("common.approved"), color: "text-success", headerBg: "bg-success/10 border-success/30" },
+          { key: "pending", label: t("common.pending"), color: "text-warning", headerBg: "bg-warning/10 border-warning/30" },
+          { key: "rejected", label: t("common.rejected"), color: "text-danger", headerBg: "bg-danger/10 border-danger/30" },
         ];
 
         const cells: Record<string, Record<string, { count: number; amount: number; amountBs: number }>> = {};
@@ -1559,9 +1573,9 @@ export default function ConcertOrdersPage() {
 
         return (
           <div className="bg-surface border border-border rounded-xl p-6 mb-6">
-            <h2 className="text-lg font-semibold mb-1">Combined Totals</h2>
+            <h2 className="text-lg font-semibold mb-1">{t("admin.combinedTotals")}</h2>
             <p className="text-sm text-muted mb-4">
-              All ticket types &middot; {statusTotals[0].count + statusTotals[1].count} sold total
+              {t("admin.allTicketTypes")} &middot; {t("admin.soldTotal", { count: statusTotals[0].count + statusTotals[1].count })}
             </p>
 
             <div className="overflow-x-auto">
@@ -1599,7 +1613,7 @@ export default function ConcertOrdersPage() {
                         return (
                           <td key={`${s.key}-${pm}-count`} className="text-center py-2 px-2">
                             <span className={`font-bold ${s.color}`}>{cell.count}</span>
-                            <span className="text-muted text-xs"> Qty.</span>
+                            <span className="text-muted text-xs"> {t("common.quantity")}</span>
                           </td>
                         );
                       }),
@@ -1636,7 +1650,7 @@ export default function ConcertOrdersPage() {
                           colSpan={allPmNames.length}
                           className={`text-center py-2.5 px-2 font-semibold ${st.color}`}
                         >
-                          Total {st.label}: ${statusTotals.find((t) => t.key === st.key)!.amount.toFixed(2)}
+                          {t("common.total")} {st.label}: ${statusTotals.find((tt) => tt.key === st.key)!.amount.toFixed(2)}
                           {bsAmount > 0 && (
                             <span className="ml-2 text-sm font-normal text-accent-light">
                               / {bsAmount.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs
@@ -1671,14 +1685,14 @@ export default function ConcertOrdersPage() {
           <div className="bg-surface border border-border rounded-xl p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-semibold">Scanned Codes</h2>
+                <h2 className="text-lg font-semibold">{t("admin.scannedCodes")}</h2>
                 <p className="text-sm text-muted">
-                  {scannedOrders.length} of {allOrders.filter((o) => o.status === "approved").length} approved tickets scanned
+                  {t("admin.scannedOf", { scanned: scannedOrders.length, total: allOrders.filter((o) => o.status === "approved").length })}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-3xl font-bold text-success">{scannedOrders.length}</p>
-                <p className="text-xs text-muted">scanned</p>
+                <p className="text-xs text-muted">{t("admin.scannedLabel")}</p>
               </div>
             </div>
 
@@ -1688,7 +1702,7 @@ export default function ConcertOrdersPage() {
                   type="text"
                   value={scannedSearch}
                   onChange={(e) => setScannedSearch(e.target.value)}
-                  placeholder="Search scanned tickets..."
+                  placeholder={t("admin.searchScanned")}
                   className="w-full px-4 py-2.5 pl-10 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent-light transition-colors"
                 />
                 <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1707,11 +1721,11 @@ export default function ConcertOrdersPage() {
 
             {scannedOrders.length === 0 ? (
               <p className="text-muted text-center py-6 text-sm">
-                No tickets have been scanned yet.
+                {t("admin.noScanned")}
               </p>
             ) : filteredScanned.length === 0 ? (
               <p className="text-muted text-center py-6 text-sm">
-                No scanned tickets matching &quot;{scannedSearch}&quot;
+                {t("admin.noScannedMatching", { query: scannedSearch })}
               </p>
             ) : (
               <div className="space-y-2 max-h-[400px] overflow-y-auto">
@@ -1760,18 +1774,18 @@ export default function ConcertOrdersPage() {
       <div className="bg-surface border border-border rounded-xl p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold">Order List</h2>
+            <h2 className="text-lg font-semibold">{t("admin.orderList")}</h2>
             <button
               onClick={() => setShowCreateModal(true)}
               className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-medium transition-colors shadow-lg shadow-accent/20"
             >
-              + Create Order
+              {t("admin.createOrder")}
             </button>
             <button
               onClick={() => setShowImportModal(true)}
               className="px-3 py-1.5 border border-border hover:border-accent/50 text-muted hover:text-accent-light rounded-lg text-xs font-medium transition-colors"
             >
-              Import CSV
+              {t("admin.importCsv")}
             </button>
           </div>
           <div className="flex flex-wrap gap-2 items-center">
@@ -1800,7 +1814,7 @@ export default function ConcertOrdersPage() {
                       : "text-muted hover:text-foreground"
                   }`}
                 >
-                  All Types
+                  {t("admin.allTypes")}
                 </button>
                 {concert.ticketTypes.map((tt) => (
                   <button
@@ -1825,7 +1839,7 @@ export default function ConcertOrdersPage() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, email, cedula, promoter, coupon..."
+            placeholder={t("admin.searchPlaceholder")}
             className="w-full px-4 py-2.5 pl-10 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent-light transition-colors"
           />
           <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1843,7 +1857,7 @@ export default function ConcertOrdersPage() {
 
         {filteredOrders.length === 0 ? (
           <p className="text-muted text-center py-8">
-            No {filter === "all" ? "" : filter} orders{searchQuery ? ` matching "${searchQuery}"` : ""} for this event.
+            {t("admin.noOrders", { filter: filter === "all" ? "" : filter, search: searchQuery ? t("admin.matching", { query: searchQuery }) : "" })}
           </p>
         ) : (
           <div className="space-y-2">
@@ -1860,7 +1874,7 @@ export default function ConcertOrdersPage() {
                     <StatusBadge status={order.status} />
                     {order.visited && (
                       <span className="text-xs text-success">
-                        {"✓"} Visited
+                        {"✓"} {t("admin.visited")}
                       </span>
                     )}
                     <span className="text-xs text-muted">
@@ -1889,10 +1903,10 @@ export default function ConcertOrdersPage() {
                       </svg>
                     </p>
                   )}
-                  <p className="text-xs text-muted">Cedula: {order.cedula}</p>
-                  <p className="text-xs text-muted">Payment: {order.paymentMethod}</p>
+                  <p className="text-xs text-muted">{t("common.cedula")}: {order.cedula}</p>
+                  <p className="text-xs text-muted">{t("admin.paymentMethodLabel")}: {order.paymentMethod}</p>
                   {order.promoter && (
-                    <p className="text-xs text-muted">Promoter: {order.promoter}</p>
+                    <p className="text-xs text-muted">{t("ticket.promoter")}: {order.promoter}</p>
                   )}
                   {order.customFieldValues && (() => {
                     try {
@@ -1906,7 +1920,7 @@ export default function ConcertOrdersPage() {
                     ${order.ticketTypePrice.toFixed(2)}
                     {order.couponCode && (
                       <span className="text-success">
-                        {" "}(coupon: {order.couponCode}, -${(order.discountAmount || 0).toFixed(2)})
+                        {" "}({t("admin.coupon")}: {order.couponCode}, -${(order.discountAmount || 0).toFixed(2)})
                       </span>
                     )}
                     {(() => {
@@ -1927,18 +1941,18 @@ export default function ConcertOrdersPage() {
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {order.paymentProofPath === "admin-created" ? (
                     <span className="px-3 py-1.5 text-xs border border-accent/30 bg-accent/10 text-accent-light rounded-lg font-medium">
-                      Admin
+                      {t("admin.adminLabel")}
                     </span>
                   ) : order.paymentProofPath ? (
                     <button
                       onClick={() => viewProof(order.paymentProofPath!)}
                       className="px-3 py-1.5 text-xs border border-border rounded-lg hover:border-accent/50 transition-colors"
                     >
-                      Proof
+                      {t("admin.proof")}
                     </button>
                   ) : null}
                   {order.proofReferenceNumber && (
-                    <span className="px-3 py-1.5 text-xs border border-warning/30 bg-warning/10 text-warning rounded-lg font-medium truncate max-w-[140px]" title={`Ref: ${order.proofReferenceNumber}`}>
+                    <span className="px-3 py-1.5 text-xs border border-warning/30 bg-warning/10 text-warning rounded-lg font-medium truncate max-w-[140px]" title={`${t("admin.referenceNumber")}: ${order.proofReferenceNumber}`}>
                       Ref: {order.proofReferenceNumber}
                     </span>
                   )}
@@ -1961,20 +1975,20 @@ export default function ConcertOrdersPage() {
                           onClick={() => setCouponOrderId(order.id)}
                           className="px-3 py-1.5 text-xs border border-accent/30 text-accent-light rounded-lg hover:bg-accent/10 transition-colors font-medium"
                         >
-                          Coupon
+                          {t("admin.coupon")}
                         </button>
                       )}
                       <button
                         onClick={() => approve(order.id)}
                         className="px-3 py-1.5 text-xs bg-success/10 text-success border border-success/30 rounded-lg hover:bg-success/20 transition-colors font-medium"
                       >
-                        Approve
+                        {t("admin.approve")}
                       </button>
                       <button
                         onClick={() => reject(order.id)}
                         className="px-3 py-1.5 text-xs bg-danger/10 text-danger border border-danger/30 rounded-lg hover:bg-danger/20 transition-colors font-medium"
                       >
-                        Reject
+                        {t("admin.reject")}
                       </button>
                     </>
                   )}
@@ -1983,7 +1997,7 @@ export default function ConcertOrdersPage() {
                       onClick={() => cancel(order.id)}
                       className="px-3 py-1.5 text-xs bg-muted/10 text-muted border border-muted/30 rounded-lg hover:bg-muted/20 transition-colors font-medium"
                     >
-                      Cancel
+                      {t("common.cancel")}
                     </button>
                   )}
                   {(order.status === "pending" || order.status === "approved") && (
@@ -2000,13 +2014,13 @@ export default function ConcertOrdersPage() {
                         disabled={resendingOrderId === order.id}
                         className="px-3 py-1.5 text-xs border border-accent/30 text-accent-light rounded-lg hover:bg-accent/10 transition-colors font-medium disabled:opacity-50"
                       >
-                        {resendingOrderId === order.id ? "Sending..." : "Resend"}
+                        {resendingOrderId === order.id ? t("admin.sending") : t("admin.resend")}
                       </button>
                       {resendOrderId === order.id && (
                         <>
                           <div className="fixed inset-0 z-40" onClick={() => setResendOrderId(null)} />
                           <div className="absolute right-0 top-full mt-1 z-50 bg-surface border border-border rounded-lg shadow-xl p-3 w-56">
-                            <p className="text-xs font-semibold mb-2">Email type</p>
+                            <p className="text-xs font-semibold mb-2">{t("admin.emailType")}</p>
                             <label className="flex items-center gap-2 cursor-pointer mb-1.5">
                               <input
                                 type="radio"
@@ -2015,7 +2029,7 @@ export default function ConcertOrdersPage() {
                                 onChange={() => setResendType("confirmation")}
                                 className="accent-accent"
                               />
-                              <span className="text-xs">Confirmation Email</span>
+                              <span className="text-xs">{t("admin.confirmationEmail")}</span>
                             </label>
                             <label className="flex items-center gap-2 cursor-pointer mb-3">
                               <input
@@ -2025,7 +2039,7 @@ export default function ConcertOrdersPage() {
                                 onChange={() => setResendType("ticket")}
                                 className="accent-accent"
                               />
-                              <span className="text-xs">Ticket Email (with QR)</span>
+                              <span className="text-xs">{t("admin.ticketEmailQR")}</span>
                             </label>
                             <button
                               onClick={async () => {
@@ -2036,20 +2050,20 @@ export default function ConcertOrdersPage() {
                                     ? await sendTicketEmail(order.id, refreshToken)
                                     : await sendConfirmationEmail(order.id, refreshToken);
                                   if (res.success) {
-                                    alert("Email sent successfully!");
+                                    alert(t("admin.emailSent"));
                                   } else {
-                                    alert("Failed to send email: " + (res.error || "Unknown error"));
+                                    alert(t("admin.emailSentFail", { error: res.error || "Unknown error" }));
                                   }
                                 } catch (err) {
                                   console.error("Resend failed:", err);
-                                  alert("Failed to send email. Check console for details.");
+                                  alert(t("admin.emailSendError"));
                                 } finally {
                                   setResendingOrderId(null);
                                 }
                               }}
                               className="w-full py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-medium transition-colors"
                             >
-                              Send
+                              {t("admin.sendButton")}
                             </button>
                           </div>
                         </>
@@ -2062,7 +2076,7 @@ export default function ConcertOrdersPage() {
                     rel="noopener noreferrer"
                     className="px-3 py-1.5 text-xs text-muted border border-border rounded-lg hover:border-accent/50 transition-colors"
                   >
-                    Ticket
+                    {t("admin.ticket")}
                   </a>
                 </div>
               </div>
@@ -2102,7 +2116,7 @@ export default function ConcertOrdersPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold">Payment Proof</h3>
+              <h3 className="font-semibold">{t("admin.paymentProof")}</h3>
               <button
                 onClick={() => setPreviewUrl(null)}
                 className="text-muted hover:text-foreground transition-colors"
@@ -2112,14 +2126,14 @@ export default function ConcertOrdersPage() {
             </div>
             {previewUrl.startsWith("ref:") ? (
               <div className="bg-background border border-border rounded-lg p-6 text-center">
-                <p className="text-sm text-muted mb-1">Reference Number</p>
+                <p className="text-sm text-muted mb-1">{t("admin.referenceNumber")}</p>
                 <p className="text-xl font-mono font-bold">{previewUrl.slice(4)}</p>
               </div>
             ) : (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={previewUrl}
-                alt="Payment proof"
+                alt={t("admin.paymentProof")}
                 className="max-w-full rounded-lg"
               />
             )}

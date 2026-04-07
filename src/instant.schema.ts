@@ -24,6 +24,7 @@ const _schema = i.schema({
       primaryColor: i.string().optional(),
       lastOrderSeq: i.number().optional().indexed(),
       organizerEmail: i.string().indexed(),
+      defaultLanguage: i.string().optional(),
       createdAt: i.number().indexed(),
     }),
     ticketTypes: i.entity({
