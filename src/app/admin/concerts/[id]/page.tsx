@@ -245,10 +245,15 @@ type PaymentMethodData = {
   id: string;
   type?: string;
   name: string;
-  instructions: string;
+  instructions?: string;
   convertCurrency?: string;
   requireScreenshot?: boolean;
   requireReferenceNumber?: boolean;
+  zelleEmail?: string;
+  zelleName?: string;
+  pmCedula?: string;
+  pmPhone?: string;
+  pmBank?: string;
 };
 
 function PaymentMethodCard({
@@ -264,6 +269,11 @@ function PaymentMethodCard({
   const [convertCurrency, setConvertCurrency] = useState(existing?.convertCurrency || "");
   const [requireScreenshot, setRequireScreenshot] = useState(existing?.requireScreenshot !== false);
   const [requireReferenceNumber, setRequireReferenceNumber] = useState(existing?.requireReferenceNumber === true);
+  const [zelleEmail, setZelleEmail] = useState(existing?.zelleEmail || "");
+  const [zelleName, setZelleName] = useState(existing?.zelleName || "");
+  const [pmCedula, setPmCedula] = useState(existing?.pmCedula || "");
+  const [pmPhone, setPmPhone] = useState(existing?.pmPhone || "");
+  const [pmBank, setPmBank] = useState(existing?.pmBank || "");
   const [dirty, setDirty] = useState(false);
 
   const enabled = !!existing;
@@ -293,10 +303,12 @@ function PaymentMethodCard({
     if (!existing) return;
     db.transact(
       db.tx.paymentMethods[existing.id].update({
-        instructions,
+        instructions: instructions || undefined,
         convertCurrency: convertCurrency || undefined,
         requireScreenshot,
         requireReferenceNumber,
+        ...(base.type === "zelle" ? { zelleEmail: zelleEmail || undefined, zelleName: zelleName || undefined } : {}),
+        ...(base.type === "pago_movil" ? { pmCedula: pmCedula || undefined, pmPhone: pmPhone || undefined, pmBank: pmBank || undefined } : {}),
       }),
     );
     setDirty(false);
@@ -344,14 +356,74 @@ function PaymentMethodCard({
 
       {enabled && (
         <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+          {/* Zelle-specific fields */}
+          {base.type === "zelle" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">Correo Zelle</label>
+                <input
+                  value={zelleEmail}
+                  onChange={(e) => { setZelleEmail(e.target.value); setDirty(true); }}
+                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  placeholder="correo@ejemplo.com"
+                  type="email"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Nombre del titular</label>
+                <input
+                  value={zelleName}
+                  onChange={(e) => { setZelleName(e.target.value); setDirty(true); }}
+                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  placeholder="Nombre Apellido"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Pago Movil-specific fields */}
+          {base.type === "pago_movil" && (
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">Cedula</label>
+                <input
+                  value={pmCedula}
+                  onChange={(e) => { setPmCedula(e.target.value); setDirty(true); }}
+                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  placeholder="V-12345678"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Telefono</label>
+                <input
+                  value={pmPhone}
+                  onChange={(e) => { setPmPhone(e.target.value); setDirty(true); }}
+                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  placeholder="0412-1234567"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Banco</label>
+                <input
+                  value={pmBank}
+                  onChange={(e) => { setPmBank(e.target.value); setDirty(true); }}
+                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  placeholder="Banesco, Mercantil..."
+                />
+              </div>
+            </div>
+          )}
+
           <div>
-            <label className="block text-sm font-medium mb-1">Instructions</label>
+            <label className="block text-sm font-medium mb-1">
+              Instrucciones <span className="text-muted font-normal">(opcional)</span>
+            </label>
             <textarea
               value={instructions}
               onChange={(e) => { setInstructions(e.target.value); setDirty(true); }}
               rows={2}
               className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm resize-none"
-              placeholder="e.g., Transfer to Account #12345..."
+              placeholder="Instrucciones adicionales..."
             />
           </div>
           <div>

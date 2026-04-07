@@ -63,10 +63,15 @@ const _schema = i.schema({
     paymentMethods: i.entity({
       type: i.string().indexed(),
       name: i.string(),
-      instructions: i.string(),
+      instructions: i.string().optional(),
       convertCurrency: i.string().optional(),
       requireScreenshot: i.boolean().optional(),
       requireReferenceNumber: i.boolean().optional(),
+      zelleEmail: i.string().optional(),
+      zelleName: i.string().optional(),
+      pmCedula: i.string().optional(),
+      pmPhone: i.string().optional(),
+      pmBank: i.string().optional(),
       createdAt: i.number().indexed(),
     }),
     customFields: i.entity({

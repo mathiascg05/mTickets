@@ -837,11 +837,44 @@ export default function BuyPage() {
                 {selectedPm && (
                   <div className="bg-warning/10 border border-warning/30 rounded-xl p-4">
                     <p className="font-semibold text-warning mb-2">
-                      Payment Instructions
+                      Datos de Pago
                     </p>
-                    <p className="text-sm whitespace-pre-wrap text-foreground/80">
-                      {selectedPm.instructions}
-                    </p>
+
+                    {/* Zelle structured info */}
+                    {(selectedPm as { type?: string; zelleEmail?: string; zelleName?: string }).type === "zelle" &&
+                      ((selectedPm as { zelleEmail?: string }).zelleEmail || (selectedPm as { zelleName?: string }).zelleName) && (
+                      <div className="text-sm space-y-1 mb-2">
+                        {(selectedPm as { zelleName?: string }).zelleName && (
+                          <p><span className="text-muted">Nombre:</span> <span className="font-medium">{(selectedPm as { zelleName?: string }).zelleName}</span></p>
+                        )}
+                        {(selectedPm as { zelleEmail?: string }).zelleEmail && (
+                          <p><span className="text-muted">Correo:</span> <span className="font-medium select-all">{(selectedPm as { zelleEmail?: string }).zelleEmail}</span></p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Pago Movil structured info */}
+                    {(selectedPm as { type?: string }).type === "pago_movil" &&
+                      ((selectedPm as { pmCedula?: string }).pmCedula || (selectedPm as { pmPhone?: string }).pmPhone || (selectedPm as { pmBank?: string }).pmBank) && (
+                      <div className="text-sm space-y-1 mb-2">
+                        {(selectedPm as { pmCedula?: string }).pmCedula && (
+                          <p><span className="text-muted">Cedula:</span> <span className="font-medium">{(selectedPm as { pmCedula?: string }).pmCedula}</span></p>
+                        )}
+                        {(selectedPm as { pmPhone?: string }).pmPhone && (
+                          <p><span className="text-muted">Telefono:</span> <span className="font-medium select-all">{(selectedPm as { pmPhone?: string }).pmPhone}</span></p>
+                        )}
+                        {(selectedPm as { pmBank?: string }).pmBank && (
+                          <p><span className="text-muted">Banco:</span> <span className="font-medium">{(selectedPm as { pmBank?: string }).pmBank}</span></p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Optional instructions */}
+                    {selectedPm.instructions && (
+                      <p className="text-sm whitespace-pre-wrap text-foreground/80">
+                        {selectedPm.instructions}
+                      </p>
+                    )}
 
                     {((selectedPm as { type?: string }).type === "zelle" || (selectedPm as { type?: string }).type === "pago_movil") && (
                       <div className="mt-3 pt-3 border-t border-warning/20">
