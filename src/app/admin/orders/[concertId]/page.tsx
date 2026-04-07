@@ -661,6 +661,400 @@ function CreateOrderModal({
   );
 }
 
+type ParsedRow = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  cedula: string;
+  customFieldValues: Record<string, string>;
+  errors: string[];
+};
+
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function ImportCsvModal({
+  concert,
+  onClose,
+  refreshToken,
+}: {
+  concert: {
+    name: string;
+    ticketTypes: {
+      id: string;
+      name: string;
+      price: number;
+      quantity: number;
+      orders: { id: string; status: string; phaseId?: string }[];
+      phases: { id: string; name: string; price: number; quantity: number; endDate?: string; sortOrder: number }[];
+    }[];
+    paymentMethods: { id: string; name: string }[];
+    customFields?: { id: string; label: string; fieldType: string; required: boolean; options?: string; sortOrder: number }[];
+  };
+  onClose: () => void;
+  refreshToken: string;
+}) {
+  const [selectedTicketTypeId, setSelectedTicketTypeId] = useState(concert.ticketTypes[0]?.id || "");
+  const [paymentMethod, setPaymentMethod] = useState("Cortesia");
+  const [orderStatus, setOrderStatus] = useState<"approved" | "pending">("approved");
+  const [sendEmails, setSendEmails] = useState(false);
+  const [rows, setRows] = useState<ParsedRow[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number } | null>(null);
+
+  const today = getTodayString();
+  const customFields = (concert.customFields || []).sort((a, b) => a.sortOrder - b.sortOrder);
+  const fixedHeaders = ["Nombre", "Apellido", "Email", "Cedula"];
+  const cfHeaders = customFields.map((cf) => cf.label);
+  const allHeaders = [...fixedHeaders, ...cfHeaders];
+
+  const selectedTt = concert.ticketTypes.find((tt) => tt.id === selectedTicketTypeId);
+  const avail = selectedTt ? getAvailability(selectedTt, selectedTt.phases || [], selectedTt.orders, today) : null;
+
+  const validRows = rows.filter((r) => r.errors.length === 0);
+  const errorRows = rows.filter((r) => r.errors.length > 0);
+
+  function downloadTemplate() {
+    const csv = "\uFEFF" + allHeaders.join(",") + "\n";
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${concert.name.replace(/[^a-zA-Z0-9]/g, "_")}_plantilla.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function validateRow(values: string[]): ParsedRow {
+    const firstName = values[0] || "";
+    const lastName = values[1] || "";
+    const email = values[2] || "";
+    const cedula = values[3] || "";
+    const errors: string[] = [];
+
+    if (!firstName) errors.push("Nombre requerido");
+    if (!lastName) errors.push("Apellido requerido");
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push("Email invalido");
+    if (!cedula || !/^\d+$/.test(cedula)) errors.push("Cedula invalida");
+
+    const cfValues: Record<string, string> = {};
+    customFields.forEach((cf, i) => {
+      const val = values[4 + i] || "";
+      if (cf.required && !val) {
+        errors.push(`${cf.label} requerido`);
+      }
+      if (val && (cf.fieldType === "select" || cf.fieldType === "multiselect")) {
+        let opts: string[] = [];
+        try { opts = cf.options ? JSON.parse(cf.options) : []; } catch { /* ignore */ }
+        if (opts.length > 0 && !opts.includes(val)) {
+          errors.push(`${cf.label}: opcion invalida`);
+        }
+      }
+      if (val) cfValues[cf.label] = val;
+    });
+
+    return { firstName, lastName, email, cedula, customFieldValues: cfValues, errors };
+  }
+
+  function handleFileUpload(file: File) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = (e.target?.result as string || "").replace(/^\uFEFF/, "");
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      if (lines.length < 2) {
+        setRows([]);
+        return;
+      }
+      // Skip header row
+      const dataLines = lines.slice(1);
+      const parsed = dataLines.map((line) => validateRow(parseCsvLine(line)));
+      setRows(parsed);
+    };
+    reader.readAsText(file);
+  }
+
+  async function handleImport() {
+    if (!selectedTt || validRows.length === 0 || importing) return;
+    if (avail && validRows.length > avail.available) {
+      alert(`Solo hay ${avail.available} tickets disponibles, pero estas intentando importar ${validRows.length}.`);
+      return;
+    }
+    setImporting(true);
+
+    try {
+      const orderIds: string[] = [];
+      const txns = validRows.map((row) => {
+        const orderId = id();
+        orderIds.push(orderId);
+        const cfJson = Object.keys(row.customFieldValues).length > 0
+          ? JSON.stringify(row.customFieldValues)
+          : undefined;
+        return db.tx.orders[orderId]
+          .update({
+            firstName: row.firstName,
+            lastName: row.lastName,
+            email: row.email,
+            cedula: row.cedula,
+            paymentMethod,
+            status: orderStatus,
+            paymentProofPath: "csv-import",
+            visited: false,
+            createdAt: Date.now(),
+            ...(avail?.activePhase ? { phaseId: avail.activePhase.id } : {}),
+            ...(cfJson ? { customFieldValues: cfJson } : {}),
+          })
+          .link({ ticketType: selectedTicketTypeId });
+      });
+      await db.transact(txns);
+
+      // Assign order numbers
+      await Promise.allSettled(
+        orderIds.map((oid) =>
+          fetch("/api/assign-order-number", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: oid }),
+          }),
+        ),
+      );
+
+      // Send emails if enabled
+      if (sendEmails) {
+        const emailFn = orderStatus === "approved" ? sendTicketEmail : sendConfirmationEmail;
+        await Promise.allSettled(orderIds.map((oid) => emailFn(oid, refreshToken)));
+      }
+
+      setImportResult({ created: validRows.length });
+    } catch (err) {
+      console.error("Import failed:", err);
+      alert("Error during import. Check console for details.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface border border-border rounded-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-semibold">Importar desde CSV</h3>
+          <button onClick={onClose} className="text-muted hover:text-foreground transition-colors">
+            {"✕"}
+          </button>
+        </div>
+
+        {importResult ? (
+          <div className="text-center py-8">
+            <div className="text-4xl mb-3">{"✓"}</div>
+            <p className="text-lg font-semibold mb-1">{importResult.created} ordenes creadas</p>
+            <p className="text-sm text-muted mb-4">Las ordenes han sido importadas exitosamente.</p>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              Cerrar
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Config row */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">Tipo de Ticket</label>
+                <select
+                  value={selectedTicketTypeId}
+                  onChange={(e) => setSelectedTicketTypeId(e.target.value)}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+                >
+                  {concert.ticketTypes.map((tt) => {
+                    const a = getAvailability(tt, tt.phases || [], tt.orders, today);
+                    return (
+                      <option key={tt.id} value={tt.id}>
+                        {tt.name} — ${a.price.toFixed(2)} ({a.available} disponibles)
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Metodo de Pago</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+                >
+                  <option value="Cortesia">Cortesia</option>
+                  {(concert.paymentMethods || []).map((pm) => (
+                    <option key={pm.id} value={pm.name}>{pm.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Status + email toggles */}
+            <div className="flex items-center gap-4">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOrderStatus("approved")}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                    orderStatus === "approved"
+                      ? "bg-success/20 text-success border-success/50"
+                      : "border-border text-muted hover:text-foreground"
+                  }`}
+                >
+                  Approved
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrderStatus("pending")}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                    orderStatus === "pending"
+                      ? "bg-warning/20 text-warning border-warning/50"
+                      : "border-border text-muted hover:text-foreground"
+                  }`}
+                >
+                  Pending
+                </button>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <input
+                  type="checkbox"
+                  checked={sendEmails}
+                  onChange={(e) => setSendEmails(e.target.checked)}
+                  className="accent-accent"
+                />
+                Enviar emails
+              </label>
+            </div>
+
+            {/* Template + Upload */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={downloadTemplate}
+                className="px-3 py-2 border border-border hover:border-accent/50 text-muted hover:text-accent-light rounded-lg text-sm font-medium transition-colors"
+              >
+                Descargar Plantilla
+              </button>
+              <label className="flex-1 flex items-center justify-center px-4 py-3 border-2 border-dashed border-border hover:border-accent/40 rounded-lg cursor-pointer transition-colors">
+                <span className="text-sm text-muted">
+                  {rows.length > 0 ? `${rows.length} filas cargadas` : "Seleccionar archivo CSV..."}
+                </span>
+                <input
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleFileUpload(f);
+                  }}
+                />
+              </label>
+            </div>
+
+            {/* Preview table */}
+            {rows.length > 0 && (
+              <>
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-success font-medium">{validRows.length} validas</span>
+                  {errorRows.length > 0 && (
+                    <span className="text-danger font-medium">{errorRows.length} con errores</span>
+                  )}
+                </div>
+
+                <div className="border border-border rounded-lg overflow-auto max-h-72">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-background border-b border-border">
+                        <th className="px-3 py-2 text-left font-medium text-muted">#</th>
+                        {allHeaders.map((h) => (
+                          <th key={h} className="px-3 py-2 text-left font-medium text-muted whitespace-nowrap">{h}</th>
+                        ))}
+                        <th className="px-3 py-2 text-left font-medium text-muted">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((row, i) => (
+                        <tr
+                          key={i}
+                          className={`border-b border-border last:border-0 ${
+                            row.errors.length > 0 ? "bg-danger/5" : ""
+                          }`}
+                        >
+                          <td className="px-3 py-2 text-muted">{i + 1}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.firstName}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.lastName}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.email}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.cedula}</td>
+                          {customFields.map((cf) => (
+                            <td key={cf.id} className="px-3 py-2 whitespace-nowrap">
+                              {row.customFieldValues[cf.label] || ""}
+                            </td>
+                          ))}
+                          <td className="px-3 py-2">
+                            {row.errors.length === 0 ? (
+                              <span className="text-success text-xs">OK</span>
+                            ) : (
+                              <span className="text-danger text-xs">{row.errors.join(", ")}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <button
+                  onClick={handleImport}
+                  disabled={validRows.length === 0 || importing}
+                  className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
+                >
+                  {importing
+                    ? "Importando..."
+                    : `Importar ${validRows.length} Orden${validRows.length !== 1 ? "es" : ""}`}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ConcertOrdersPage() {
   const params = useParams();
   const concertId = params.concertId as string;
@@ -670,6 +1064,7 @@ export default function ConcertOrdersPage() {
   const [ticketTypeFilter, setTicketTypeFilter] = useState<string>("all");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [couponOrderId, setCouponOrderId] = useState<string | null>(null);
   const [editingEmailOrderId, setEditingEmailOrderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1372,6 +1767,12 @@ export default function ConcertOrdersPage() {
             >
               + Create Order
             </button>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-3 py-1.5 border border-border hover:border-accent/50 text-muted hover:text-accent-light rounded-lg text-xs font-medium transition-colors"
+            >
+              Import CSV
+            </button>
           </div>
           <div className="flex flex-wrap gap-2 items-center">
             <div className="flex gap-1">
@@ -1678,6 +2079,15 @@ export default function ConcertOrdersPage() {
           refreshToken={refreshToken}
           pmCurrencyMap={pmCurrencyMap}
           rateMap={rateMap}
+        />
+      )}
+
+      {/* Import CSV modal */}
+      {showImportModal && (
+        <ImportCsvModal
+          concert={concert}
+          onClose={() => setShowImportModal(false)}
+          refreshToken={refreshToken}
         />
       )}
 
