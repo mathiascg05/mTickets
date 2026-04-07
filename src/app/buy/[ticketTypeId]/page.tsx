@@ -66,6 +66,12 @@ export default function BuyPage() {
     Array.from({ length: qty }, emptyAttendee),
   );
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
+  const [memoCode] = useState(() => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "MT-";
+    for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+  });
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -458,7 +464,9 @@ export default function BuyPage() {
             : undefined,
           couponCode: appliedCoupon?.code || undefined,
           reservationId: reservationId || undefined,
-          referenceNumber: referenceNumber.trim() || undefined,
+          referenceNumber: (selectedPm as { type?: string }).type === "zelle"
+            ? memoCode
+            : referenceNumber.trim() || undefined,
           paymentProofPath: filePath || undefined,
           purchaseGroupId,
           queueToken: queueToken || undefined,
@@ -830,6 +838,22 @@ export default function BuyPage() {
                     <p className="text-sm whitespace-pre-wrap text-foreground/80">
                       {selectedPm.instructions}
                     </p>
+
+                    {(selectedPm as { type?: string }).type === "zelle" && (
+                      <div className="mt-3 pt-3 border-t border-warning/20">
+                        <p className="text-sm font-medium text-foreground mb-1">
+                          Agrega este codigo en el memo del Zelle:
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <span className="px-3 py-1.5 bg-accent text-white rounded-lg font-mono text-lg font-bold tracking-wider select-all">
+                            {memoCode}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted mt-1.5">
+                          Este codigo es unico para tu transaccion y nos permite verificar tu pago.
+                        </p>
+                      </div>
+                    )}
 
                     {selectedPm?.convertCurrency && (
                       <div className="mt-3 pt-3 border-t border-warning/20">
