@@ -118,6 +118,25 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+    // Check for duplicate reference numbers (skip memo-only codes like "MT-XXXXX")
+    if (referenceNumber && !/^MT-[A-Z0-9]{5}$/.test(referenceNumber)) {
+      const { orders: existingOrders } = await adminDb.query({
+        orders: {
+          $: {
+            where: {
+              proofReferenceNumber: referenceNumber,
+              or: [{ status: "approved" }, { status: "pending" }],
+            },
+          },
+        },
+      });
+      if (existingOrders.length > 0) {
+        return NextResponse.json(
+          { error: "Este numero de referencia ya fue utilizado" },
+          { status: 400 },
+        );
+      }
+    }
     if (customFieldValues) {
       if (typeof customFieldValues !== "string" || customFieldValues.length > 5000) {
         return NextResponse.json(

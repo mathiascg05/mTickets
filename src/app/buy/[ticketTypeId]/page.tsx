@@ -418,7 +418,9 @@ export default function BuyPage() {
       return;
     }
     if (needsReference && !referenceNumber.trim()) {
-      setError("Please enter the payment reference number.");
+      setError((selectedPm as { type?: string }).type === "pago_movil"
+        ? "Ingresa los ultimos 4 digitos de la referencia."
+        : "Please enter the payment reference number.");
       return;
     }
     if (!acceptedTerms) {
@@ -466,7 +468,9 @@ export default function BuyPage() {
           reservationId: reservationId || undefined,
           referenceNumber: (selectedPm as { type?: string }).type === "zelle"
             ? memoCode
-            : referenceNumber.trim() || undefined,
+            : (selectedPm as { type?: string }).type === "pago_movil"
+              ? `${memoCode}-${referenceNumber.trim()}`
+              : referenceNumber.trim() || undefined,
           paymentProofPath: filePath || undefined,
           purchaseGroupId,
           queueToken: queueToken || undefined,
@@ -839,10 +843,12 @@ export default function BuyPage() {
                       {selectedPm.instructions}
                     </p>
 
-                    {(selectedPm as { type?: string }).type === "zelle" && (
+                    {((selectedPm as { type?: string }).type === "zelle" || (selectedPm as { type?: string }).type === "pago_movil") && (
                       <div className="mt-3 pt-3 border-t border-warning/20">
                         <p className="text-sm font-medium text-foreground mb-1">
-                          Agrega este codigo en el memo del Zelle:
+                          {(selectedPm as { type?: string }).type === "zelle"
+                            ? "Agrega este codigo en el memo del Zelle:"
+                            : "Agrega este codigo en la descripcion del Pago Movil:"}
                         </p>
                         <div className="flex items-center gap-2">
                           <span className="px-3 py-1.5 bg-accent text-white rounded-lg font-mono text-lg font-bold tracking-wider select-all">
@@ -931,14 +937,25 @@ export default function BuyPage() {
                 {selectedPm.requireReferenceNumber && (
                   <div>
                     <label className="block text-sm font-medium mb-1.5">
-                      Payment Reference Number
+                      {(selectedPm as { type?: string }).type === "pago_movil"
+                        ? "Ultimos 4 digitos de referencia"
+                        : "Payment Reference Number"}
                     </label>
                     <input
                       type="text"
                       value={referenceNumber}
-                      onChange={(e) => setReferenceNumber(e.target.value)}
+                      onChange={(e) => {
+                        const val = (selectedPm as { type?: string }).type === "pago_movil"
+                          ? e.target.value.replace(/\D/g, "").slice(0, 4)
+                          : e.target.value;
+                        setReferenceNumber(val);
+                      }}
+                      inputMode={(selectedPm as { type?: string }).type === "pago_movil" ? "numeric" : undefined}
+                      maxLength={(selectedPm as { type?: string }).type === "pago_movil" ? 4 : undefined}
                       className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
-                      placeholder="Enter your payment reference number"
+                      placeholder={(selectedPm as { type?: string }).type === "pago_movil"
+                        ? "Ej: 1234"
+                        : "Enter your payment reference number"}
                     />
                   </div>
                 )}
