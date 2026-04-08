@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 import { adminDb } from "@/lib/adminDb";
-import { transporter, generateMessageId } from "@/lib/mailer";
+import { transporter, generateMessageId, EMAIL_FROM } from "@/lib/mailer";
 import { buildTicketEmailHtml, buildTicketEmailText } from "@/lib/emailTemplate";
 import { assignOrderNumber } from "@/lib/orderNumber";
 
@@ -78,7 +78,7 @@ export async function sendTicketEmailForOrder(orderId: string): Promise<{ succes
   const html = buildTicketEmailHtml(emailParams);
   const text = buildTicketEmailText(emailParams);
 
-  const gmailUser = process.env.GMAIL_USER;
+  const gmailUser = EMAIL_FROM;
   const mailOptions = {
     from: `"maTickets" <${gmailUser}>`,
     replyTo: gmailUser,

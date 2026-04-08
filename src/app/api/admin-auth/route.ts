@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { transporter, generateMessageId } from "@/lib/mailer";
+import { transporter, generateMessageId, EMAIL_FROM } from "@/lib/mailer";
 import { adminDb } from "@/lib/adminDb";
 import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
 
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
         : "maTickets Admin Login";
 
     await transporter.sendMail({
-      from: `"maTickets" <${process.env.GMAIL_USER}>`,
+      from: `"maTickets" <${EMAIL_FROM}>`,
       to: normalizedEmail,
       subject,
       messageId: generateMessageId(),

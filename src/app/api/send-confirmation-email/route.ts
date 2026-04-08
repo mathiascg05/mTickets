@@ -87,19 +87,19 @@ export async function POST(req: NextRequest) {
     const html = buildConfirmationEmailHtml(emailParams);
     const text = buildConfirmationEmailText(emailParams);
 
-    const gmailUser = process.env.GMAIL_USER;
+    const emailFrom = (await import("@/lib/mailer")).EMAIL_FROM;
     const mailOptions = {
-      from: `"maTickets" <${gmailUser}>`,
-      replyTo: gmailUser,
+      from: `"maTickets" <${emailFrom}>`,
+      replyTo: emailFrom,
       to: order.email,
       subject: `Order ${orderNumber} - ${concert.name}`,
       html,
       text,
       messageId: generateMessageId(),
       date: new Date(),
-      envelope: { from: gmailUser!, to: order.email },
+      envelope: { from: emailFrom, to: order.email },
       headers: {
-        "List-Unsubscribe": `<mailto:${gmailUser}?subject=unsubscribe>`,
+        "List-Unsubscribe": `<mailto:${emailFrom}?subject=unsubscribe>`,
         "X-Mailer": "maTickets",
       },
     };

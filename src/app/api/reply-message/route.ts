@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { isValidUUID } from "@/lib/validation";
-import { transporter, generateMessageId } from "@/lib/mailer";
+import { transporter, generateMessageId, EMAIL_FROM } from "@/lib/mailer";
 import { buildReplyEmailHtml, buildReplyEmailText } from "@/lib/emailTemplate";
 
 export async function POST(req: NextRequest) {
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     };
 
     await transporter.sendMail({
-      from: `"maTickets" <${process.env.GMAIL_USER}>`,
+      from: `"maTickets" <${EMAIL_FROM}>`,
       to: message.email,
       subject: `Re: ${message.subject}`,
       messageId: generateMessageId(),

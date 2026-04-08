@@ -4,7 +4,7 @@ import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import { generatePrefix, formatOrderNumber } from "@/lib/orderNumber";
-import { transporter, generateMessageId } from "@/lib/mailer";
+import { transporter, generateMessageId, EMAIL_FROM } from "@/lib/mailer";
 import {
   buildConfirmationEmailHtml,
   buildConfirmationEmailText,
@@ -486,8 +486,8 @@ export async function POST(req: NextRequest) {
     // Send confirmation emails in the background (Vercel after() support)
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     after(async () => {
-      const gmailUser = process.env.GMAIL_USER;
-      if (!gmailUser) return;
+      const emailFrom = EMAIL_FROM;
+      if (!emailFrom) return;
 
       for (let idx = 0; idx < orderIds.length; idx++) {
         const orderId = orderIds[idx];
@@ -513,17 +513,17 @@ export async function POST(req: NextRequest) {
         };
 
         const mailOptions = {
-          from: `"maTickets" <${gmailUser}>`,
-          replyTo: gmailUser,
+          from: `"maTickets" <${emailFrom}>`,
+          replyTo: emailFrom,
           to: attendee.email,
           subject: `Order ${orderNumber} - ${concert.name}`,
           html: buildConfirmationEmailHtml(emailParams),
           text: buildConfirmationEmailText(emailParams),
           messageId: generateMessageId(),
           date: new Date(),
-          envelope: { from: gmailUser, to: attendee.email },
+          envelope: { from: emailFrom, to: attendee.email },
           headers: {
-            "List-Unsubscribe": `<mailto:${gmailUser}?subject=unsubscribe>`,
+            "List-Unsubscribe": `<mailto:${emailFrom}?subject=unsubscribe>`,
             "X-Mailer": "maTickets",
           },
         };
