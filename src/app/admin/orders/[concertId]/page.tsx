@@ -1102,6 +1102,15 @@ export default function ConcertOrdersPage() {
   );
   const platformFeeConfig = feeConfigData?.platformFeeConfigs?.[0];
 
+  // Fetch fee transactions for this specific concert (for postpaid accumulated fees)
+  const { data: feeTxnData } = db.useQuery(
+    concertId
+      ? { balanceTransactions: { $: { where: { concertId, type: "fee" } } } }
+      : null,
+  );
+  const concertAccumulatedFees = (feeTxnData?.balanceTransactions || [])
+    .reduce((sum, txn) => sum + Math.abs(txn.amount), 0);
+
   const { isLoading, data } = db.useQuery({
     concerts: {
       $: { where: { id: concertId } },
@@ -1427,7 +1436,7 @@ export default function ConcertOrdersPage() {
             <div>
               <p className="text-sm text-muted">{t("admin.accumulatedFees")}</p>
               <p className="text-2xl font-bold text-warning">
-                ${Math.abs(organizerBalance?.balance || 0).toFixed(2)}
+                ${concertAccumulatedFees.toFixed(2)}
               </p>
             </div>
             <div className="text-right">

@@ -27,9 +27,6 @@ export default function BalancesPage() {
       $: { order: { createdAt: "desc" } },
       platformFeeConfig: {},
     },
-    balanceTransactions: {
-      $: { where: { type: "fee" }, order: { createdAt: "desc" } },
-    },
   });
 
   if (!isSuperAdmin) {
@@ -122,7 +119,6 @@ export default function BalancesPage() {
   }
 
   // Build postpaid report data
-  const feeTxns = data.balanceTransactions || [];
   const postpaidConcerts = concerts.filter((c) => {
     const fc = c.platformFeeConfig as unknown;
     const config = Array.isArray(fc) ? fc[0] : fc;
