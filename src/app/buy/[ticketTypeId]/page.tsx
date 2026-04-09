@@ -530,7 +530,7 @@ export default function BuyPage() {
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           {concert?.logoUrl ? (
             <a href={`/events/${concert.slug}`}>
-              <img src={concert.logoUrl} alt={concert.name} className="h-8 w-auto object-contain" />
+              <img src={concert.logoUrl} alt={concert.name} className="h-10 max-h-12 w-auto object-contain" />
             </a>
           ) : (
             <a href="/" className="text-xl font-bold tracking-wide text-white">ma<span className="text-white/60">Tickets</span></a>
