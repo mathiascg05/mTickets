@@ -14,6 +14,7 @@ export default function BalancesPage() {
   const [creditNote, setCreditNote] = useState("");
   const [crediting, setCrediting] = useState(false);
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
+  const [voidingTxnId, setVoidingTxnId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<"balances" | "report">("balances");
 
@@ -43,6 +44,15 @@ export default function BalancesPage() {
 
   const { organizerBalances, concerts } = data;
 
+  // Build email -> event names map
+  const emailConcertsMap = new Map<string, string[]>();
+  for (const c of concerts) {
+    const email = c.organizerEmail.toLowerCase();
+    const list = emailConcertsMap.get(email) || [];
+    list.push(c.name);
+    emailConcertsMap.set(email, list);
+  }
+
   // Get unique organizer emails from concerts
   const organizerEmails = [
     ...new Set(concerts.map((c) => c.organizerEmail.toLowerCase())),
@@ -68,7 +78,6 @@ export default function BalancesPage() {
       const txnId = id();
 
       if (existing) {
-        // Update existing balance + create transaction
         await db.transact([
           db.tx.organizerBalances[existing.id].update({
             balance: balanceAfter,
@@ -86,7 +95,6 @@ export default function BalancesPage() {
             .link({ organizerBalance: existing.id }),
         ]);
       } else {
-        // Create new balance + transaction
         const balanceId = id();
         await db.transact([
           db.tx.organizerBalances[balanceId].update({
@@ -118,6 +126,44 @@ export default function BalancesPage() {
     }
   }
 
+  async function handleVoidTransaction(
+    txn: { id: string; amount: number; type: string; description: string },
+    balanceRecord: { id: string; balance: number },
+  ) {
+    if (!confirm(t("admin.voidConfirm"))) return;
+    setVoidingTxnId(txn.id);
+
+    try {
+      // Reverse the transaction: subtract what was added, or add what was subtracted
+      const reverseAmount = -txn.amount;
+      const currentBalance = balanceRecord.balance;
+      const newBalance = Math.round((currentBalance + reverseAmount) * 100) / 100;
+      const voidTxnId = id();
+
+      await db.transact([
+        db.tx.organizerBalances[balanceRecord.id].update({
+          balance: newBalance,
+          updatedAt: Date.now(),
+        }),
+        db.tx.balanceTransactions[voidTxnId]
+          .update({
+            type: "adjustment",
+            amount: reverseAmount,
+            balanceBefore: currentBalance,
+            balanceAfter: newBalance,
+            description: `Anulación: ${txn.description}`,
+            createdAt: Date.now(),
+          })
+          .link({ organizerBalance: balanceRecord.id }),
+      ]);
+    } catch (err) {
+      console.error("Failed to void transaction:", err);
+      alert("Error voiding transaction");
+    } finally {
+      setVoidingTxnId(null);
+    }
+  }
+
   // Build postpaid report data
   const postpaidConcerts = concerts.filter((c) => {
     const fc = c.platformFeeConfig as unknown;
@@ -126,7 +172,6 @@ export default function BalancesPage() {
   });
   const postpaidConcertIds = new Set(postpaidConcerts.map((c) => c.id));
 
-  // Group fee transactions by organizer email
   const reportByOrganizer = new Map<string, { totalFees: number; totalDeposits: number; concerts: Map<string, number> }>();
   for (const bal of organizerBalances) {
     const orgConcerts = concerts.filter((c) => c.organizerEmail.toLowerCase() === bal.email);
@@ -191,7 +236,12 @@ export default function BalancesPage() {
               return (
                 <div key={email} className="bg-surface border border-border rounded-xl p-5">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="font-medium text-lg">{email}</p>
+                    <div>
+                      <p className="font-medium text-lg">{email}</p>
+                      <p className="text-sm text-muted">
+                        {(emailConcertsMap.get(email) || []).join(", ")}
+                      </p>
+                    </div>
                     <div className="text-right">
                       <p className="text-sm text-muted">{t("admin.currentBalance")}</p>
                       <p className={`text-xl font-bold ${
@@ -252,11 +302,14 @@ export default function BalancesPage() {
               className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30"
             >
               <option value="">--</option>
-              {organizerEmails.map((email) => (
-                <option key={email} value={email}>
-                  {email}
-                </option>
-              ))}
+              {organizerEmails.map((email) => {
+                const eventNames = emailConcertsMap.get(email) || [];
+                return (
+                  <option key={email} value={email}>
+                    {email} — {eventNames.join(", ")}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div className="w-32">
@@ -305,9 +358,7 @@ export default function BalancesPage() {
             .sort((a, b) => a.email.localeCompare(b.email))
             .map((bal) => {
               const isExpanded = expandedEmail === bal.email;
-              const orgConcerts = concerts.filter(
-                (c) => c.organizerEmail.toLowerCase() === bal.email,
-              );
+              const eventNames = emailConcertsMap.get(bal.email) || [];
               return (
                 <div
                   key={bal.id}
@@ -322,7 +373,7 @@ export default function BalancesPage() {
                     <div>
                       <p className="font-medium">{bal.email}</p>
                       <p className="text-sm text-muted">
-                        {orgConcerts.length} {orgConcerts.length === 1 ? "evento" : "eventos"}
+                        {eventNames.length > 0 ? eventNames.join(", ") : t("admin.noOrganizers")}
                       </p>
                     </div>
                     <div className="text-right">
@@ -351,48 +402,62 @@ export default function BalancesPage() {
                           {t("admin.noTransactions")}
                         </p>
                       ) : (
-                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                        <div className="space-y-2 max-h-80 overflow-y-auto">
                           {bal.transactions.map((txn) => (
                             <div
                               key={txn.id}
-                              className="flex items-center justify-between text-sm py-2 border-b border-border/50 last:border-0"
+                              className="flex items-center justify-between text-sm py-2 border-b border-border/50 last:border-0 gap-2"
                             >
-                              <div>
-                                <span
-                                  className={`inline-block px-2 py-0.5 rounded text-xs font-medium mr-2 ${
-                                    txn.type === "deposit"
-                                      ? "bg-success/10 text-success"
-                                      : txn.type === "fee"
-                                        ? "bg-danger/10 text-danger"
-                                        : txn.type === "refund"
-                                          ? "bg-accent/10 text-accent"
-                                          : "bg-muted/10 text-muted"
-                                  }`}
-                                >
-                                  {t(`admin.${txn.type}`) || txn.type}
-                                </span>
-                                <span className="text-muted">
-                                  {txn.description}
-                                </span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span
+                                    className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                                      txn.type === "deposit"
+                                        ? "bg-success/10 text-success"
+                                        : txn.type === "fee"
+                                          ? "bg-danger/10 text-danger"
+                                          : txn.type === "refund"
+                                            ? "bg-accent/10 text-accent"
+                                            : "bg-muted/10 text-muted"
+                                    }`}
+                                  >
+                                    {t(`admin.${txn.type}`) || txn.type}
+                                  </span>
+                                  <span className="text-muted truncate">
+                                    {txn.description}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="text-right whitespace-nowrap">
-                                <span
-                                  className={`font-medium ${
-                                    txn.amount >= 0
-                                      ? "text-success"
-                                      : "text-danger"
-                                  }`}
-                                >
-                                  {txn.amount >= 0 ? "+" : ""}$
-                                  {Math.abs(txn.amount).toFixed(2)}
-                                </span>
-                                <p className="text-xs text-muted">
-                                  {new Date(txn.createdAt).toLocaleDateString()}{" "}
-                                  {new Date(txn.createdAt).toLocaleTimeString(
-                                    [],
-                                    { hour: "2-digit", minute: "2-digit" },
-                                  )}
-                                </p>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <div className="text-right">
+                                  <span
+                                    className={`font-medium ${
+                                      txn.amount >= 0
+                                        ? "text-success"
+                                        : "text-danger"
+                                    }`}
+                                  >
+                                    {txn.amount >= 0 ? "+" : ""}$
+                                    {Math.abs(txn.amount).toFixed(2)}
+                                  </span>
+                                  <p className="text-xs text-muted">
+                                    {new Date(txn.createdAt).toLocaleDateString()}{" "}
+                                    {new Date(txn.createdAt).toLocaleTimeString(
+                                      [],
+                                      { hour: "2-digit", minute: "2-digit" },
+                                    )}
+                                  </p>
+                                </div>
+                                {txn.type !== "adjustment" && (
+                                  <button
+                                    onClick={() => handleVoidTransaction(txn, bal)}
+                                    disabled={voidingTxnId === txn.id}
+                                    className="px-2 py-1 text-xs text-danger/60 hover:text-danger hover:bg-danger/10 rounded transition-colors disabled:opacity-50"
+                                    title={t("admin.void")}
+                                  >
+                                    {voidingTxnId === txn.id ? "..." : t("admin.void")}
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ))}

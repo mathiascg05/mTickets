@@ -518,6 +518,8 @@ const translations: Translations = {
   "admin.totalFees": { es: "Total Fees", en: "Total Fees" },
   "admin.totalDeposits": { es: "Total Depósitos", en: "Total Deposits" },
   "admin.postpaidReport": { es: "Reporte Postpago", en: "Postpaid Report" },
+  "admin.void": { es: "Anular", en: "Void" },
+  "admin.voidConfirm": { es: "¿Estás seguro de anular esta transacción? Se creará un ajuste que revierte el monto.", en: "Are you sure you want to void this transaction? An adjustment will be created to reverse the amount." },
 
   // ── Error pages ──
   "error.title": { es: "Algo salió mal", en: "Something went wrong" },
