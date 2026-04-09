@@ -12,6 +12,7 @@ export default function BalancesPage() {
   const [creditEmail, setCreditEmail] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
   const [creditNote, setCreditNote] = useState("");
+  const [creditConcertId, setCreditConcertId] = useState("");
   const [crediting, setCrediting] = useState(false);
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
   const [voidingTxnId, setVoidingTxnId] = useState<string | null>(null);
@@ -77,6 +78,25 @@ export default function BalancesPage() {
       const balanceAfter = Math.round((balanceBefore + amount) * 100) / 100;
       const txnId = id();
 
+      const concertName = creditConcertId
+        ? concerts.find((c) => c.id === creditConcertId)?.name
+        : null;
+      const description = creditNote
+        ? creditNote
+        : concertName
+          ? `Deposit — ${concertName}`
+          : "Manual deposit";
+
+      const txnData = {
+        type: "deposit" as const,
+        amount,
+        balanceBefore: existing ? balanceBefore : 0,
+        balanceAfter,
+        description,
+        ...(creditConcertId ? { concertId: creditConcertId } : {}),
+        createdAt: Date.now(),
+      };
+
       if (existing) {
         await db.transact([
           db.tx.organizerBalances[existing.id].update({
@@ -84,14 +104,7 @@ export default function BalancesPage() {
             updatedAt: Date.now(),
           }),
           db.tx.balanceTransactions[txnId]
-            .update({
-              type: "deposit",
-              amount,
-              balanceBefore,
-              balanceAfter,
-              description: creditNote || "Manual deposit",
-              createdAt: Date.now(),
-            })
+            .update(txnData)
             .link({ organizerBalance: existing.id }),
         ]);
       } else {
@@ -104,20 +117,14 @@ export default function BalancesPage() {
             updatedAt: Date.now(),
           }),
           db.tx.balanceTransactions[txnId]
-            .update({
-              type: "deposit",
-              amount,
-              balanceBefore: 0,
-              balanceAfter,
-              description: creditNote || "Initial deposit",
-              createdAt: Date.now(),
-            })
+            .update(txnData)
             .link({ organizerBalance: balanceId }),
         ]);
       }
 
       setCreditAmount("");
       setCreditNote("");
+      setCreditConcertId("");
     } catch (err) {
       console.error("Failed to credit account:", err);
       alert("Error crediting account");
@@ -298,7 +305,7 @@ export default function BalancesPage() {
             </label>
             <select
               value={creditEmail}
-              onChange={(e) => setCreditEmail(e.target.value)}
+              onChange={(e) => { setCreditEmail(e.target.value); setCreditConcertId(""); }}
               className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30"
             >
               <option value="">--</option>
@@ -312,6 +319,27 @@ export default function BalancesPage() {
               })}
             </select>
           </div>
+          {creditEmail && (
+            <div className="flex-1 min-w-[150px]">
+              <label className="block text-sm font-medium mb-1.5">
+                {t("admin.event")}
+              </label>
+              <select
+                value={creditConcertId}
+                onChange={(e) => setCreditConcertId(e.target.value)}
+                className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30"
+              >
+                <option value="">({t("common.all")})</option>
+                {concerts
+                  .filter((c) => c.organizerEmail.toLowerCase() === creditEmail)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
           <div className="w-32">
             <label className="block text-sm font-medium mb-1.5">
               {t("admin.amount")} (USD)
