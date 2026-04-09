@@ -1385,7 +1385,7 @@ export default function ConcertOrdersPage() {
       </div>
 
       {/* Platform Balance & Fee Info */}
-      {platformFeeConfig && (
+      {platformFeeConfig && platformFeeConfig.billingMode !== "postpaid" && (
         <div className={`border rounded-xl p-4 mb-6 ${
           !organizerBalance || organizerBalance.balance <= 0
             ? "bg-danger/5 border-danger/30"
@@ -1419,6 +1419,28 @@ export default function ConcertOrdersPage() {
               {t("admin.noBalanceWarning")}
             </p>
           )}
+        </div>
+      )}
+      {platformFeeConfig && platformFeeConfig.billingMode === "postpaid" && (
+        <div className="border rounded-xl p-4 mb-6 bg-warning/5 border-warning/30">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <p className="text-sm text-muted">{t("admin.accumulatedFees")}</p>
+              <p className="text-2xl font-bold text-warning">
+                ${Math.abs(organizerBalance?.balance || 0).toFixed(2)}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-muted">{t("admin.platformFee")}</p>
+              <p className="text-sm font-medium">
+                {platformFeeConfig.feePercent}%
+                {platformFeeConfig.feeFixed > 0 && ` + $${platformFeeConfig.feeFixed.toFixed(2)}`}
+              </p>
+            </div>
+          </div>
+          <p className="text-sm text-warning mt-2 font-medium">
+            {t("admin.postpaidMode")}
+          </p>
         </div>
       )}
 

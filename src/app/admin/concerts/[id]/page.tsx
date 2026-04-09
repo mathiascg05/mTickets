@@ -2112,12 +2112,13 @@ function PlatformFeeSection({
   isSuperAdmin,
 }: {
   concertId: string;
-  feeConfig: { id: string; feePercent: number; feeFixed: number } | undefined;
+  feeConfig: { id: string; feePercent: number; feeFixed: number; billingMode: string } | undefined;
   isSuperAdmin: boolean;
 }) {
   const { t } = useLanguage();
   const [feePercent, setFeePercent] = useState(feeConfig?.feePercent?.toString() || "5");
   const [feeFixed, setFeeFixed] = useState(feeConfig?.feeFixed?.toString() || "0");
+  const [billingMode, setBillingMode] = useState(feeConfig?.billingMode || "prepaid");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -2133,6 +2134,7 @@ function PlatformFeeSection({
       const data = {
         feePercent: parseFloat(feePercent) || 0,
         feeFixed: parseFloat(feeFixed) || 0,
+        billingMode,
         updatedAt: Date.now(),
       };
 
@@ -2160,7 +2162,7 @@ function PlatformFeeSection({
     return (
       <div className="bg-surface border border-border rounded-xl p-6">
         <h2 className="text-lg font-bold mb-4">{t("admin.platformFeeConfig")}</h2>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <p className="text-sm text-muted">{t("admin.pFeePercent")}</p>
             <p className="text-lg font-semibold">{feeConfig.feePercent}%</p>
@@ -2168,6 +2170,12 @@ function PlatformFeeSection({
           <div>
             <p className="text-sm text-muted">{t("admin.pFeeFixed")}</p>
             <p className="text-lg font-semibold">${feeConfig.feeFixed.toFixed(2)}</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted">{t("admin.billingMode")}</p>
+            <p className="text-lg font-semibold">
+              {t(feeConfig.billingMode === "postpaid" ? "admin.postpaid" : "admin.prepaid")}
+            </p>
           </div>
         </div>
         <p className="text-sm text-muted mt-3">
@@ -2219,6 +2227,37 @@ function PlatformFeeSection({
           fee: calculatedFee.toFixed(2),
         })}
       </p>
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-1.5">
+          {t("admin.billingMode")}
+        </label>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => setBillingMode("prepaid")}
+            className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+              billingMode === "prepaid"
+                ? "bg-accent/10 border-accent text-accent"
+                : "bg-background border-border text-muted hover:border-accent-light"
+            }`}
+          >
+            <div>{t("admin.prepaid")}</div>
+            <div className="text-xs font-normal mt-0.5 opacity-70">{t("admin.prepaidDesc")}</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setBillingMode("postpaid")}
+            className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+              billingMode === "postpaid"
+                ? "bg-warning/10 border-warning text-warning"
+                : "bg-background border-border text-muted hover:border-warning"
+            }`}
+          >
+            <div>{t("admin.postpaid")}</div>
+            <div className="text-xs font-normal mt-0.5 opacity-70">{t("admin.postpaidDesc")}</div>
+          </button>
+        </div>
+      </div>
       <button
         onClick={handleSave}
         disabled={saving}

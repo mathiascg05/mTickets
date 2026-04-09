@@ -507,6 +507,17 @@ const translations: Translations = {
   "admin.pFeeFixed": { es: "Fijo (USD)", en: "Fixed (USD)" },
   "admin.pFeePreview": { es: "Para un ticket de ${price}, el fee será ${fee}", en: "For a ${price} ticket, the fee will be ${fee}" },
   "admin.noOrganizers": { es: "No hay organizadores registrados", en: "No registered organizers" },
+  "admin.billingMode": { es: "Modo de Cobro", en: "Billing Mode" },
+  "admin.prepaid": { es: "Prepago (créditos)", en: "Prepaid (credits)" },
+  "admin.postpaid": { es: "Postpago (reporte)", en: "Postpaid (report)" },
+  "admin.prepaidDesc": { es: "Requiere balance para aprobar", en: "Requires balance to approve" },
+  "admin.postpaidDesc": { es: "Aprueba libremente, se cobra después", en: "Approve freely, charged later" },
+  "admin.accumulatedFees": { es: "Fees Acumulados", en: "Accumulated Fees" },
+  "admin.postpaidMode": { es: "Modo postpago — los fees se cobrarán al final", en: "Postpaid mode — fees will be charged at the end" },
+  "admin.pendingDebt": { es: "Deuda Pendiente", en: "Pending Debt" },
+  "admin.totalFees": { es: "Total Fees", en: "Total Fees" },
+  "admin.totalDeposits": { es: "Total Depósitos", en: "Total Deposits" },
+  "admin.postpaidReport": { es: "Reporte Postpago", en: "Postpaid Report" },
 
   // ── Error pages ──
   "error.title": { es: "Algo salió mal", en: "Something went wrong" },

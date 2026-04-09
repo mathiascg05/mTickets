@@ -137,7 +137,10 @@ export async function POST(req: NextRequest) {
     ) as {
       feePercent: number;
       feeFixed: number;
+      billingMode: string;
     } | null;
+
+    const billingMode = feeConfig?.billingMode || "prepaid";
 
     // Calculate platform fee
     const effectivePrice = order.phaseId
@@ -153,7 +156,6 @@ export async function POST(req: NextRequest) {
       platformFee = Math.round(platformFee * 100) / 100;
     }
 
-    // If there's a fee, check and deduct from organizer balance
     if (platformFee > 0) {
       const { organizerBalances } = await adminDb.query({
         organizerBalances: {
@@ -162,53 +164,108 @@ export async function POST(req: NextRequest) {
       });
 
       const balance = organizerBalances[0];
-      if (!balance) {
-        return NextResponse.json(
-          {
-            error: "NO_BALANCE",
-            message: "No balance found. Please top up your account.",
-            requiredFee: platformFee,
-          },
-          { status: 402 },
-        );
+
+      if (billingMode === "prepaid") {
+        // ── Prepaid: require sufficient balance ──
+        if (!balance) {
+          return NextResponse.json(
+            {
+              error: "NO_BALANCE",
+              message: "No balance found. Please top up your account.",
+              requiredFee: platformFee,
+            },
+            { status: 402 },
+          );
+        }
+
+        if (balance.balance < platformFee) {
+          return NextResponse.json(
+            {
+              error: "INSUFFICIENT_BALANCE",
+              message: "Insufficient balance to approve this order.",
+              currentBalance: balance.balance,
+              requiredFee: platformFee,
+            },
+            { status: 402 },
+          );
+        }
+
+        // Atomically: approve + deduct balance + log transaction
+        const newBalance =
+          Math.round((balance.balance - platformFee) * 100) / 100;
+        const txnId = genId();
+
+        await adminDb.transact([
+          adminDb.tx.orders[orderId].update({ status: "approved" }),
+          adminDb.tx.organizerBalances[balance.id].update({
+            balance: newBalance,
+            updatedAt: Date.now(),
+          }),
+          adminDb.tx.balanceTransactions[txnId]
+            .update({
+              type: "fee",
+              amount: -platformFee,
+              balanceBefore: balance.balance,
+              balanceAfter: newBalance,
+              description: `Platform fee for order ${order.orderNumber || orderId}`,
+              orderId,
+              concertId: concert.id,
+              createdAt: Date.now(),
+            })
+            .link({ organizerBalance: balance.id }),
+        ]);
+      } else {
+        // ── Postpaid: approve freely, log fee as pending debt ──
+        const currentBalance = balance?.balance || 0;
+        const newBalance = Math.round((currentBalance - platformFee) * 100) / 100;
+        const txnId = genId();
+
+        if (balance) {
+          await adminDb.transact([
+            adminDb.tx.orders[orderId].update({ status: "approved" }),
+            adminDb.tx.organizerBalances[balance.id].update({
+              balance: newBalance,
+              updatedAt: Date.now(),
+            }),
+            adminDb.tx.balanceTransactions[txnId]
+              .update({
+                type: "fee",
+                amount: -platformFee,
+                balanceBefore: currentBalance,
+                balanceAfter: newBalance,
+                description: `Platform fee for order ${order.orderNumber || orderId}`,
+                orderId,
+                concertId: concert.id,
+                createdAt: Date.now(),
+              })
+              .link({ organizerBalance: balance.id }),
+          ]);
+        } else {
+          // Create balance record (will go negative)
+          const balanceId = genId();
+          await adminDb.transact([
+            adminDb.tx.orders[orderId].update({ status: "approved" }),
+            adminDb.tx.organizerBalances[balanceId].update({
+              email: concert.organizerEmail.toLowerCase(),
+              balance: -platformFee,
+              currency: "USD",
+              updatedAt: Date.now(),
+            }),
+            adminDb.tx.balanceTransactions[txnId]
+              .update({
+                type: "fee",
+                amount: -platformFee,
+                balanceBefore: 0,
+                balanceAfter: -platformFee,
+                description: `Platform fee for order ${order.orderNumber || orderId}`,
+                orderId,
+                concertId: concert.id,
+                createdAt: Date.now(),
+              })
+              .link({ organizerBalance: balanceId }),
+          ]);
+        }
       }
-
-      if (balance.balance < platformFee) {
-        return NextResponse.json(
-          {
-            error: "INSUFFICIENT_BALANCE",
-            message: "Insufficient balance to approve this order.",
-            currentBalance: balance.balance,
-            requiredFee: platformFee,
-          },
-          { status: 402 },
-        );
-      }
-
-      // Atomically: approve order + deduct balance + log transaction
-      const newBalance =
-        Math.round((balance.balance - platformFee) * 100) / 100;
-      const txnId = genId();
-
-      await adminDb.transact([
-        adminDb.tx.orders[orderId].update({ status: "approved" }),
-        adminDb.tx.organizerBalances[balance.id].update({
-          balance: newBalance,
-          updatedAt: Date.now(),
-        }),
-        adminDb.tx.balanceTransactions[txnId]
-          .update({
-            type: "fee",
-            amount: -platformFee,
-            balanceBefore: balance.balance,
-            balanceAfter: newBalance,
-            description: `Platform fee for order ${order.orderNumber || orderId}`,
-            orderId,
-            concertId: concert.id,
-            createdAt: Date.now(),
-          })
-          .link({ organizerBalance: balance.id }),
-      ]);
     } else {
       // No fee configured — just approve
       await adminDb.transact([

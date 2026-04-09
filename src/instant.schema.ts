@@ -149,6 +149,7 @@ const _schema = i.schema({
     platformFeeConfigs: i.entity({
       feePercent: i.number(),
       feeFixed: i.number(),
+      billingMode: i.string().indexed(),
       updatedAt: i.number().indexed(),
     }),
   },
