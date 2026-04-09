@@ -534,7 +534,7 @@ export default function BuyPage() {
               <>
                 <span className="text-white/30">|</span>
                 <a href={`/events/${concert.slug}`}>
-                  <img src={concert.logoUrl} alt={concert.name} className="h-8 max-h-10 w-auto object-contain" />
+                  <img src={concert.logoUrl} alt={concert.name} className="h-10 w-auto object-contain" />
                 </a>
               </>
             )}

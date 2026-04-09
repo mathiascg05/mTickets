@@ -229,7 +229,7 @@ export default function QueuePage() {
             {concert?.logoUrl && (
               <>
                 <span className="text-white/30">|</span>
-                <img src={concert.logoUrl} alt={concert.name} className="h-8 max-h-10 w-auto object-contain" />
+                <img src={concert.logoUrl} alt={concert.name} className="h-10 w-auto object-contain" />
               </>
             )}
           </div>
