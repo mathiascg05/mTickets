@@ -9,10 +9,13 @@ import { useParams } from "next/navigation";
 import { useRef, useState } from "react";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { getFieldTypeLabel } from "@/lib/i18n";
+import { useAuthContext } from "@/lib/AuthContext";
 
 export default function AdminConcertEditPage() {
   const params = useParams();
   const concertId = params.id as string;
+
+  const { isSuperAdmin } = useAuthContext();
 
   const { isLoading, data } = db.useQuery({
     concerts: {
@@ -33,6 +36,7 @@ export default function AdminConcertEditPage() {
       coupons: {
         $: { order: { createdAt: "asc" } },
       },
+      platformFeeConfig: {},
     },
   });
 
@@ -77,6 +81,11 @@ export default function AdminConcertEditPage() {
             flyerUrl={concert.flyerUrl}
             logoUrl={concert.logoUrl}
             primaryColor={concert.primaryColor}
+          />
+          <PlatformFeeSection
+            concertId={concertId}
+            feeConfig={concert.platformFeeConfig}
+            isSuperAdmin={isSuperAdmin}
           />
         </div>
         <div className="space-y-6">
@@ -2093,6 +2102,150 @@ function BrandingSection({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function PlatformFeeSection({
+  concertId,
+  feeConfig,
+  isSuperAdmin,
+}: {
+  concertId: string;
+  feeConfig: { id: string; feePercent: number; feeFixed: number; minFee: number } | undefined;
+  isSuperAdmin: boolean;
+}) {
+  const { t } = useLanguage();
+  const [feePercent, setFeePercent] = useState(feeConfig?.feePercent?.toString() || "5");
+  const [feeFixed, setFeeFixed] = useState(feeConfig?.feeFixed?.toString() || "0");
+  const [minFee, setMinFee] = useState(feeConfig?.minFee?.toString() || "0.25");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // Preview calculation
+  const previewPrice = 10;
+  const pPercent = parseFloat(feePercent) || 0;
+  const pFixed = parseFloat(feeFixed) || 0;
+  const pMin = parseFloat(minFee) || 0;
+  const calculatedFee = Math.max(previewPrice * (pPercent / 100) + pFixed, pMin);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const data = {
+        feePercent: parseFloat(feePercent) || 0,
+        feeFixed: parseFloat(feeFixed) || 0,
+        minFee: parseFloat(minFee) || 0.25,
+        updatedAt: Date.now(),
+      };
+
+      if (feeConfig) {
+        await db.transact([db.tx.platformFeeConfigs[feeConfig.id].update(data)]);
+      } else {
+        const newId = id();
+        await db.transact([
+          db.tx.platformFeeConfigs[newId].update(data).link({ concert: concertId }),
+        ]);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      console.error("Failed to save fee config:", err);
+      alert("Error saving fee config");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Read-only view for organizers
+  if (!isSuperAdmin) {
+    if (!feeConfig) return null;
+    return (
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h2 className="text-lg font-bold mb-4">{t("admin.platformFeeConfig")}</h2>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <p className="text-sm text-muted">{t("admin.pFeePercent")}</p>
+            <p className="text-lg font-semibold">{feeConfig.feePercent}%</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted">{t("admin.pFeeFixed")}</p>
+            <p className="text-lg font-semibold">${feeConfig.feeFixed.toFixed(2)}</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted">{t("admin.pFeeMin")}</p>
+            <p className="text-lg font-semibold">${feeConfig.minFee.toFixed(2)}</p>
+          </div>
+        </div>
+        <p className="text-sm text-muted mt-3">
+          {t("admin.pFeePreview", {
+            price: previewPrice.toFixed(2),
+            fee: Math.max(feeConfig.feePercent / 100 * previewPrice + feeConfig.feeFixed, feeConfig.minFee).toFixed(2),
+          })}
+        </p>
+      </div>
+    );
+  }
+
+  // Editable view for super admin
+  return (
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <h2 className="text-lg font-bold mb-4">{t("admin.platformFeeConfig")}</h2>
+      <div className="grid grid-cols-3 gap-4 mb-4">
+        <div>
+          <label className="block text-sm font-medium mb-1.5">
+            {t("admin.pFeePercent")}
+          </label>
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            max="100"
+            value={feePercent}
+            onChange={(e) => setFeePercent(e.target.value)}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">
+            {t("admin.pFeeFixed")}
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={feeFixed}
+            onChange={(e) => setFeeFixed(e.target.value)}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">
+            {t("admin.pFeeMin")}
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={minFee}
+            onChange={(e) => setMinFee(e.target.value)}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30"
+          />
+        </div>
+      </div>
+      <p className="text-sm text-muted mb-4">
+        {t("admin.pFeePreview", {
+          price: previewPrice.toFixed(2),
+          fee: calculatedFee.toFixed(2),
+        })}
+      </p>
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="px-6 py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
+      >
+        {saving ? "..." : saved ? t("common.saved") : t("common.saveChanges")}
+      </button>
     </div>
   );
 }

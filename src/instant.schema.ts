@@ -130,6 +130,28 @@ const _schema = i.schema({
       repliedAt: i.number().optional().indexed(),
       createdAt: i.number().indexed(),
     }),
+    organizerBalances: i.entity({
+      email: i.string().unique().indexed(),
+      balance: i.number(),
+      currency: i.string(),
+      updatedAt: i.number().indexed(),
+    }),
+    balanceTransactions: i.entity({
+      type: i.string().indexed(),
+      amount: i.number(),
+      balanceBefore: i.number(),
+      balanceAfter: i.number(),
+      description: i.string(),
+      orderId: i.string().optional().indexed(),
+      concertId: i.string().optional().indexed(),
+      createdAt: i.number().indexed(),
+    }),
+    platformFeeConfigs: i.entity({
+      feePercent: i.number(),
+      feeFixed: i.number(),
+      minFee: i.number(),
+      updatedAt: i.number().indexed(),
+    }),
   },
   links: {
     concertTicketTypes: {
@@ -247,6 +269,31 @@ const _schema = i.schema({
         on: "concerts",
         has: "many",
         label: "messages",
+      },
+    },
+    balanceTransactionBalance: {
+      forward: {
+        on: "balanceTransactions",
+        has: "one",
+        label: "organizerBalance",
+      },
+      reverse: {
+        on: "organizerBalances",
+        has: "many",
+        label: "transactions",
+      },
+    },
+    concertPlatformFee: {
+      forward: {
+        on: "platformFeeConfigs",
+        has: "one",
+        label: "concert",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "concerts",
+        has: "one",
+        label: "platformFeeConfig",
       },
     },
   },

@@ -478,6 +478,38 @@ const translations: Translations = {
   "admin.primaryColor": { es: "Color Principal", en: "Primary Color" },
   "admin.extractColor": { es: "Extraer del flyer", en: "Extract from flyer" },
 
+  // ── Platform balance & fees ──
+  "admin.platformBalance": { es: "Balance de Plataforma", en: "Platform Balance" },
+  "admin.platformFee": { es: "Fee de Plataforma", en: "Platform Fee" },
+  "admin.minFee": { es: "mín", en: "min" },
+  "admin.noBalanceWarning": {
+    es: "No puedes aprobar órdenes sin balance. Contacta al administrador para recargar.",
+    en: "You cannot approve orders without balance. Contact the admin to top up.",
+  },
+  "admin.insufficientBalance": {
+    es: "Balance insuficiente. Se requiere {required}, tu balance es {current}. Contacta al administrador para recargar.",
+    en: "Insufficient balance. Required: {required}, your balance: {current}. Contact the admin to top up.",
+  },
+  "admin.errorUpdatingOrder": { es: "Error actualizando orden", en: "Error updating order" },
+  "admin.balances": { es: "Balances", en: "Balances" },
+  "admin.creditAccount": { es: "Acreditar Cuenta", en: "Credit Account" },
+  "admin.amount": { es: "Monto", en: "Amount" },
+  "admin.note": { es: "Nota", en: "Note" },
+  "admin.deposit": { es: "Depósito", en: "Deposit" },
+  "admin.adjustment": { es: "Ajuste", en: "Adjustment" },
+  "admin.refund": { es: "Reembolso", en: "Refund" },
+  "admin.fee": { es: "Fee", en: "Fee" },
+  "admin.transactionHistory": { es: "Historial de Transacciones", en: "Transaction History" },
+  "admin.noTransactions": { es: "Sin transacciones", en: "No transactions" },
+  "admin.organizerEmail": { es: "Email del Organizador", en: "Organizer Email" },
+  "admin.currentBalance": { es: "Balance Actual", en: "Current Balance" },
+  "admin.platformFeeConfig": { es: "Fee de Plataforma", en: "Platform Fee" },
+  "admin.pFeePercent": { es: "Porcentaje (%)", en: "Percentage (%)" },
+  "admin.pFeeFixed": { es: "Fijo (USD)", en: "Fixed (USD)" },
+  "admin.pFeeMin": { es: "Mínimo (USD)", en: "Minimum (USD)" },
+  "admin.pFeePreview": { es: "Para un ticket de ${price}, el fee será ${fee}", en: "For a ${price} ticket, the fee will be ${fee}" },
+  "admin.noOrganizers": { es: "No hay organizadores registrados", en: "No registered organizers" },
+
   // ── Error pages ──
   "error.title": { es: "Algo salió mal", en: "Something went wrong" },
   "error.message": { es: "Ocurrió un error inesperado. Intenta de nuevo.", en: "An unexpected error occurred. Please try again." },

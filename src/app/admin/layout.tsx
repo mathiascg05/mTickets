@@ -241,14 +241,6 @@ export default function AdminLayout({
   const pathname = usePathname();
   const { t } = useLanguage();
 
-  const navItems = [
-    { href: "/admin", label: t("admin.dashboard") },
-    { href: "/admin/concerts", label: t("admin.events") },
-    { href: "/admin/orders", label: t("admin.orders") },
-    { href: "/admin/communications", label: t("admin.messages") },
-    { href: "/scan", label: t("admin.scanner") },
-  ];
-
   const userEmail = user?.email ?? "";
 
   const { data: userData } = db.useQuery(
@@ -259,6 +251,17 @@ export default function AdminLayout({
 
   const currentUser = userData?.$users?.[0];
   const userIsSuperAdmin = currentUser?.type === "superadmin" || userEmail === SUPER_ADMIN_EMAIL;
+
+  const navItems = [
+    { href: "/admin", label: t("admin.dashboard") },
+    { href: "/admin/concerts", label: t("admin.events") },
+    { href: "/admin/orders", label: t("admin.orders") },
+    { href: "/admin/communications", label: t("admin.messages") },
+    ...(userIsSuperAdmin
+      ? [{ href: "/admin/balances", label: t("admin.balances") }]
+      : []),
+    { href: "/scan", label: t("admin.scanner") },
+  ];
 
   if (isLoading) {
     return (

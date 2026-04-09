@@ -1087,6 +1087,21 @@ export default function ConcertOrdersPage() {
   const [resendType, setResendType] = useState<"confirmation" | "ticket">("confirmation");
   const [resendingOrderId, setResendingOrderId] = useState<string | null>(null);
 
+  const userEmail = user?.email || "";
+  const { data: balanceData } = db.useQuery(
+    userEmail
+      ? { organizerBalances: { $: { where: { email: userEmail.toLowerCase() } } } }
+      : null,
+  );
+  const organizerBalance = balanceData?.organizerBalances?.[0];
+
+  const { data: feeConfigData } = db.useQuery(
+    concertId
+      ? { platformFeeConfigs: { $: { where: { "concert.id": concertId } } } }
+      : null,
+  );
+  const platformFeeConfig = feeConfigData?.platformFeeConfigs?.[0];
+
   const { isLoading, data } = db.useQuery({
     concerts: {
       $: { where: { id: concertId } },
@@ -1232,22 +1247,48 @@ export default function ConcertOrdersPage() {
 
   const totalTicketsIssued = ticketBreakdown.reduce((s, t) => s + t.approved, 0);
 
-  async function approve(orderId: string) {
-    await db.transact(db.tx.orders[orderId].update({ status: "approved" }));
-    const res = await sendTicketEmail(orderId, refreshToken);
-    if (!res.success) {
-      console.error("Email failed:", res.error);
-      alert(t("admin.approveEmailFail"));
+  async function updateOrderStatus(orderId: string, action: "approve" | "reject" | "cancel") {
+    try {
+      const res = await fetch("/api/approve-order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${refreshToken}`,
+        },
+        body: JSON.stringify({ orderId, action }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error === "NO_BALANCE" || data.error === "INSUFFICIENT_BALANCE") {
+          alert(t("admin.insufficientBalance", {
+            required: `$${data.requiredFee?.toFixed(2) || "?"}`,
+            current: data.currentBalance != null ? `$${data.currentBalance.toFixed(2)}` : "$0.00",
+          }));
+        } else {
+          alert(data.message || data.error || t("admin.errorUpdatingOrder"));
+        }
+        return;
+      }
+      if (action === "approve" && !res.ok) {
+        alert(t("admin.approveEmailFail"));
+      }
+    } catch (err) {
+      console.error(`Failed to ${action} order:`, err);
+      alert(t("admin.errorUpdatingOrder"));
     }
   }
 
+  async function approve(orderId: string) {
+    await updateOrderStatus(orderId, "approve");
+  }
+
   function reject(orderId: string) {
-    db.transact(db.tx.orders[orderId].update({ status: "rejected" }));
+    updateOrderStatus(orderId, "reject");
   }
 
   function cancel(orderId: string) {
     if (confirm(t("admin.cancelTicketConfirm"))) {
-      db.transact(db.tx.orders[orderId].update({ status: "cancelled" }));
+      updateOrderStatus(orderId, "cancel");
     }
   }
 
@@ -1342,6 +1383,45 @@ export default function ConcertOrdersPage() {
           </div>
         </div>
       </div>
+
+      {/* Platform Balance & Fee Info */}
+      {platformFeeConfig && (
+        <div className={`border rounded-xl p-4 mb-6 ${
+          !organizerBalance || organizerBalance.balance <= 0
+            ? "bg-danger/5 border-danger/30"
+            : organizerBalance.balance < 10
+              ? "bg-warning/5 border-warning/30"
+              : "bg-surface border-border"
+        }`}>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <p className="text-sm text-muted">{t("admin.platformBalance")}</p>
+              <p className={`text-2xl font-bold ${
+                !organizerBalance || organizerBalance.balance <= 0
+                  ? "text-danger"
+                  : organizerBalance.balance < 10
+                    ? "text-warning"
+                    : "text-foreground"
+              }`}>
+                ${organizerBalance?.balance?.toFixed(2) || "0.00"}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-muted">{t("admin.platformFee")}</p>
+              <p className="text-sm font-medium">
+                {platformFeeConfig.feePercent}%
+                {platformFeeConfig.feeFixed > 0 && ` + $${platformFeeConfig.feeFixed.toFixed(2)}`}
+                {" "}<span className="text-muted">({t("admin.minFee")}: ${platformFeeConfig.minFee.toFixed(2)})</span>
+              </p>
+            </div>
+          </div>
+          {(!organizerBalance || organizerBalance.balance <= 0) && (
+            <p className="text-sm text-danger mt-2 font-medium">
+              {t("admin.noBalanceWarning")}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Per-ticket-type breakdown: Status x Payment Method */}
       {concert.ticketTypes.map((tt) => {

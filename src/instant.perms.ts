@@ -160,6 +160,48 @@ const rules = {
       `auth.email == '${SUPER_ADMIN}'`,
     ],
   },
+  organizerBalances: {
+    allow: {
+      view: "isOwner || isSuperAdmin",
+      create: "isSuperAdmin",
+      update: "isSuperAdmin",
+      delete: "isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email == data.email",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
+  balanceTransactions: {
+    allow: {
+      view: "isOwner || isSuperAdmin",
+      create: "isSuperAdmin",
+      update: "false",
+      delete: "false",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('organizerBalance.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
+  platformFeeConfigs: {
+    allow: {
+      view: "isOwner || isSuperAdmin",
+      create: "isSuperAdmin",
+      update: "isSuperAdmin",
+      delete: "isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('concert.organizerEmail')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
   $files: {
     allow: {
       view: `auth.email == '${SUPER_ADMIN}'`,
