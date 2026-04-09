@@ -527,14 +527,18 @@ export default function BuyPage() {
     <EventTheme concert={concert || {}}>
     <div className="min-h-screen">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          {concert?.logoUrl ? (
-            <a href={`/events/${concert.slug}`}>
-              <img src={concert.logoUrl} alt={concert.name} className="h-10 max-h-12 w-auto object-contain" />
-            </a>
-          ) : (
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <a href="/" className="text-xl font-bold tracking-wide text-white">ma<span className="text-white/60">Tickets</span></a>
-          )}
+            {concert?.logoUrl && (
+              <>
+                <span className="text-white/30">|</span>
+                <a href={`/events/${concert.slug}`}>
+                  <img src={concert.logoUrl} alt={concert.name} className="h-8 max-h-10 w-auto object-contain" />
+                </a>
+              </>
+            )}
+          </div>
           <LanguageToggle className="border-white/30 text-white/80 hover:text-white" />
         </div>
         {secondsLeft !== null && (

@@ -70,12 +70,16 @@ export default function EventDetailClient() {
     <EventTheme concert={concert}>
     <div className="min-h-screen">
       <header className="bg-accent/95 backdrop-blur-sm text-white sticky top-0 z-10 border-b border-white/10">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          {concert.logoUrl ? (
-            <img src={concert.logoUrl} alt={concert.name} className="h-10 max-h-12 w-auto object-contain" />
-          ) : (
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <span className="text-xl font-bold tracking-wide">ma<span className="text-white/50">Tickets</span></span>
-          )}
+            {concert.logoUrl && (
+              <>
+                <span className="text-white/30">|</span>
+                <img src={concert.logoUrl} alt={concert.name} className="h-8 max-h-10 w-auto object-contain" />
+              </>
+            )}
+          </div>
           <LanguageToggle className="border-white/20 text-white/70 hover:text-white" />
         </div>
       </header>
