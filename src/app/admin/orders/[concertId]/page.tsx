@@ -2062,7 +2062,7 @@ export default function ConcertOrdersPage() {
                     </button>
                   ) : null}
                   {order.proofReferenceNumber && (
-                    <span className="px-3 py-1.5 text-xs border border-warning/30 bg-warning/10 text-warning rounded-lg font-medium truncate max-w-[140px]" title={`${t("admin.referenceNumber")}: ${order.proofReferenceNumber}`}>
+                    <span className="px-3 py-1.5 text-xs border border-warning/30 bg-warning/10 text-warning rounded-lg font-medium">
                       Ref: {order.proofReferenceNumber}
                     </span>
                   )}
