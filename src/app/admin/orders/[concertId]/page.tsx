@@ -1411,7 +1411,6 @@ export default function ConcertOrdersPage() {
               <p className="text-sm font-medium">
                 {platformFeeConfig.feePercent}%
                 {platformFeeConfig.feeFixed > 0 && ` + $${platformFeeConfig.feeFixed.toFixed(2)}`}
-                {" "}<span className="text-muted">({t("admin.minFee")}: ${platformFeeConfig.minFee.toFixed(2)})</span>
               </p>
             </div>
           </div>

@@ -149,7 +149,6 @@ const _schema = i.schema({
     platformFeeConfigs: i.entity({
       feePercent: i.number(),
       feeFixed: i.number(),
-      minFee: i.number(),
       updatedAt: i.number().indexed(),
     }),
   },

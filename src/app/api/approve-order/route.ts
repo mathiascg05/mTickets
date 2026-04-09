@@ -137,7 +137,6 @@ export async function POST(req: NextRequest) {
     ) as {
       feePercent: number;
       feeFixed: number;
-      minFee: number;
     } | null;
 
     // Calculate platform fee
@@ -151,7 +150,6 @@ export async function POST(req: NextRequest) {
     if (feeConfig) {
       const percentFee = effectivePrice * (feeConfig.feePercent / 100);
       platformFee = percentFee + feeConfig.feeFixed;
-      platformFee = Math.max(platformFee, feeConfig.minFee);
       platformFee = Math.round(platformFee * 100) / 100;
     }
 

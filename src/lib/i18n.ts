@@ -481,7 +481,6 @@ const translations: Translations = {
   // ── Platform balance & fees ──
   "admin.platformBalance": { es: "Balance de Plataforma", en: "Platform Balance" },
   "admin.platformFee": { es: "Fee de Plataforma", en: "Platform Fee" },
-  "admin.minFee": { es: "mín", en: "min" },
   "admin.noBalanceWarning": {
     es: "No puedes aprobar órdenes sin balance. Contacta al administrador para recargar.",
     en: "You cannot approve orders without balance. Contact the admin to top up.",
@@ -506,7 +505,6 @@ const translations: Translations = {
   "admin.platformFeeConfig": { es: "Fee de Plataforma", en: "Platform Fee" },
   "admin.pFeePercent": { es: "Porcentaje (%)", en: "Percentage (%)" },
   "admin.pFeeFixed": { es: "Fijo (USD)", en: "Fixed (USD)" },
-  "admin.pFeeMin": { es: "Mínimo (USD)", en: "Minimum (USD)" },
   "admin.pFeePreview": { es: "Para un ticket de ${price}, el fee será ${fee}", en: "For a ${price} ticket, the fee will be ${fee}" },
   "admin.noOrganizers": { es: "No hay organizadores registrados", en: "No registered organizers" },
 
