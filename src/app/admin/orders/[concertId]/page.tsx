@@ -1394,7 +1394,31 @@ export default function ConcertOrdersPage() {
       </div>
 
       {/* Platform Balance & Fee Info */}
-      {platformFeeConfig && platformFeeConfig.billingMode !== "postpaid" && (
+      {platformFeeConfig && (() => {
+        // Calculate fees needed to approve all pending orders
+        const feePercent = platformFeeConfig.feePercent || 0;
+        const feeFixed = platformFeeConfig.feeFixed || 0;
+        const pendingFeesByPm = new Map<string, { count: number; fee: number }>();
+        let totalPendingFees = 0;
+
+        for (const tt of concert.ticketTypes) {
+          for (const order of tt.orders) {
+            if (order.status !== "pending") continue;
+            const phase = (tt.phases || []).find((p: { id: string }) => p.id === order.phaseId);
+            const basePrice = phase ? (phase as { price: number }).price : tt.price;
+            const fee = Math.round((basePrice * (feePercent / 100) + feeFixed) * 100) / 100;
+            totalPendingFees += fee;
+            const pm = order.paymentMethod || "N/A";
+            const entry = pendingFeesByPm.get(pm) || { count: 0, fee: 0 };
+            entry.count += 1;
+            entry.fee = Math.round((entry.fee + fee) * 100) / 100;
+            pendingFeesByPm.set(pm, entry);
+          }
+        }
+        totalPendingFees = Math.round(totalPendingFees * 100) / 100;
+
+        return (<>
+      {platformFeeConfig.billingMode !== "postpaid" && (
         <div className={`border rounded-xl p-4 mb-6 ${
           !organizerBalance || organizerBalance.balance <= 0
             ? "bg-danger/5 border-danger/30"
@@ -1428,9 +1452,23 @@ export default function ConcertOrdersPage() {
               {t("admin.noBalanceWarning")}
             </p>
           )}
+          {totalPendingFees > 0 && (
+            <div className="mt-3 pt-3 border-t border-border/50">
+              <p className="text-sm font-medium mb-2">
+                {t("admin.creditsNeeded")}: <span className="text-accent-light">${totalPendingFees.toFixed(2)}</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {[...pendingFeesByPm.entries()].map(([pm, { count, fee }]) => (
+                  <span key={pm} className="text-xs px-2 py-1 bg-background border border-border rounded-lg">
+                    {pm}: {count} {count === 1 ? "ticket" : "tickets"} — <span className="font-medium">${fee.toFixed(2)}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
-      {platformFeeConfig && platformFeeConfig.billingMode === "postpaid" && (
+      {platformFeeConfig.billingMode === "postpaid" && (
         <div className="border rounded-xl p-4 mb-6 bg-warning/5 border-warning/30">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
@@ -1452,6 +1490,8 @@ export default function ConcertOrdersPage() {
           </p>
         </div>
       )}
+      </>);
+      })()}
 
       {/* Per-ticket-type breakdown: Status x Payment Method */}
       {concert.ticketTypes.map((tt) => {

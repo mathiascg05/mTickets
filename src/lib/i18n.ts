@@ -519,6 +519,7 @@ const translations: Translations = {
   "admin.totalDeposits": { es: "Total Depósitos", en: "Total Deposits" },
   "admin.postpaidReport": { es: "Reporte Postpago", en: "Postpaid Report" },
   "admin.event": { es: "Evento", en: "Event" },
+  "admin.creditsNeeded": { es: "Créditos necesarios para aprobar pendientes", en: "Credits needed to approve pending" },
   "admin.void": { es: "Anular", en: "Void" },
   "admin.voidConfirm": { es: "¿Estás seguro de anular esta transacción? Se creará un ajuste que revierte el monto.", en: "Are you sure you want to void this transaction? An adjustment will be created to reverse the amount." },
 
