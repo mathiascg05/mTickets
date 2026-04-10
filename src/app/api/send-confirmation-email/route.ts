@@ -3,6 +3,8 @@ import { adminDb } from "@/lib/adminDb";
 import { transporter, generateMessageId } from "@/lib/mailer";
 import { buildConfirmationEmailHtml, buildConfirmationEmailText } from "@/lib/emailTemplate";
 import { assignOrderNumber } from "@/lib/orderNumber";
+import { isEmailSuppressed } from "@/lib/emailSuppression";
+import { buildMailHeaders } from "@/lib/emailHeaders";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -57,6 +59,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
+    if (await isEmailSuppressed(order.email)) {
+      console.log(`[confirmation-email] Skipping suppressed email: ${order.email}`);
+      return NextResponse.json({ success: true });
+    }
+
     const { ticketType } = order;
     const { concert } = ticketType;
 
@@ -98,10 +105,7 @@ export async function POST(req: NextRequest) {
       messageId: generateMessageId(),
       date: new Date(),
       envelope: { from: emailFrom, to: order.email },
-      headers: {
-        "List-Unsubscribe": `<mailto:${emailFrom}?subject=unsubscribe>`,
-        "X-Mailer": "maTickets",
-      },
+      headers: buildMailHeaders(order.email),
     };
 
     // Send with one retry on SMTP failure

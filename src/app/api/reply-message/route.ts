@@ -3,6 +3,8 @@ import { adminDb } from "@/lib/adminDb";
 import { isValidUUID } from "@/lib/validation";
 import { transporter, generateMessageId, EMAIL_FROM } from "@/lib/mailer";
 import { buildReplyEmailHtml, buildReplyEmailText } from "@/lib/emailTemplate";
+import { isEmailSuppressed } from "@/lib/emailSuppression";
+import { buildMailHeaders } from "@/lib/emailHeaders";
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,6 +60,12 @@ export async function POST(req: NextRequest) {
       }),
     );
 
+    // Check suppression (still update message status above, but skip sending)
+    if (await isEmailSuppressed(message.email)) {
+      console.log(`[reply-message] Skipping suppressed email: ${message.email}`);
+      return NextResponse.json({ success: true });
+    }
+
     // Send reply email
     const emailParams = {
       firstName: message.firstName,
@@ -74,6 +82,7 @@ export async function POST(req: NextRequest) {
       messageId: generateMessageId(),
       text: buildReplyEmailText(emailParams),
       html: buildReplyEmailHtml(emailParams),
+      headers: buildMailHeaders(message.email),
     });
 
     return NextResponse.json({ success: true });

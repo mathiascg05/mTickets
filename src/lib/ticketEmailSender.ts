@@ -3,6 +3,8 @@ import { adminDb } from "@/lib/adminDb";
 import { transporter, generateMessageId, EMAIL_FROM } from "@/lib/mailer";
 import { buildTicketEmailHtml, buildTicketEmailText } from "@/lib/emailTemplate";
 import { assignOrderNumber } from "@/lib/orderNumber";
+import { isEmailSuppressed } from "@/lib/emailSuppression";
+import { buildMailHeaders } from "@/lib/emailHeaders";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -37,6 +39,11 @@ export async function sendTicketEmailForOrder(orderId: string): Promise<{ succes
   if (!order) {
     console.error(`[ticket-email] Order ${orderId} not found/not approved after retries`);
     return { error: "Order not found or not approved" };
+  }
+
+  if (await isEmailSuppressed(order.email)) {
+    console.log(`[ticket-email] Skipping suppressed email: ${order.email}`);
+    return { success: true };
   }
 
   const { ticketType } = order;
@@ -89,10 +96,7 @@ export async function sendTicketEmailForOrder(orderId: string): Promise<{ succes
     messageId: generateMessageId(),
     date: new Date(),
     envelope: { from: gmailUser!, to: order.email },
-    headers: {
-      "List-Unsubscribe": `<mailto:${gmailUser}?subject=unsubscribe>`,
-      "X-Mailer": "maTickets",
-    },
+    headers: buildMailHeaders(order.email),
     attachments: [
       {
         filename: "ticket-qr.png",

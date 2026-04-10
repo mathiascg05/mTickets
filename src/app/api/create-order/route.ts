@@ -9,6 +9,8 @@ import {
   buildConfirmationEmailHtml,
   buildConfirmationEmailText,
 } from "@/lib/emailTemplate";
+import { isEmailSuppressed } from "@/lib/emailSuppression";
+import { buildMailHeaders } from "@/lib/emailHeaders";
 import {
   isValidUUID,
   isValidQty,
@@ -512,6 +514,11 @@ export async function POST(req: NextRequest) {
           orderNumber,
         };
 
+        if (await isEmailSuppressed(attendee.email)) {
+          console.log(`[create-order] Skipping suppressed email: ${attendee.email}`);
+          continue;
+        }
+
         const mailOptions = {
           from: `"maTickets" <${emailFrom}>`,
           replyTo: emailFrom,
@@ -522,10 +529,7 @@ export async function POST(req: NextRequest) {
           messageId: generateMessageId(),
           date: new Date(),
           envelope: { from: emailFrom, to: attendee.email },
-          headers: {
-            "List-Unsubscribe": `<mailto:${emailFrom}?subject=unsubscribe>`,
-            "X-Mailer": "maTickets",
-          },
+          headers: buildMailHeaders(attendee.email),
         };
 
         try {

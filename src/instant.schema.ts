@@ -152,6 +152,13 @@ const _schema = i.schema({
       billingMode: i.string().indexed(),
       updatedAt: i.number().indexed(),
     }),
+    emailSuppressions: i.entity({
+      email: i.string().unique().indexed(),
+      reason: i.string().indexed(),
+      source: i.string(),
+      detail: i.string().optional(),
+      createdAt: i.number().indexed(),
+    }),
   },
   links: {
     concertTicketTypes: {
