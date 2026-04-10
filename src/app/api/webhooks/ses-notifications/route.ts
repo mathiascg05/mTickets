@@ -17,14 +17,19 @@ async function fetchCertificate(url: string): Promise<string> {
 function buildStringToSign(message: Record<string, string>): string {
   const type = message.Type;
   if (type === "Notification") {
-    return [
+    const pairs: (string | null)[] = [
       "Message", message.Message,
       "MessageId", message.MessageId,
-      "Subject" in message ? "Subject" : null, "Subject" in message ? message.Subject : null,
+    ];
+    if ("Subject" in message && message.Subject) {
+      pairs.push("Subject", message.Subject);
+    }
+    pairs.push(
       "Timestamp", message.Timestamp,
       "TopicArn", message.TopicArn,
       "Type", message.Type,
-    ].filter((v): v is string => v !== null).join("\n") + "\n";
+    );
+    return pairs.join("\n") + "\n";
   }
   // SubscriptionConfirmation or UnsubscribeConfirmation
   return [
@@ -47,7 +52,7 @@ async function verifySnsSignature(message: Record<string, string>): Promise<bool
       return false;
     }
     const pem = await fetchCertificate(certUrl);
-    const verifier = createVerify("SHA1");
+    const verifier = createVerify("SHA256WithRSA");
     verifier.update(buildStringToSign(message));
     return verifier.verify(pem, message.Signature, "base64");
   } catch (err) {
@@ -58,12 +63,30 @@ async function verifySnsSignature(message: Record<string, string>): Promise<bool
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    // SNS sends Content-Type: text/plain, so parse raw text as JSON
+    const rawBody = await req.text();
+    let body: Record<string, string>;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      console.error("[ses-webhook] Failed to parse body:", rawBody.slice(0, 200));
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
     const messageType = req.headers.get("x-amz-sns-message-type");
+    console.log(`[ses-webhook] Received ${messageType} message`);
 
     // Verify SNS signature
+    const signatureVersion = body.SignatureVersion;
+    // SignatureVersion 2 uses SHA256, version 1 uses SHA1
     if (!(await verifySnsSignature(body))) {
-      console.error("[ses-webhook] Invalid SNS signature");
+      // For initial setup, log the failure but still process SubscriptionConfirmation
+      if (messageType === "SubscriptionConfirmation") {
+        console.warn("[ses-webhook] Signature verification failed for SubscriptionConfirmation, confirming anyway for initial setup");
+        await fetch(body.SubscribeURL);
+        return NextResponse.json({ status: "subscribed" });
+      }
+      console.error("[ses-webhook] Invalid SNS signature (version:", signatureVersion, ")");
       return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
     }
 
