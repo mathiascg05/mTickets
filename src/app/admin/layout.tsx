@@ -10,19 +10,17 @@ import { useState } from "react";
 
 function LoginForm() {
   const [mode, setMode] = useState<"login" | "register">("login");
+  const [step, setStep] = useState<"email" | "password">("email");
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
-  const [sentTo, setSentTo] = useState("");
-  const [usesPassword, setUsesPassword] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [verifying, setVerifying] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSendCode(e: React.FormEvent) {
+  async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setSending(true);
+    setLoading(true);
     try {
       const res = await fetch("/api/admin-auth", {
         method: "POST",
@@ -31,26 +29,38 @@ function LoginForm() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to send code");
+        setError(data.error || "Something went wrong");
       } else {
-        setSentTo(email.trim());
-        setUsesPassword(!!data.requiresPassword);
+        setStep("password");
       }
     } catch {
-      setError("Failed to send code. Please try again.");
+      setError("Something went wrong. Please try again.");
     } finally {
-      setSending(false);
+      setLoading(false);
     }
   }
 
-  async function handleVerify(e: React.FormEvent) {
+  async function handlePasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setVerifying(true);
+
+    if (mode === "register") {
+      if (password.length < 8) {
+        setError("Password must be at least 8 characters");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Passwords do not match");
+        return;
+      }
+    }
+
+    setLoading(true);
     try {
-      const body = usesPassword
-        ? { email: sentTo, password: password.trim() }
-        : { email: sentTo, code: code.trim() };
+      const body =
+        mode === "register"
+          ? { email: email.trim(), password, confirmPassword, action: "register" }
+          : { email: email.trim(), password };
       const res = await fetch("/api/admin-auth", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -58,45 +68,23 @@ function LoginForm() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Verification failed");
+        setError(data.error || "Authentication failed");
       } else {
         db.auth.signInWithToken(data.token);
       }
     } catch {
-      setError("Verification failed. Please try again.");
+      setError("Authentication failed. Please try again.");
     } finally {
-      setVerifying(false);
-    }
-  }
-
-  async function handleResendCode() {
-    setError(null);
-    setCode("");
-    setSending(true);
-    try {
-      const res = await fetch("/api/admin-auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: sentTo, action: mode }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Failed to resend code");
-      }
-    } catch {
-      setError("Failed to resend code");
-    } finally {
-      setSending(false);
+      setLoading(false);
     }
   }
 
   function switchMode() {
     setMode(mode === "login" ? "register" : "login");
     setError(null);
-    setSentTo("");
-    setCode("");
+    setStep("email");
     setPassword("");
-    setUsesPassword(false);
+    setConfirmPassword("");
   }
 
   return (
@@ -109,8 +97,8 @@ function LoginForm() {
           </p>
         </div>
 
-        {!sentTo ? (
-          <form onSubmit={handleSendCode} className="space-y-4">
+        {step === "email" ? (
+          <form onSubmit={handleEmailSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1.5">
                 Email
@@ -127,14 +115,10 @@ function LoginForm() {
             {error && <p className="text-danger text-sm">{error}</p>}
             <button
               type="submit"
-              disabled={sending}
+              disabled={loading}
               className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
-              {sending
-                ? "Sending..."
-                : mode === "login"
-                  ? "Send Login Code"
-                  : "Send Verification Code"}
+              {loading ? "Loading..." : "Continue"}
             </button>
             <p className="text-center text-sm text-muted">
               {mode === "login" ? (
@@ -155,70 +139,59 @@ function LoginForm() {
             </p>
           </form>
         ) : (
-          <form onSubmit={handleVerify} className="space-y-4">
-            {usesPassword ? (
-              <>
-                <p className="text-sm text-muted">
-                  Enter password for <strong className="text-foreground">{sentTo}</strong>
-                </p>
-                <div>
-                  <label className="block text-sm font-medium mb-1.5">
-                    Password
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
-                    placeholder="Enter password"
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-muted">
-                  Code sent to <strong className="text-foreground">{sentTo}</strong>
-                </p>
-                <div>
-                  <label className="block text-sm font-medium mb-1.5">
-                    Verification Code
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
-                    placeholder="Enter code"
-                  />
-                </div>
-              </>
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <p className="text-sm text-muted">
+              {mode === "login" ? "Enter password for" : "Set a password for"}{" "}
+              <strong className="text-foreground">{email.trim()}</strong>
+            </p>
+            <div>
+              <label className="block text-sm font-medium mb-1.5">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
+                placeholder="Enter password"
+                minLength={8}
+              />
+            </div>
+            {mode === "register" && (
+              <div>
+                <label className="block text-sm font-medium mb-1.5">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
+                  placeholder="Confirm password"
+                  minLength={8}
+                />
+              </div>
             )}
             {error && <p className="text-danger text-sm">{error}</p>}
             <button
               type="submit"
-              disabled={verifying}
+              disabled={loading}
               className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
-              {verifying ? "Verifying..." : usesPassword ? "Log In" : "Verify"}
+              {loading
+                ? "Loading..."
+                : mode === "login"
+                  ? "Log In"
+                  : "Create Account"}
             </button>
-            {!usesPassword && (
-              <button
-                type="button"
-                onClick={handleResendCode}
-                className="w-full py-2 text-sm text-accent-light hover:text-accent transition-colors font-medium"
-              >
-                Resend Code
-              </button>
-            )}
             <button
               type="button"
               onClick={() => {
-                setSentTo("");
-                setCode("");
+                setStep("email");
                 setPassword("");
-                setUsesPassword(false);
+                setConfirmPassword("");
                 setError(null);
               }}
               className="w-full py-2 text-sm text-muted hover:text-foreground transition-colors"

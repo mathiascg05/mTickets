@@ -159,6 +159,10 @@ const _schema = i.schema({
       detail: i.string().optional(),
       createdAt: i.number().indexed(),
     }),
+    credentials: i.entity({
+      passwordHash: i.string(),
+      createdAt: i.number().indexed(),
+    }),
   },
   links: {
     concertTicketTypes: {
@@ -301,6 +305,19 @@ const _schema = i.schema({
         on: "concerts",
         has: "one",
         label: "platformFeeConfig",
+      },
+    },
+    userCredentials: {
+      forward: {
+        on: "credentials",
+        has: "one",
+        label: "user",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "$users",
+        has: "one",
+        label: "credentials",
       },
     },
   },

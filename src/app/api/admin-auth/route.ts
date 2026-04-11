@@ -1,22 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { transporter, generateMessageId, EMAIL_FROM } from "@/lib/mailer";
+import { id } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
+import { hashPassword, verifyPassword, validatePassword } from "@/lib/password";
 
-const CODE_TTL = 5 * 60 * 1000; // 5 minutes
-const SUPER_ADMIN_PASSWORD = "Mathias01";
-
-// In-memory store for pending codes (single-server is fine here)
-const pendingCodes = new Map<
-  string,
-  { code: string; expiresAt: number; action: "login" | "register" }
->();
-
-function generateCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
-/** POST /api/admin-auth — send a login or registration code */
+/** POST /api/admin-auth — check if email exists (login vs register) */
 export async function POST(req: NextRequest) {
   try {
     const { email, action } = await req.json();
@@ -28,16 +16,10 @@ export async function POST(req: NextRequest) {
     const normalizedEmail = email.trim().toLowerCase();
     const mode = action === "register" ? "register" : "login";
 
-    // Check if user already exists
     const { $users } = await adminDb.query({
       $users: { $: { where: { email: normalizedEmail } } },
     });
     const userExists = $users.length > 0;
-
-    // Super admin always uses password — skip account check
-    if (normalizedEmail === SUPER_ADMIN_EMAIL) {
-      return NextResponse.json({ sent: true, requiresPassword: true });
-    }
 
     if (mode === "login" && !userExists) {
       return NextResponse.json(
@@ -53,122 +35,118 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Send code ──
-    const code = generateCode();
-    pendingCodes.set(normalizedEmail, {
-      code,
-      expiresAt: Date.now() + CODE_TTL,
-      action: mode,
-    });
-
-    const subject =
-      mode === "register"
-        ? "Your maTickets registration code"
-        : "Your maTickets login code";
-
-    const heading =
-      mode === "register"
-        ? "maTickets Account Registration"
-        : "maTickets Admin Login";
-
-    await transporter.sendMail({
-      from: `"maTickets" <${EMAIL_FROM}>`,
-      to: normalizedEmail,
-      subject,
-      messageId: generateMessageId(),
-      html: `
-        <div style="font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #1e293b;">${heading}</h2>
-          <p>Your verification code is:</p>
-          <div style="font-size: 32px; font-weight: bold; letter-spacing: 4px; padding: 16px; background: #f1f5f9; border-radius: 8px; text-align: center;">
-            ${code}
-          </div>
-          <p style="color: #64748b; font-size: 14px; margin-top: 16px;">
-            This code expires in 5 minutes.
-          </p>
-        </div>
-      `,
-    });
-
-    return NextResponse.json({ sent: true, requiresPassword: false });
+    return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[admin-auth] Send error:", err);
-    return NextResponse.json(
-      { error: "Failed to send code" },
-      { status: 500 },
-    );
+    console.error("[admin-auth] Check error:", err);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }
 
-/** PUT /api/admin-auth — verify code/password and return InstantDB auth token */
+/** PUT /api/admin-auth — register or login with password */
 export async function PUT(req: NextRequest) {
   try {
-    const { email, code, password } = await req.json();
+    const { email, password, confirmPassword, action } = await req.json();
 
-    if (typeof email !== "string") {
+    if (typeof email !== "string" || !email.includes("@")) {
       return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    }
+    if (typeof password !== "string" || !password) {
+      return NextResponse.json({ error: "Password is required" }, { status: 400 });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    let isRegistration = false;
 
-    // Super admin uses password authentication
-    if (normalizedEmail === SUPER_ADMIN_EMAIL) {
-      if (typeof password !== "string" || password !== SUPER_ADMIN_PASSWORD) {
-        return NextResponse.json(
-          { error: "Incorrect password" },
-          { status: 401 },
-        );
+    // ── Registration ──
+    if (action === "register") {
+      const passwordError = validatePassword(password);
+      if (passwordError) {
+        return NextResponse.json({ error: passwordError }, { status: 400 });
       }
-    } else {
-      // Regular users use code verification
-      if (typeof code !== "string") {
-        return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+      if (password !== confirmPassword) {
+        return NextResponse.json({ error: "Passwords do not match" }, { status: 400 });
       }
 
-      const pending = pendingCodes.get(normalizedEmail);
-
-      if (!pending || pending.code !== code.trim() || pending.expiresAt < Date.now()) {
-        return NextResponse.json(
-          { error: "Code expired or invalid" },
-          { status: 401 },
-        );
-      }
-
-      isRegistration = pending.action === "register";
-
-      // Code is valid — consume it
-      pendingCodes.delete(normalizedEmail);
-    }
-
-    // Create InstantDB auth token
-    const token = await adminDb.auth.createToken({
-      email: normalizedEmail,
-    });
-
-    // Set user role type
-    try {
+      // Check user doesn't already exist
       const { $users } = await adminDb.query({
         $users: { $: { where: { email: normalizedEmail } } },
       });
-      const isSuperAdminEmail = normalizedEmail === SUPER_ADMIN_EMAIL;
-      if ($users.length > 0 && (!$users[0].type || isRegistration || isSuperAdminEmail)) {
-        const userType =
-          normalizedEmail === SUPER_ADMIN_EMAIL ? "superadmin" : "organizer";
-        await adminDb.transact(
-          adminDb.tx.$users[$users[0].id].update({ type: userType }),
+      if ($users.length > 0) {
+        return NextResponse.json(
+          { error: "An account with this email already exists." },
+          { status: 409 },
         );
       }
-    } catch (e) {
-      console.error("[admin-auth] Failed to set user type:", e);
+
+      // Hash password
+      const passwordHash = await hashPassword(password);
+
+      // Create InstantDB auth token (also creates the $users record)
+      const token = await adminDb.auth.createToken({ email: normalizedEmail });
+
+      // Query to get the newly created user ID
+      const { $users: newUsers } = await adminDb.query({
+        $users: { $: { where: { email: normalizedEmail } } },
+      });
+
+      if (newUsers.length > 0) {
+        const userId = newUsers[0].id;
+        const userType = normalizedEmail === SUPER_ADMIN_EMAIL ? "superadmin" : "organizer";
+
+        await adminDb.transact([
+          adminDb.tx.$users[userId].update({ type: userType }),
+          adminDb.tx.credentials[id()]
+            .update({ passwordHash, createdAt: Date.now() })
+            .link({ user: userId }),
+        ]);
+      }
+
+      return NextResponse.json({ token });
+    }
+
+    // ── Login ──
+    const { $users } = await adminDb.query({
+      $users: {
+        $: { where: { email: normalizedEmail } },
+        credentials: {},
+      },
+    });
+
+    if ($users.length === 0) {
+      return NextResponse.json(
+        { error: "No account found. Please create an account first." },
+        { status: 404 },
+      );
+    }
+
+    const user = $users[0];
+    const creds = (user as unknown as { credentials: { passwordHash: string }[] }).credentials;
+    const credential = Array.isArray(creds) ? creds[0] : creds;
+
+    if (!credential?.passwordHash) {
+      return NextResponse.json(
+        { error: "Please register a new account with a password." },
+        { status: 400 },
+      );
+    }
+
+    const isValid = await verifyPassword(password, credential.passwordHash);
+    if (!isValid) {
+      return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
+    }
+
+    const token = await adminDb.auth.createToken({ email: normalizedEmail });
+
+    // Ensure user type is set
+    if (!user.type) {
+      const userType = normalizedEmail === SUPER_ADMIN_EMAIL ? "superadmin" : "organizer";
+      await adminDb.transact(
+        adminDb.tx.$users[user.id].update({ type: userType }),
+      );
     }
 
     return NextResponse.json({ token });
   } catch (err) {
-    console.error("[admin-auth] Verify error:", err);
-    return NextResponse.json(
-      { error: "Verification failed" },
-      { status: 500 },
-    );
+    console.error("[admin-auth] Auth error:", err);
+    return NextResponse.json({ error: "Authentication failed" }, { status: 500 });
   }
 }

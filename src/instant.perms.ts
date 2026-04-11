@@ -202,6 +202,15 @@ const rules = {
       `auth.email == '${SUPER_ADMIN}'`,
     ],
   },
+  credentials: {
+    allow: {
+      view: "false",
+      create: "false",
+      update: "false",
+      delete: "false",
+    },
+    bind: [],
+  },
   emailSuppressions: {
     allow: {
       view: `auth.email == '${SUPER_ADMIN}'`,
