@@ -124,7 +124,7 @@ export async function PUT(req: NextRequest) {
 
     if (!credential?.passwordHash) {
       return NextResponse.json(
-        { error: "Please register a new account with a password." },
+        { error: "No password set. Use 'Forgot password?' to set one." },
         { status: 400 },
       );
     }
