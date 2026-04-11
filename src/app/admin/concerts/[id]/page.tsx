@@ -58,7 +58,7 @@ export default function AdminConcertEditPage() {
 
       <div className="grid lg:grid-cols-2 gap-6 mt-6">
         <div className="space-y-6">
-          <ConcertEditForm concert={concert} />
+          <ConcertEditForm concert={concert} isSuperAdmin={isSuperAdmin} />
           <PaymentMethodsSection
             concertId={concertId}
             paymentMethods={concert.paymentMethods}
@@ -137,7 +137,7 @@ type ConcertData = {
   defaultLanguage?: string;
 };
 
-function ConcertEditForm({ concert }: { concert: ConcertData }) {
+function ConcertEditForm({ concert, isSuperAdmin }: { concert: ConcertData; isSuperAdmin: boolean }) {
   const { t } = useLanguage();
   const [name, setName] = useState(concert.name);
   const [date, setDate] = useState(concert.date);
