@@ -10,7 +10,7 @@ import { useState } from "react";
 
 function LoginForm() {
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [step, setStep] = useState<"email" | "password">("email");
+  const [step, setStep] = useState<"email" | "password" | "forgot" | "resetSent">("email");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -87,6 +87,29 @@ function LoginForm() {
     setConfirmPassword("");
   }
 
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Something went wrong");
+      } else {
+        setStep("resetSent");
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-background">
       <div className="bg-surface border border-border rounded-2xl p-8 w-full max-w-sm shadow-lg">
@@ -97,7 +120,7 @@ function LoginForm() {
           </p>
         </div>
 
-        {step === "email" ? (
+        {step === "email" && (
           <form onSubmit={handleEmailSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1.5">
@@ -138,7 +161,9 @@ function LoginForm() {
               )}
             </p>
           </form>
-        ) : (
+        )}
+
+        {step === "password" && (
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <p className="text-sm text-muted">
               {mode === "login" ? "Enter password for" : "Set a password for"}{" "}
@@ -186,6 +211,15 @@ function LoginForm() {
                   ? "Log In"
                   : "Create Account"}
             </button>
+            {mode === "login" && (
+              <button
+                type="button"
+                onClick={() => { setStep("forgot"); setError(null); }}
+                className="w-full py-2 text-sm text-accent-light hover:text-accent transition-colors font-medium"
+              >
+                Forgot password?
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -199,6 +233,45 @@ function LoginForm() {
               Use different email
             </button>
           </form>
+        )}
+
+        {step === "forgot" && (
+          <form onSubmit={handleForgotPassword} className="space-y-4">
+            <p className="text-sm text-muted">
+              We&apos;ll send a reset link to <strong className="text-foreground">{email.trim()}</strong>
+            </p>
+            {error && <p className="text-danger text-sm">{error}</p>}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
+            >
+              {loading ? "Sending..." : "Send Reset Link"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setStep("password"); setError(null); }}
+              className="w-full py-2 text-sm text-muted hover:text-foreground transition-colors"
+            >
+              Back to login
+            </button>
+          </form>
+        )}
+
+        {step === "resetSent" && (
+          <div className="space-y-4 text-center">
+            <p className="text-sm text-foreground">
+              If an account exists for <strong>{email.trim()}</strong>, we&apos;ve sent a password reset link.
+            </p>
+            <p className="text-sm text-muted">Check your inbox and follow the link to set a new password.</p>
+            <button
+              type="button"
+              onClick={() => { setStep("email"); setError(null); setPassword(""); }}
+              className="w-full py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors"
+            >
+              Back to login
+            </button>
+          </div>
         )}
       </div>
     </div>
