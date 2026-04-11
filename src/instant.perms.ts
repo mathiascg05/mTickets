@@ -8,7 +8,7 @@ const rules = {
       view: "true",
       create: "auth.email != null",
       update: "isOwner || isSuperAdmin",
-      delete: "isOwner || isSuperAdmin",
+      delete: "isSuperAdmin",
     },
     bind: [
       "isOwner",

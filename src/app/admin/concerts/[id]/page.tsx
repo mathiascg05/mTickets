@@ -256,13 +256,15 @@ function ConcertEditForm({ concert }: { concert: ConcertData }) {
           {saved && (
             <span className="text-success text-sm">{"✓"} {t("common.saved")}</span>
           )}
-          <button
-            type="button"
-            onClick={deleteConcert}
-            className="ml-auto px-4 py-2.5 text-danger hover:bg-danger/10 rounded-lg text-sm font-medium transition-colors"
-          >
-            {t("admin.deleteEvent")}
-          </button>
+          {isSuperAdmin && (
+            <button
+              type="button"
+              onClick={deleteConcert}
+              className="ml-auto px-4 py-2.5 text-danger hover:bg-danger/10 rounded-lg text-sm font-medium transition-colors"
+            >
+              {t("admin.deleteEvent")}
+            </button>
+          )}
         </div>
       </form>
     </div>
