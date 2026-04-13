@@ -7,7 +7,7 @@ import { getAvailability, getTodayString } from "@/lib/phases";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
 import { id } from "@instantdb/react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const RESERVATION_DURATION = 15 * 60 * 1000; // 15 minutes
 const STORAGE_KEY_PREFIX = "reservation_";
@@ -349,12 +349,8 @@ export default function BuyPage() {
   const feeAmount = (subtotal * feePercent) / 100 + feeFixed * qty;
   const total = subtotal - discount + feeAmount;
 
-  // Stabilize Bs amount — only recalculate when total or rate actually change
   const rateValue = cachedRate?.rate ?? 0;
-  const totalBs = useMemo(
-    () => Math.round(total * rateValue * 100) / 100,
-    [total, rateValue],
-  );
+  const totalBs = Math.round(total * rateValue * 100) / 100;
 
   function applyCoupon() {
     setCouponError(null);
