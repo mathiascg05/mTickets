@@ -1,34 +1,48 @@
 import nodemailer from "nodemailer";
 import { randomUUID } from "crypto";
 
+const useResend = !!process.env.RESEND_API_KEY;
 const useSes = !!process.env.SES_SMTP_USER;
 
 export const transporter = nodemailer.createTransport(
-  useSes
+  useResend
     ? {
         pool: true,
         maxConnections: 1,
         maxMessages: Infinity,
-        host: `email-smtp.${process.env.SES_REGION || "us-east-1"}.amazonaws.com`,
+        host: "smtp.resend.com",
         port: 465,
         secure: true,
         auth: {
-          user: process.env.SES_SMTP_USER!,
-          pass: process.env.SES_SMTP_PASSWORD!,
+          user: "resend",
+          pass: process.env.RESEND_API_KEY!,
         },
       }
-    : {
-        pool: true,
-        maxConnections: 1,
-        maxMessages: Infinity,
-        host: "smtp.gmail.com",
-        port: 465,
-        secure: true,
-        auth: {
-          user: process.env.GMAIL_USER,
-          pass: process.env.GMAIL_APP_PASSWORD,
+    : useSes
+      ? {
+          pool: true,
+          maxConnections: 1,
+          maxMessages: Infinity,
+          host: `email-smtp.${process.env.SES_REGION || "us-east-1"}.amazonaws.com`,
+          port: 465,
+          secure: true,
+          auth: {
+            user: process.env.SES_SMTP_USER!,
+            pass: process.env.SES_SMTP_PASSWORD!,
+          },
+        }
+      : {
+          pool: true,
+          maxConnections: 1,
+          maxMessages: Infinity,
+          host: "smtp.gmail.com",
+          port: 465,
+          secure: true,
+          auth: {
+            user: process.env.GMAIL_USER,
+            pass: process.env.GMAIL_APP_PASSWORD,
+          },
         },
-      },
 );
 
 export const EMAIL_FROM = process.env.EMAIL_FROM || process.env.GMAIL_USER || "tickets@matickets.net";
