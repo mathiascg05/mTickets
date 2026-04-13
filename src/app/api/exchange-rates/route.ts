@@ -15,15 +15,31 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const res = await fetch(URLS[currency], { next: { revalidate: 3600 } });
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(URLS[currency], {
+      signal: controller.signal,
+      cache: "no-store",
+      headers: { "User-Agent": "matickets/1.0" },
+    });
+    clearTimeout(timeout);
 
-  if (!res.ok) {
+    if (!res.ok) {
+      console.error("[exchange-rates] Upstream error:", res.status, res.statusText);
+      return NextResponse.json(
+        { error: "Failed to fetch exchange rate" },
+        { status: 502 },
+      );
+    }
+
+    const data = await res.json();
+    return NextResponse.json(data);
+  } catch (err) {
+    console.error("[exchange-rates] Fetch error:", err);
     return NextResponse.json(
       { error: "Failed to fetch exchange rate" },
       { status: 502 },
     );
   }
-
-  const data = await res.json();
-  return NextResponse.json(data);
 }
