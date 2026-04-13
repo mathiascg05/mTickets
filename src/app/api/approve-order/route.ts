@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { isAuthorizedForConcert } from "@/lib/authHelpers";
-import { sendTicketEmailForOrder } from "@/lib/ticketEmailSender";
+import { approveOrderInternal } from "@/lib/approveOrder";
 
 type RequestBody = {
   orderId: string;
@@ -39,10 +38,7 @@ export async function POST(req: NextRequest) {
       orders: {
         $: { where: { id: orderId } },
         ticketType: {
-          concert: {
-            platformFeeConfig: {},
-          },
-          phases: {},
+          concert: {},
         },
       },
     });
@@ -76,31 +72,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Navigate relations (admin SDK returns has-one as arrays)
+    // Navigate relations to get concert for auth check
     const rawTicketType = order.ticketType as unknown;
     const ticketType = (
       Array.isArray(rawTicketType) ? rawTicketType[0] : rawTicketType
-    ) as {
-      id: string;
-      price: number;
-      concert: unknown;
-      phases: { id: string; price: number }[];
-    };
-    if (!ticketType) {
-      return NextResponse.json(
-        { error: "Ticket type not found" },
-        { status: 404 },
-      );
-    }
+    ) as { concert: unknown } | undefined;
 
-    const rawConcert = ticketType.concert as unknown;
+    const rawConcert = ticketType?.concert as unknown;
     const concert = (
       Array.isArray(rawConcert) ? rawConcert[0] : rawConcert
-    ) as {
-      id: string;
-      organizerEmail: string;
-      platformFeeConfig: unknown;
-    };
+    ) as { organizerEmail: string } | undefined;
+
     if (!concert) {
       return NextResponse.json(
         { error: "Concert not found" },
@@ -128,161 +110,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // ── Approve flow: calculate and deduct platform fee ──
+    // Approve flow — delegate to shared function
+    const result = await approveOrderInternal(orderId);
 
-    // Get platform fee config for this concert
-    const rawFeeConfig = concert.platformFeeConfig as unknown;
-    const feeConfig = (
-      Array.isArray(rawFeeConfig) ? rawFeeConfig[0] : rawFeeConfig
-    ) as {
-      feePercent: number;
-      feeFixed: number;
-      billingMode: string;
-    } | null;
-
-    const billingMode = feeConfig?.billingMode || "prepaid";
-
-    // Calculate platform fee
-    const effectivePrice = order.phaseId
-      ? (ticketType.phases || []).find(
-          (p: { id: string }) => p.id === order.phaseId,
-        )?.price ?? ticketType.price
-      : ticketType.price;
-
-    let platformFee = 0;
-    if (feeConfig) {
-      const percentFee = effectivePrice * (feeConfig.feePercent / 100);
-      platformFee = percentFee + feeConfig.feeFixed;
-      platformFee = Math.round(platformFee * 100) / 100;
-    }
-
-    if (platformFee > 0) {
-      const { organizerBalances } = await adminDb.query({
-        organizerBalances: {
-          $: { where: { email: concert.organizerEmail.toLowerCase() } },
-        },
-      });
-
-      const balance = organizerBalances[0];
-
-      if (billingMode === "prepaid") {
-        // ── Prepaid: require sufficient balance ──
-        if (!balance) {
-          return NextResponse.json(
-            {
-              error: "NO_BALANCE",
-              message: "No balance found. Please top up your account.",
-              requiredFee: platformFee,
-            },
-            { status: 402 },
-          );
-        }
-
-        if (balance.balance < platformFee) {
-          return NextResponse.json(
-            {
-              error: "INSUFFICIENT_BALANCE",
-              message: "Insufficient balance to approve this order.",
-              currentBalance: balance.balance,
-              requiredFee: platformFee,
-            },
-            { status: 402 },
-          );
-        }
-
-        // Atomically: approve + deduct balance + log transaction
-        const newBalance =
-          Math.round((balance.balance - platformFee) * 100) / 100;
-        const txnId = genId();
-
-        await adminDb.transact([
-          adminDb.tx.orders[orderId].update({ status: "approved" }),
-          adminDb.tx.organizerBalances[balance.id].update({
-            balance: newBalance,
-            updatedAt: Date.now(),
-          }),
-          adminDb.tx.balanceTransactions[txnId]
-            .update({
-              type: "fee",
-              amount: -platformFee,
-              balanceBefore: balance.balance,
-              balanceAfter: newBalance,
-              description: `Platform fee for order ${order.orderNumber || orderId}`,
-              orderId,
-              concertId: concert.id,
-              createdAt: Date.now(),
-            })
-            .link({ organizerBalance: balance.id }),
-        ]);
-      } else {
-        // ── Postpaid: approve freely, log fee as pending debt ──
-        const currentBalance = balance?.balance || 0;
-        const newBalance = Math.round((currentBalance - platformFee) * 100) / 100;
-        const txnId = genId();
-
-        if (balance) {
-          await adminDb.transact([
-            adminDb.tx.orders[orderId].update({ status: "approved" }),
-            adminDb.tx.organizerBalances[balance.id].update({
-              balance: newBalance,
-              updatedAt: Date.now(),
-            }),
-            adminDb.tx.balanceTransactions[txnId]
-              .update({
-                type: "fee",
-                amount: -platformFee,
-                balanceBefore: currentBalance,
-                balanceAfter: newBalance,
-                description: `Platform fee for order ${order.orderNumber || orderId}`,
-                orderId,
-                concertId: concert.id,
-                createdAt: Date.now(),
-              })
-              .link({ organizerBalance: balance.id }),
-          ]);
-        } else {
-          // Create balance record (will go negative)
-          const balanceId = genId();
-          await adminDb.transact([
-            adminDb.tx.orders[orderId].update({ status: "approved" }),
-            adminDb.tx.organizerBalances[balanceId].update({
-              email: concert.organizerEmail.toLowerCase(),
-              balance: -platformFee,
-              currency: "USD",
-              updatedAt: Date.now(),
-            }),
-            adminDb.tx.balanceTransactions[txnId]
-              .update({
-                type: "fee",
-                amount: -platformFee,
-                balanceBefore: 0,
-                balanceAfter: -platformFee,
-                description: `Platform fee for order ${order.orderNumber || orderId}`,
-                orderId,
-                concertId: concert.id,
-                createdAt: Date.now(),
-              })
-              .link({ organizerBalance: balanceId }),
-          ]);
-        }
-      }
-    } else {
-      // No fee configured — just approve
-      await adminDb.transact([
-        adminDb.tx.orders[orderId].update({ status: "approved" }),
-      ]);
-    }
-
-    // Send ticket email
-    try {
-      await sendTicketEmailForOrder(orderId);
-    } catch (err) {
-      console.error("[approve-order] Email failed:", err);
+    if (!result.success) {
+      const statusCode =
+        result.errorCode === "NO_BALANCE" ||
+        result.errorCode === "INSUFFICIENT_BALANCE"
+          ? 402
+          : result.errorCode === "NOT_FOUND"
+            ? 404
+            : 400;
+      return NextResponse.json(
+        { error: result.errorCode, message: result.error },
+        { status: statusCode },
+      );
     }
 
     return NextResponse.json({
       success: true,
-      platformFee,
+      platformFee: result.platformFee,
     });
   } catch (err) {
     console.error("[approve-order] Unexpected error:", err);

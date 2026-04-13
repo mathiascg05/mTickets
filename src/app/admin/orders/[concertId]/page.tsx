@@ -4,10 +4,12 @@ import { db } from "@/lib/db";
 import { id } from "@instantdb/react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import { sendTicketEmail, sendConfirmationEmail } from "@/lib/sendTicketEmail";
 import { useLanguage } from "@/lib/LanguageContext";
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
 
 function StatusBadge({ status }: { status: string }) {
   const { t } = useLanguage();
@@ -166,6 +168,556 @@ function ExportSection({
         </button>
       </div>
     </div>
+  );
+}
+
+type MatchedOrder = {
+  orderId: string;
+  orderNumber: string;
+  firstName: string;
+  lastName: string;
+  orderRef: string;
+  orderAmountBs: number;
+  csvRef: string;
+  csvAmount: number;
+};
+
+type UnmatchedRow = {
+  csvRef: string;
+  csvAmount: number;
+  reason: string;
+};
+
+function ReconciliationSection({
+  concertId,
+  hasPagoMovil,
+  refreshToken,
+}: {
+  concertId: string;
+  hasPagoMovil: boolean;
+  refreshToken: string;
+}) {
+  const { t } = useLanguage();
+  const [showModal, setShowModal] = useState(false);
+  const [step, setStep] = useState<"upload" | "map" | "results" | "done">("upload");
+  const [parsedHeaders, setParsedHeaders] = useState<string[]>([]);
+  const [parsedRows, setParsedRows] = useState<string[][]>([]);
+  const [refColumn, setRefColumn] = useState<string>("");
+  const [amountColumn, setAmountColumn] = useState<string>("");
+  const [matched, setMatched] = useState<MatchedOrder[]>([]);
+  const [unmatched, setUnmatched] = useState<UnmatchedRow[]>([]);
+  const [totalPending, setTotalPending] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [searching, setSearching] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [approveResult, setApproveResult] = useState<{ approved: number; failed: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const STORAGE_KEY = `reconcile-mapping-${concertId}`;
+
+  const resetState = useCallback(() => {
+    setStep("upload");
+    setParsedHeaders([]);
+    setParsedRows([]);
+    setRefColumn("");
+    setAmountColumn("");
+    setMatched([]);
+    setUnmatched([]);
+    setTotalPending(0);
+    setSelectedIds(new Set());
+    setSearching(false);
+    setApproving(false);
+    setApproveResult(null);
+    setError(null);
+  }, []);
+
+  function openModal() {
+    resetState();
+    setShowModal(true);
+  }
+
+  function handleFile(file: File) {
+    setError(null);
+    const ext = file.name.split(".").pop()?.toLowerCase();
+
+    if (ext === "csv" || ext === "txt") {
+      Papa.parse(file, {
+        complete: (result) => {
+          const rows = result.data as string[][];
+          if (rows.length < 2) {
+            setError("El archivo está vacío o solo tiene headers");
+            return;
+          }
+          setParsedHeaders(rows[0]);
+          setParsedRows(rows.slice(1).filter((r) => r.some((c) => c.trim())));
+          loadSavedMapping(rows[0]);
+          setStep("map");
+        },
+        error: () => setError("Error al parsear CSV"),
+      });
+    } else if (ext === "xls" || ext === "xlsx") {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const wb = XLSX.read(e.target?.result, { type: "array" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const data = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 });
+          if (data.length < 2) {
+            setError("El archivo está vacío o solo tiene headers");
+            return;
+          }
+          const headers = data[0].map(String);
+          setParsedHeaders(headers);
+          setParsedRows(
+            data.slice(1)
+              .filter((r) => r.some((c) => c != null && String(c).trim()))
+              .map((r) => r.map((c) => (c != null ? String(c) : ""))),
+          );
+          loadSavedMapping(headers);
+          setStep("map");
+        } catch {
+          setError("Error al parsear archivo Excel");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      setError("Formato no soportado. Usa CSV, XLS o XLSX.");
+    }
+  }
+
+  function loadSavedMapping(headers: string[]) {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const { ref, amount } = JSON.parse(saved);
+        if (headers.includes(ref)) setRefColumn(ref);
+        if (headers.includes(amount)) setAmountColumn(amount);
+      }
+    } catch { /* ignore */ }
+  }
+
+  function saveMapping() {
+    if (refColumn && amountColumn) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ref: refColumn, amount: amountColumn }));
+    }
+  }
+
+  async function searchMatches() {
+    if (!refColumn || !amountColumn) return;
+    setSearching(true);
+    setError(null);
+    saveMapping();
+
+    const refIdx = parsedHeaders.indexOf(refColumn);
+    const amountIdx = parsedHeaders.indexOf(amountColumn);
+
+    const rows = parsedRows
+      .map((row) => ({
+        reference: (row[refIdx] || "").trim(),
+        amount: parseFloat((row[amountIdx] || "0").replace(/[^0-9.,\-]/g, "").replace(",", ".")),
+      }))
+      .filter((r) => r.reference && !isNaN(r.amount) && r.amount > 0);
+
+    try {
+      const res = await fetch("/api/reconcile-csv", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${refreshToken}`,
+        },
+        body: JSON.stringify({ concertId, rows }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Error en la conciliación");
+        setSearching(false);
+        return;
+      }
+      setMatched(data.matched);
+      setUnmatched(data.unmatched);
+      setTotalPending(data.totalPending);
+      setSelectedIds(new Set(data.matched.map((m: MatchedOrder) => m.orderId)));
+      setStep("results");
+    } catch {
+      setError("Error de conexión");
+    }
+    setSearching(false);
+  }
+
+  async function approveSelected() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setApproving(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/reconcile-csv/confirm", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${refreshToken}`,
+        },
+        body: JSON.stringify({ concertId, orderIds: ids }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Error al aprobar");
+        setApproving(false);
+        return;
+      }
+      setApproveResult({ approved: data.approved, failed: data.failed });
+      setStep("done");
+    } catch {
+      setError("Error de conexión");
+    }
+    setApproving(false);
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (selectedIds.size === matched.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(matched.map((m) => m.orderId)));
+    }
+  }
+
+  if (!hasPagoMovil) return null;
+
+  return (
+    <>
+      <div className="bg-surface border border-border rounded-xl p-6 mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">{t("admin.reconcile")}</h2>
+            <p className="text-sm text-muted">
+              {t("admin.reconcileDesc")}
+            </p>
+          </div>
+          <button
+            onClick={openModal}
+            className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
+          >
+            {t("admin.reconcile")}
+          </button>
+        </div>
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h2 className="text-xl font-bold">{t("admin.reconcile")}</h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="p-2 hover:bg-muted/10 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6">
+              {error && (
+                <div className="mb-4 p-3 bg-danger/10 border border-danger/30 rounded-lg text-danger text-sm">
+                  {error}
+                </div>
+              )}
+
+              {/* Step 1: Upload */}
+              {step === "upload" && (
+                <div
+                  className="border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer hover:border-accent/50 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const file = e.dataTransfer.files[0];
+                    if (file) handleFile(file);
+                  }}
+                >
+                  <svg className="w-12 h-12 mx-auto mb-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="text-foreground font-medium mb-1">{t("admin.reconcileDropzone")}</p>
+                  <p className="text-sm text-muted">{t("admin.reconcileFormats")}</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.xls,.xlsx,.txt"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFile(file);
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Step 2: Map columns */}
+              {step === "map" && (
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-sm text-muted mb-1">
+                      {t("admin.rowsLoaded", { count: parsedRows.length })}
+                    </p>
+                  </div>
+
+                  {/* Preview table */}
+                  <div>
+                    <p className="text-sm font-medium mb-2">{t("admin.reconcilePreview")}</p>
+                    <div className="overflow-x-auto border border-border rounded-lg">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-background">
+                            {parsedHeaders.map((h, i) => (
+                              <th key={i} className="px-3 py-2 text-left font-medium text-muted whitespace-nowrap border-b border-border">
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {parsedRows.slice(0, 5).map((row, ri) => (
+                            <tr key={ri} className="border-b border-border/50 last:border-0">
+                              {parsedHeaders.map((_, ci) => (
+                                <td key={ci} className="px-3 py-1.5 whitespace-nowrap text-foreground/80">
+                                  {row[ci] || ""}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Column mapping */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5">
+                        {t("admin.reconcileRefColumn")}
+                      </label>
+                      <select
+                        value={refColumn}
+                        onChange={(e) => setRefColumn(e.target.value)}
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+                      >
+                        <option value="">--</option>
+                        {parsedHeaders.map((h) => (
+                          <option key={h} value={h}>{h}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5">
+                        {t("admin.reconcileAmountColumn")}
+                      </label>
+                      <select
+                        value={amountColumn}
+                        onChange={(e) => setAmountColumn(e.target.value)}
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+                      >
+                        <option value="">--</option>
+                        {parsedHeaders.map((h) => (
+                          <option key={h} value={h}>{h}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <button
+                      onClick={() => { resetState(); }}
+                      className="px-4 py-2 text-sm text-muted border border-border rounded-lg hover:text-foreground transition-colors"
+                    >
+                      {t("common.back")}
+                    </button>
+                    <button
+                      onClick={searchMatches}
+                      disabled={!refColumn || !amountColumn || searching}
+                      className="px-6 py-2 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
+                    >
+                      {searching ? t("admin.reconcileSearching") : t("admin.reconcileSearch")}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Results */}
+              {step === "results" && (
+                <div className="space-y-6">
+                  {/* Stats */}
+                  <div className="flex flex-wrap gap-3">
+                    <span className="px-3 py-1.5 bg-accent/10 text-accent-light border border-accent/30 rounded-lg text-sm font-medium">
+                      {t("admin.reconcilePending", { count: totalPending })}
+                    </span>
+                    {matched.length > 0 && (
+                      <span className="px-3 py-1.5 bg-success/10 text-success border border-success/30 rounded-lg text-sm font-medium">
+                        {t("admin.reconcileMatches", { count: matched.length })}
+                      </span>
+                    )}
+                    {unmatched.length > 0 && (
+                      <span className="px-3 py-1.5 bg-warning/10 text-warning border border-warning/30 rounded-lg text-sm font-medium">
+                        {t("admin.reconcileUnmatched", { count: unmatched.length })}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Matched table */}
+                  {matched.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-3 mb-2">
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.size === matched.length}
+                            onChange={toggleAll}
+                            className="accent-accent-light"
+                          />
+                          {t("admin.reconcileSelectAll")}
+                        </label>
+                      </div>
+                      <div className="overflow-x-auto border border-border rounded-lg">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-background text-left">
+                              <th className="px-3 py-2 w-8"></th>
+                              <th className="px-3 py-2 font-medium text-muted">{t("admin.reconcileOrderNum")}</th>
+                              <th className="px-3 py-2 font-medium text-muted">{t("admin.reconcileName")}</th>
+                              <th className="px-3 py-2 font-medium text-muted">{t("admin.reconcileOrderAmount")}</th>
+                              <th className="px-3 py-2 font-medium text-muted">{t("admin.reconcileOrderRef")}</th>
+                              <th className="px-3 py-2 font-medium text-muted">{t("admin.reconcileCsvAmount")}</th>
+                              <th className="px-3 py-2 font-medium text-muted">{t("admin.reconcileCsvRef")}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {matched.map((m) => (
+                              <tr
+                                key={m.orderId}
+                                className={`border-t border-border/50 transition-colors ${selectedIds.has(m.orderId) ? "bg-success/5" : ""}`}
+                              >
+                                <td className="px-3 py-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIds.has(m.orderId)}
+                                    onChange={() => toggleSelect(m.orderId)}
+                                    className="accent-accent-light"
+                                  />
+                                </td>
+                                <td className="px-3 py-2 font-mono text-xs">{m.orderNumber}</td>
+                                <td className="px-3 py-2">{m.firstName} {m.lastName}</td>
+                                <td className="px-3 py-2 font-medium">
+                                  {m.orderAmountBs.toLocaleString("es-VE", { minimumFractionDigits: 2 })} Bs
+                                </td>
+                                <td className="px-3 py-2 font-mono text-xs">{m.orderRef}</td>
+                                <td className="px-3 py-2 font-medium">
+                                  {m.csvAmount.toLocaleString("es-VE", { minimumFractionDigits: 2 })} Bs
+                                </td>
+                                <td className="px-3 py-2 font-mono text-xs">{m.csvRef}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Unmatched table */}
+                  {unmatched.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-muted mb-2">
+                        {t("admin.reconcileUnmatched", { count: unmatched.length })}
+                      </p>
+                      <div className="overflow-x-auto border border-border rounded-lg">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-background text-left">
+                              <th className="px-3 py-2 font-medium text-muted">{t("admin.reconcileCsvRef")}</th>
+                              <th className="px-3 py-2 font-medium text-muted">{t("admin.reconcileCsvAmount")}</th>
+                              <th className="px-3 py-2 font-medium text-muted">{t("admin.reconcileReason")}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {unmatched.map((u, i) => (
+                              <tr key={i} className="border-t border-border/50">
+                                <td className="px-3 py-2 font-mono text-xs">{u.csvRef}</td>
+                                <td className="px-3 py-2">
+                                  {u.csvAmount.toLocaleString("es-VE", { minimumFractionDigits: 2 })} Bs
+                                </td>
+                                <td className="px-3 py-2 text-muted">{u.reason}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {matched.length === 0 && (
+                    <p className="text-center text-muted py-8">{t("admin.reconcileNoMatches")}</p>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex justify-between items-center pt-2">
+                    <button
+                      onClick={() => setStep("map")}
+                      className="px-4 py-2 text-sm text-muted border border-border rounded-lg hover:text-foreground transition-colors"
+                    >
+                      {t("common.back")}
+                    </button>
+                    {matched.length > 0 && (
+                      <button
+                        onClick={approveSelected}
+                        disabled={selectedIds.size === 0 || approving}
+                        className="px-6 py-2 bg-success hover:bg-success/80 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-success/20"
+                      >
+                        {approving
+                          ? t("admin.reconcileApproving")
+                          : t("admin.reconcileApprove", { count: selectedIds.size })}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 4: Done */}
+              {step === "done" && approveResult && (
+                <div className="text-center py-8 space-y-4">
+                  <svg className="w-16 h-16 mx-auto text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-lg font-semibold">
+                    {t("admin.reconcileResult", {
+                      approved: approveResult.approved,
+                      failed: approveResult.failed,
+                    })}
+                  </p>
+                  <button
+                    onClick={() => setShowModal(false)}
+                    className="px-6 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
+                  >
+                    {t("admin.reconcileClose")}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1918,6 +2470,15 @@ export default function ConcertOrdersPage() {
         allOrders={allOrders}
         pmCurrencyMap={pmCurrencyMap}
         rateMap={rateMap}
+      />
+
+      {/* Reconciliation */}
+      <ReconciliationSection
+        concertId={concertId}
+        hasPagoMovil={(concert.paymentMethods || []).some(
+          (pm: { type: string }) => pm.type === "pago_movil",
+        )}
+        refreshToken={refreshToken}
       />
 
       {/* Order List */}
