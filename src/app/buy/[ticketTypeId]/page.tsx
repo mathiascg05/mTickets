@@ -433,6 +433,10 @@ export default function BuyPage() {
         : t("checkout.enterRef"));
       return;
     }
+    if (needsReference && (selectedPm as { type?: string }).type === "pago_movil" && referenceNumber.trim().length < 4) {
+      setError(t("checkout.enterRef4"));
+      return;
+    }
     if (!acceptedTerms) {
       setError(t("checkout.acceptTerms"));
       return;
