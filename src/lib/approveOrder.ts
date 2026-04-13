@@ -9,8 +9,13 @@ type ApproveResult = {
   errorCode?: string;
 };
 
+type ApproveOptions = {
+  skipEmail?: boolean;
+};
+
 export async function approveOrderInternal(
   orderId: string,
+  options?: ApproveOptions,
 ): Promise<ApproveResult> {
   // Fetch order with its ticket type and concert
   const { orders } = await adminDb.query({
@@ -207,11 +212,13 @@ export async function approveOrderInternal(
     ]);
   }
 
-  // Send ticket email
-  try {
-    await sendTicketEmailForOrder(orderId);
-  } catch (err) {
-    console.error("[approveOrder] Email failed:", err);
+  // Send ticket email (unless caller handles it separately)
+  if (!options?.skipEmail) {
+    try {
+      await sendTicketEmailForOrder(orderId);
+    } catch (err) {
+      console.error("[approveOrder] Email failed:", err);
+    }
   }
 
   return { success: true, platformFee };

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { isAuthorizedForConcert } from "@/lib/authHelpers";
 import { approveOrderInternal } from "@/lib/approveOrder";
+import { sendTicketEmailForOrder } from "@/lib/ticketEmailSender";
 
 export async function POST(req: NextRequest) {
   try {
@@ -56,6 +58,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    // Approve all orders WITHOUT sending emails (fast)
     const results: {
       orderId: string;
       success: boolean;
@@ -65,7 +68,7 @@ export async function POST(req: NextRequest) {
 
     for (const orderId of orderIds) {
       try {
-        const result = await approveOrderInternal(orderId);
+        const result = await approveOrderInternal(orderId, { skipEmail: true });
         results.push({
           orderId,
           success: result.success,
@@ -87,6 +90,21 @@ export async function POST(req: NextRequest) {
 
     const approved = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success).length;
+    const approvedIds = results.filter((r) => r.success).map((r) => r.orderId);
+
+    // Send ticket emails in background (won't block the response)
+    after(async () => {
+      for (const orderId of approvedIds) {
+        try {
+          await sendTicketEmailForOrder(orderId);
+        } catch (err) {
+          console.error(
+            `[reconcile-csv/confirm] Email failed for ${orderId}:`,
+            err,
+          );
+        }
+      }
+    });
 
     return NextResponse.json({
       approved,
