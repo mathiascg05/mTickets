@@ -8,7 +8,7 @@ export const transporter = nodemailer.createTransport(
   useResend
     ? {
         pool: true,
-        maxConnections: 1,
+        maxConnections: 5,
         maxMessages: Infinity,
         host: "smtp.resend.com",
         port: 465,
@@ -21,7 +21,7 @@ export const transporter = nodemailer.createTransport(
     : useSes
       ? {
           pool: true,
-          maxConnections: 1,
+          maxConnections: 5,
           maxMessages: Infinity,
           host: `email-smtp.${process.env.SES_REGION || "us-east-1"}.amazonaws.com`,
           port: 465,
@@ -33,7 +33,7 @@ export const transporter = nodemailer.createTransport(
         }
       : {
           pool: true,
-          maxConnections: 1,
+          maxConnections: 5,
           maxMessages: Infinity,
           host: "smtp.gmail.com",
           port: 465,
