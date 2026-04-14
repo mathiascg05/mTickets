@@ -2049,6 +2049,19 @@ export default function ConcertOrdersPage() {
                 />
               </div>
             </div>
+            {/* Approval rate */}
+            <div>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-muted">{t("admin.approvalRate")}</span>
+                <span className="font-medium text-accent-light">{totalOrders > 0 ? Math.round((approvedCount / totalOrders) * 100) : 0}%</span>
+              </div>
+              <div className="w-full bg-border rounded-full h-2">
+                <div
+                  className="bg-accent-light h-2 rounded-full transition-all"
+                  style={{ width: `${totalOrders > 0 ? Math.min(Math.round((approvedCount / totalOrders) * 100), 100) : 0}%` }}
+                />
+              </div>
+            </div>
             {/* Scanned vs Approved */}
             <div>
               <div className="flex justify-between text-xs mb-1">

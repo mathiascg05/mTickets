@@ -421,6 +421,7 @@ const translations: Translations = {
   "admin.capacity": { es: "Capacidad", en: "Capacity" },
   "admin.soldLabel": { es: "Vendidas", en: "Sold" },
   "admin.approvedVsCapacity": { es: "Aprobadas / Capacidad", en: "Approved / Capacity" },
+  "admin.approvalRate": { es: "Tasa de Aprobación", en: "Approval Rate" },
   "admin.scannedVsApproved": { es: "Escaneadas / Aprobadas", en: "Scanned / Approved" },
   "admin.searchScanned": { es: "Buscar tickets escaneados...", en: "Search scanned tickets..." },
   "admin.noScanned": { es: "No se han escaneado tickets aún.", en: "No tickets have been scanned yet." },
