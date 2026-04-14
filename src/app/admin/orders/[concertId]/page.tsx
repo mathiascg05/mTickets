@@ -411,7 +411,7 @@ function ReconciliationSection({
           <div>
             <h2 className="text-lg font-semibold">{t("admin.reconcile")}</h2>
             <p className="text-sm text-muted">
-              {t(isZelle ? "admin.reconcileDescZelle" : "admin.reconcileDesc")}
+              {t(hasBothTypes ? "admin.reconcileDescBoth" : isZelle ? "admin.reconcileDescZelle" : "admin.reconcileDesc")}
             </p>
           </div>
           <button
