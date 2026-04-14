@@ -1879,6 +1879,9 @@ export default function ConcertOrdersPage() {
   });
 
   const totalTicketsIssued = ticketBreakdown.reduce((s, t) => s + t.approved, 0);
+  const totalCapacity = concert.ticketTypes.reduce((s, tt) => s + tt.quantity, 0);
+  const totalScanned = allOrders.filter((o) => o.visited).length;
+  const scannedPercent = totalTicketsIssued > 0 ? Math.round((totalScanned / totalTicketsIssued) * 100) : 0;
 
   async function updateOrderStatus(orderId: string, action: "approve" | "reject" | "cancel") {
     try {
@@ -2014,6 +2017,31 @@ export default function ConcertOrdersPage() {
             <p className="text-sm text-muted">{t("admin.pendingApproval")}</p>
             <p className="text-3xl font-bold text-warning">{pendingCount}</p>
           </div>
+        </div>
+
+        {/* Capacity / Sold / Scanned row */}
+        <div className="mt-6 p-4 bg-background rounded-lg">
+          <div className="grid grid-cols-3 gap-4 text-center mb-3">
+            <div>
+              <p className="text-[10px] font-medium text-muted uppercase tracking-widest">{t("admin.capacity")}</p>
+              <p className="text-2xl font-bold text-foreground">{totalCapacity}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-medium text-success uppercase tracking-widest">{t("admin.soldLabel")}</p>
+              <p className="text-2xl font-bold text-success">{totalTicketsIssued}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-medium text-muted uppercase tracking-widest">{t("admin.scannedLabel")}</p>
+              <p className="text-2xl font-bold text-foreground">{totalScanned}</p>
+            </div>
+          </div>
+          <div className="w-full bg-border rounded-full h-2.5">
+            <div
+              className="bg-warning h-2.5 rounded-full transition-all"
+              style={{ width: `${Math.min(scannedPercent, 100)}%` }}
+            />
+          </div>
+          <p className="text-right text-xs font-medium text-warning mt-1">{scannedPercent}%</p>
         </div>
       </div>
 
@@ -2463,6 +2491,17 @@ export default function ConcertOrdersPage() {
                 <p className="text-sm text-muted">
                   {t("admin.scannedOf", { scanned: scannedOrders.length, total: allOrders.filter((o) => o.status === "approved").length })}
                 </p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {concert.ticketTypes.map((tt) => {
+                    const ttApproved = tt.orders.filter((o) => o.status === "approved").length;
+                    const ttScanned = allOrders.filter((o) => o.ticketTypeName === tt.name && o.visited).length;
+                    return (
+                      <span key={tt.id} className="px-2 py-0.5 bg-background border border-border rounded text-xs text-muted">
+                        {tt.name} <span className="font-medium text-foreground">{ttScanned}/{ttApproved}</span>
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-3xl font-bold text-success">{scannedOrders.length}</p>
