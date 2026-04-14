@@ -132,6 +132,7 @@ type ConcertData = {
   name: string;
   date: string;
   venue?: string;
+  venueMapUrl?: string;
   description?: string;
   status: string;
   defaultLanguage?: string;
@@ -142,6 +143,7 @@ function ConcertEditForm({ concert, isSuperAdmin }: { concert: ConcertData; isSu
   const [name, setName] = useState(concert.name);
   const [date, setDate] = useState(concert.date);
   const [venue, setVenue] = useState(concert.venue);
+  const [venueMapUrl, setVenueMapUrl] = useState(concert.venueMapUrl || "");
   const [description, setDescription] = useState(concert.description);
   const [saved, setSaved] = useState(false);
 
@@ -152,6 +154,7 @@ function ConcertEditForm({ concert, isSuperAdmin }: { concert: ConcertData; isSu
         name,
         date,
         venue,
+        venueMapUrl: venueMapUrl || undefined,
         description,
       }),
     );
@@ -213,6 +216,15 @@ function ConcertEditForm({ concert, isSuperAdmin }: { concert: ConcertData; isSu
             required
             value={venue}
             onChange={(e) => setVenue(e.target.value)}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">{t("admin.venueMapUrl")}</label>
+          <input
+            value={venueMapUrl}
+            onChange={(e) => setVenueMapUrl(e.target.value)}
+            placeholder={t("admin.venueMapUrlPlaceholder")}
             className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
           />
         </div>
@@ -779,9 +791,18 @@ function TicketTypeItem({
               <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded text-[10px] font-semibold uppercase tracking-wider">{t("admin.forcedSoldOut")}</span>
             )}
           </div>
-          {tt.description && (
-            <p className="text-sm text-muted">{tt.description}</p>
-          )}
+          <input
+            value={tt.description || ""}
+            onChange={(e) =>
+              db.transact(
+                db.tx.ticketTypes[tt.id].update({
+                  description: e.target.value || undefined,
+                }),
+              )
+            }
+            placeholder={t("admin.addDescription")}
+            className="text-sm text-muted bg-transparent border-b border-transparent hover:border-border focus:border-accent-light focus:outline-none w-full transition-colors py-0.5"
+          />
           {hasPhases ? (
             <p className="text-sm text-muted mt-1">
               {activePhase ? (

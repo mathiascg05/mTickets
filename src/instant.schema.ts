@@ -16,6 +16,7 @@ const _schema = i.schema({
       slug: i.string().unique().indexed(),
       date: i.string(),
       venue: i.string().optional(),
+      venueMapUrl: i.string().optional(),
       description: i.string().optional(),
       status: i.string().indexed(),
       scannerPin: i.string().optional(),
