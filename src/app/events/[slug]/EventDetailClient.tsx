@@ -57,6 +57,15 @@ export default function EventDetailClient() {
     );
   }
 
+  // Publish presence so dashboards can see live viewer count
+  const concertId = data.concerts[0]?.id;
+  const eventRoom = db.room("eventPage", concertId || "none");
+  db.rooms.usePresence(eventRoom, {
+    peers: [],
+    user: false,
+    initialPresence: { joinedAt: Date.now() },
+  });
+
   const concert = data.concerts[0];
   if (!concert) {
     return (

@@ -322,7 +322,13 @@ const _schema = i.schema({
       },
     },
   },
-  rooms: {},
+  rooms: {
+    eventPage: {
+      presence: i.entity({
+        joinedAt: i.number(),
+      }),
+    },
+  },
 });
 
 type _AppSchema = typeof _schema;

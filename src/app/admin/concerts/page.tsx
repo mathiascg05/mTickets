@@ -8,6 +8,21 @@ import { id } from "@instantdb/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+function LiveViewerCount({ concertId }: { concertId: string }) {
+  const room = db.room("eventPage", concertId);
+  const { peers } = db.rooms.usePresence(room, {
+    user: false,
+  });
+  const count = Object.keys(peers).length;
+  if (count === 0) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-accent/10 text-accent-light border border-accent/30">
+      <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+      {count}
+    </span>
+  );
+}
+
 export default function AdminConcertsPage() {
   const { email, isSuperAdmin } = useAuthContext();
   const { t } = useLanguage();
@@ -153,6 +168,9 @@ export default function AdminConcertsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-3">
+                {concert.status === "active" && (
+                  <LiveViewerCount concertId={concert.id} />
+                )}
                 <span
                   className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
                     concert.status === "active"
