@@ -2021,7 +2021,7 @@ export default function ConcertOrdersPage() {
 
         {/* Capacity / Sold / Scanned row */}
         <div className="mt-6 p-4 bg-background rounded-lg">
-          <div className="grid grid-cols-3 gap-4 text-center mb-3">
+          <div className="grid grid-cols-3 gap-4 text-center mb-4">
             <div>
               <p className="text-[10px] font-medium text-muted uppercase tracking-widest">{t("admin.capacity")}</p>
               <p className="text-2xl font-bold text-foreground">{totalCapacity}</p>
@@ -2035,13 +2035,34 @@ export default function ConcertOrdersPage() {
               <p className="text-2xl font-bold text-foreground">{totalScanned}</p>
             </div>
           </div>
-          <div className="w-full bg-border rounded-full h-2.5">
-            <div
-              className="bg-warning h-2.5 rounded-full transition-all"
-              style={{ width: `${Math.min(scannedPercent, 100)}%` }}
-            />
+          <div className="space-y-3">
+            {/* Approved vs Capacity */}
+            <div>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-muted">{t("admin.approvedVsCapacity")}</span>
+                <span className="font-medium text-success">{totalCapacity > 0 ? Math.round((totalTicketsIssued / totalCapacity) * 100) : 0}%</span>
+              </div>
+              <div className="w-full bg-border rounded-full h-2">
+                <div
+                  className="bg-success h-2 rounded-full transition-all"
+                  style={{ width: `${totalCapacity > 0 ? Math.min(Math.round((totalTicketsIssued / totalCapacity) * 100), 100) : 0}%` }}
+                />
+              </div>
+            </div>
+            {/* Scanned vs Approved */}
+            <div>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-muted">{t("admin.scannedVsApproved")}</span>
+                <span className="font-medium text-warning">{scannedPercent}%</span>
+              </div>
+              <div className="w-full bg-border rounded-full h-2">
+                <div
+                  className="bg-warning h-2 rounded-full transition-all"
+                  style={{ width: `${Math.min(scannedPercent, 100)}%` }}
+                />
+              </div>
+            </div>
           </div>
-          <p className="text-right text-xs font-medium text-warning mt-1">{scannedPercent}%</p>
         </div>
       </div>
 
