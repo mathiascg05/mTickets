@@ -352,8 +352,8 @@ function PaymentMethodCard({
     if (!existing) return;
     db.transact(
       db.tx.paymentMethods[existing.id].update({
-        instructions: instructions || undefined,
-        convertCurrency: convertCurrency || undefined,
+        instructions: instructions || "",
+        convertCurrency: convertCurrency || "",
         requireScreenshot,
         requireReferenceNumber,
         ...(base.type === "zelle" ? { zelleEmail: zelleEmail || undefined, zelleName: zelleName || undefined } : {}),
@@ -384,7 +384,7 @@ function PaymentMethodCard({
         </div>
         {enabled && (
           <div className="flex items-center gap-2">
-            {existing?.convertCurrency && (
+            {base.type === "pago_movil" && existing?.convertCurrency && (
               <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent/15 text-accent-light">
                 {existing.convertCurrency} &rarr; Bs
               </span>
@@ -475,18 +475,20 @@ function PaymentMethodCard({
               placeholder={t("admin.instructionsOptional")}
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">{t("admin.currencyConversion")}</label>
-            <select
-              value={convertCurrency}
-              onChange={(e) => { setConvertCurrency(e.target.value); setDirty(true); }}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-            >
-              <option value="">{t("common.none")}</option>
-              <option value="USD">USD &rarr; Bs</option>
-              <option value="EUR">EUR &rarr; Bs</option>
-            </select>
-          </div>
+          {base.type === "pago_movil" && (
+            <div>
+              <label className="block text-sm font-medium mb-1">{t("admin.currencyConversion")}</label>
+              <select
+                value={convertCurrency}
+                onChange={(e) => { setConvertCurrency(e.target.value); setDirty(true); }}
+                className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+              >
+                <option value="">{t("common.none")}</option>
+                <option value="USD">USD &rarr; Bs</option>
+                <option value="EUR">EUR &rarr; Bs</option>
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium mb-2">{t("admin.requiredProof")}</label>
             <div className="space-y-2">
