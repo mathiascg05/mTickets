@@ -20,6 +20,16 @@ function formatDate(dateStr: string) {
   });
 }
 
+function EventPresence({ concertId }: { concertId: string }) {
+  const room = db.room("eventPage", concertId);
+  db.rooms.usePresence(room, {
+    peers: [],
+    user: false,
+    initialPresence: { joinedAt: Date.now() },
+  });
+  return null;
+}
+
 export default function EventDetailClient() {
   const params = useParams();
   const slugParam = params.slug as string;
@@ -57,15 +67,6 @@ export default function EventDetailClient() {
     );
   }
 
-  // Publish presence so dashboards can see live viewer count
-  const concertId = data.concerts[0]?.id;
-  const eventRoom = db.room("eventPage", concertId || "none");
-  db.rooms.usePresence(eventRoom, {
-    peers: [],
-    user: false,
-    initialPresence: { joinedAt: Date.now() },
-  });
-
   const concert = data.concerts[0];
   if (!concert) {
     return (
@@ -77,6 +78,7 @@ export default function EventDetailClient() {
 
   return (
     <EventTheme concert={concert}>
+    <EventPresence concertId={concert.id} />
     <div className="min-h-screen">
       <header className="bg-accent/95 backdrop-blur-sm text-white sticky top-0 z-10 border-b border-white/10">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
