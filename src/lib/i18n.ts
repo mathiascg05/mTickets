@@ -553,6 +553,15 @@ const translations: Translations = {
   "admin.reconcileClose": { es: "Cerrar", en: "Close" },
   "admin.reconcileSaveMapping": { es: "Mapeo guardado para futuras conciliaciones", en: "Mapping saved for future reconciliations" },
   "admin.reconcileNoPm": { es: "No hay método Pago Móvil configurado para este evento", en: "No Pago Móvil payment method configured for this event" },
+  "admin.reconcileDescZelle": { es: "Sube el estado de cuenta de tu banco para conciliar pagos de Zelle automáticamente por código memo.", en: "Upload your bank statement to automatically reconcile Zelle payments by memo code." },
+  "admin.reconcileMemoColumn": { es: "Columna de Memo/Descripción", en: "Memo/Description Column" },
+  "admin.reconcileAmountColumnUsd": { es: "Columna de Monto (USD)", en: "Amount Column (USD)" },
+  "admin.reconcilePendingZelle": { es: "{count} órdenes Zelle pendientes", en: "{count} pending Zelle orders" },
+  "admin.filterByPayment": { es: "Método de pago", en: "Payment method" },
+  "admin.filterAll": { es: "Todos", en: "All" },
+  "admin.searchByMemo": { es: "Buscar por memo o referencia...", en: "Search by memo or reference..." },
+  "admin.bulkApprove": { es: "Aprobar {count} seleccionadas", en: "Approve {count} selected" },
+  "admin.bulkApproving": { es: "Aprobando...", en: "Approving..." },
 
   // ── Error pages ──
   "error.title": { es: "Algo salió mal", en: "Something went wrong" },

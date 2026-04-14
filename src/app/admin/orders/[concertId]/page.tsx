@@ -177,7 +177,8 @@ type MatchedOrder = {
   firstName: string;
   lastName: string;
   orderRef: string;
-  orderAmountBs: number;
+  orderAmount: number;
+  currency: "USD" | "BS";
   csvRef: string;
   csvAmount: number;
 };
@@ -191,15 +192,20 @@ type UnmatchedRow = {
 function ReconciliationSection({
   concertId,
   hasPagoMovil,
+  hasZelle,
   refreshToken,
 }: {
   concertId: string;
   hasPagoMovil: boolean;
+  hasZelle: boolean;
   refreshToken: string;
 }) {
   const { t } = useLanguage();
   const [showModal, setShowModal] = useState(false);
   const [step, setStep] = useState<"upload" | "map" | "results" | "done">("upload");
+  const [paymentType, setPaymentType] = useState<"pago_movil" | "zelle">(
+    hasPagoMovil ? "pago_movil" : "zelle",
+  );
   const [parsedHeaders, setParsedHeaders] = useState<string[]>([]);
   const [parsedRows, setParsedRows] = useState<string[][]>([]);
   const [refColumn, setRefColumn] = useState<string>("");
@@ -326,7 +332,7 @@ function ReconciliationSection({
           "Content-Type": "application/json",
           Authorization: `Bearer ${refreshToken}`,
         },
-        body: JSON.stringify({ concertId, rows }),
+        body: JSON.stringify({ concertId, rows, paymentType }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -391,7 +397,12 @@ function ReconciliationSection({
     }
   }
 
-  if (!hasPagoMovil) return null;
+  if (!hasPagoMovil && !hasZelle) return null;
+
+  const hasBothTypes = hasPagoMovil && hasZelle;
+  const isZelle = paymentType === "zelle";
+  const currencyLabel = isZelle ? "USD" : "Bs";
+  const currencyLocale = isZelle ? "en-US" : "es-VE";
 
   return (
     <>
@@ -400,7 +411,7 @@ function ReconciliationSection({
           <div>
             <h2 className="text-lg font-semibold">{t("admin.reconcile")}</h2>
             <p className="text-sm text-muted">
-              {t("admin.reconcileDesc")}
+              {t(isZelle ? "admin.reconcileDescZelle" : "admin.reconcileDesc")}
             </p>
           </div>
           <button
@@ -429,6 +440,32 @@ function ReconciliationSection({
             </div>
 
             <div className="p-6">
+              {/* Payment type selector */}
+              {hasBothTypes && step === "upload" && (
+                <div className="flex gap-2 mb-6">
+                  <button
+                    onClick={() => setPaymentType("pago_movil")}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      paymentType === "pago_movil"
+                        ? "bg-accent text-white shadow-lg shadow-accent/20"
+                        : "bg-background border border-border text-muted hover:text-foreground"
+                    }`}
+                  >
+                    Pago M&oacute;vil
+                  </button>
+                  <button
+                    onClick={() => setPaymentType("zelle")}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      paymentType === "zelle"
+                        ? "bg-accent text-white shadow-lg shadow-accent/20"
+                        : "bg-background border border-border text-muted hover:text-foreground"
+                    }`}
+                  >
+                    Zelle
+                  </button>
+                </div>
+              )}
+
               {error && (
                 <div className="mb-4 p-3 bg-danger/10 border border-danger/30 rounded-lg text-danger text-sm">
                   {error}
@@ -508,7 +545,7 @@ function ReconciliationSection({
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium mb-1.5">
-                        {t("admin.reconcileRefColumn")}
+                        {t(isZelle ? "admin.reconcileMemoColumn" : "admin.reconcileRefColumn")}
                       </label>
                       <select
                         value={refColumn}
@@ -523,7 +560,7 @@ function ReconciliationSection({
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1.5">
-                        {t("admin.reconcileAmountColumn")}
+                        {t(isZelle ? "admin.reconcileAmountColumnUsd" : "admin.reconcileAmountColumn")}
                       </label>
                       <select
                         value={amountColumn}
@@ -562,7 +599,7 @@ function ReconciliationSection({
                   {/* Stats */}
                   <div className="flex flex-wrap gap-3">
                     <span className="px-3 py-1.5 bg-accent/10 text-accent-light border border-accent/30 rounded-lg text-sm font-medium">
-                      {t("admin.reconcilePending", { count: totalPending })}
+                      {t(isZelle ? "admin.reconcilePendingZelle" : "admin.reconcilePending", { count: totalPending })}
                     </span>
                     {matched.length > 0 && (
                       <span className="px-3 py-1.5 bg-success/10 text-success border border-success/30 rounded-lg text-sm font-medium">
@@ -620,11 +657,11 @@ function ReconciliationSection({
                                 <td className="px-3 py-2 font-mono text-xs">{m.orderNumber}</td>
                                 <td className="px-3 py-2">{m.firstName} {m.lastName}</td>
                                 <td className="px-3 py-2 font-medium">
-                                  {m.orderAmountBs.toLocaleString("es-VE", { minimumFractionDigits: 2 })} Bs
+                                  {isZelle && "$"}{m.orderAmount.toLocaleString(currencyLocale, { minimumFractionDigits: 2 })}{!isZelle && " Bs"}
                                 </td>
                                 <td className="px-3 py-2 font-mono text-xs">{m.orderRef}</td>
                                 <td className="px-3 py-2 font-medium">
-                                  {m.csvAmount.toLocaleString("es-VE", { minimumFractionDigits: 2 })} Bs
+                                  {isZelle && "$"}{m.csvAmount.toLocaleString(currencyLocale, { minimumFractionDigits: 2 })}{!isZelle && " Bs"}
                                 </td>
                                 <td className="px-3 py-2 font-mono text-xs">{m.csvRef}</td>
                               </tr>
@@ -655,7 +692,7 @@ function ReconciliationSection({
                               <tr key={i} className="border-t border-border/50">
                                 <td className="px-3 py-2 font-mono text-xs">{u.csvRef}</td>
                                 <td className="px-3 py-2">
-                                  {u.csvAmount.toLocaleString("es-VE", { minimumFractionDigits: 2 })} Bs
+                                  {isZelle && "$"}{u.csvAmount.toLocaleString(currencyLocale, { minimumFractionDigits: 2 })}{!isZelle && " Bs"}
                                 </td>
                                 <td className="px-3 py-2 text-muted">{u.reason}</td>
                               </tr>
@@ -1628,6 +1665,9 @@ export default function ConcertOrdersPage() {
   const refreshToken = user?.refresh_token || "";
   const [filter, setFilter] = useState<FilterStatus>("all");
   const [ticketTypeFilter, setTicketTypeFilter] = useState<string>("all");
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkApproving, setBulkApproving] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -1744,6 +1784,7 @@ export default function ConcertOrdersPage() {
   const filteredOrders = allOrders.filter((o) => {
     if (filter !== "all" && o.status !== filter) return false;
     if (ticketTypeFilter !== "all" && o.ticketTypeName !== ticketTypeFilter) return false;
+    if (paymentMethodFilter !== "all" && o.paymentMethod !== paymentMethodFilter) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       let cfText = "";
@@ -1761,12 +1802,43 @@ export default function ConcertOrdersPage() {
         o.promoter,
         o.couponCode,
         o.orderNumber,
+        o.proofReferenceNumber,
         cfText,
       ];
       if (!fields.some((f) => f && f.toLowerCase().includes(q))) return false;
     }
     return true;
   });
+
+  // Unique payment methods for filter dropdown
+  const uniquePaymentMethods = Array.from(new Set(allOrders.map((o) => o.paymentMethod).filter(Boolean)));
+
+  // Bulk approve function
+  async function bulkApproveSelected() {
+    const ids = Array.from(bulkSelectedIds);
+    if (ids.length === 0) return;
+    setBulkApproving(true);
+    try {
+      const res = await fetch("/api/reconcile-csv/confirm", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${refreshToken}`,
+        },
+        body: JSON.stringify({ concertId, orderIds: ids }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(t("admin.reconcileResult", { approved: data.approved, failed: data.failed }));
+        setBulkSelectedIds(new Set());
+      } else {
+        alert(data.error || "Error");
+      }
+    } catch {
+      alert("Error de conexión");
+    }
+    setBulkApproving(false);
+  }
 
   // --- Analytics ---
   const totalOrders = allOrders.length;
@@ -2478,6 +2550,9 @@ export default function ConcertOrdersPage() {
         hasPagoMovil={(concert.paymentMethods || []).some(
           (pm: { type: string }) => pm.type === "pago_movil",
         )}
+        hasZelle={(concert.paymentMethods || []).some(
+          (pm: { type: string }) => pm.type === "zelle",
+        )}
         refreshToken={refreshToken}
       />
 
@@ -2542,6 +2617,33 @@ export default function ConcertOrdersPage() {
                 ))}
               </div>
             )}
+            {uniquePaymentMethods.length > 1 && (
+              <div className="flex gap-1 border-l border-border pl-2">
+                <button
+                  onClick={() => setPaymentMethodFilter("all")}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    paymentMethodFilter === "all"
+                      ? "bg-accent/20 text-accent-light"
+                      : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  {t("admin.filterAll")}
+                </button>
+                {uniquePaymentMethods.map((pm) => (
+                  <button
+                    key={pm}
+                    onClick={() => setPaymentMethodFilter(pm)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                      paymentMethodFilter === pm
+                        ? "bg-accent/20 text-accent-light"
+                        : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {pm}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -2566,6 +2668,39 @@ export default function ConcertOrdersPage() {
           )}
         </div>
 
+        {/* Bulk selection controls */}
+        {filter === "pending" && filteredOrders.length > 0 && (
+          <div className="flex items-center gap-3 mb-4 p-3 bg-background border border-border rounded-lg">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={bulkSelectedIds.size === filteredOrders.filter((o) => o.status === "pending").length && bulkSelectedIds.size > 0}
+                onChange={() => {
+                  const pendingIds = filteredOrders.filter((o) => o.status === "pending").map((o) => o.id);
+                  if (bulkSelectedIds.size === pendingIds.length) {
+                    setBulkSelectedIds(new Set());
+                  } else {
+                    setBulkSelectedIds(new Set(pendingIds));
+                  }
+                }}
+                className="accent-accent-light"
+              />
+              {t("admin.reconcileSelectAll")}
+            </label>
+            {bulkSelectedIds.size > 0 && (
+              <button
+                onClick={bulkApproveSelected}
+                disabled={bulkApproving}
+                className="px-4 py-1.5 bg-success hover:bg-success/80 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-colors shadow-lg shadow-success/20"
+              >
+                {bulkApproving
+                  ? t("admin.bulkApproving")
+                  : t("admin.bulkApprove", { count: bulkSelectedIds.size })}
+              </button>
+            )}
+          </div>
+        )}
+
         {filteredOrders.length === 0 ? (
           <p className="text-muted text-center py-8">
             {t("admin.noOrders", { filter: filter === "all" ? "" : filter, search: searchQuery ? t("admin.matching", { query: searchQuery }) : "" })}
@@ -2575,10 +2710,27 @@ export default function ConcertOrdersPage() {
             {filteredOrders.map((order) => (
               <div
                 key={order.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border border-border/50 rounded-lg hover:border-border transition-colors"
+                className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border rounded-lg hover:border-border transition-colors ${
+                  bulkSelectedIds.has(order.id) ? "border-success/50 bg-success/5" : "border-border/50"
+                }`}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
+                    {filter === "pending" && order.status === "pending" && (
+                      <input
+                        type="checkbox"
+                        checked={bulkSelectedIds.has(order.id)}
+                        onChange={() => {
+                          setBulkSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(order.id)) next.delete(order.id);
+                            else next.add(order.id);
+                            return next;
+                          });
+                        }}
+                        className="accent-accent-light"
+                      />
+                    )}
                     <span className="text-xs font-mono font-bold text-accent-light">
                       {order.orderNumber || "---"}
                     </span>
