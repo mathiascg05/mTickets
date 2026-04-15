@@ -46,14 +46,25 @@ const MONTH_NAMES_EN = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
-const MONTH_FULL_ES = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
-];
-const MONTH_FULL_EN = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function firstOfMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+function monthsAgo(n: number) {
+  const d = new Date();
+  d.setMonth(d.getMonth() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function firstOfYear() {
+  return `${new Date().getFullYear()}-01-01`;
+}
 
 export default function SuperAdminStats({
   concerts,
@@ -61,62 +72,81 @@ export default function SuperAdminStats({
 }: SuperAdminStatsProps) {
   const { t, lang } = useLanguage();
   const monthNames = lang === "es" ? MONTH_NAMES_ES : MONTH_NAMES_EN;
-  const monthFull = lang === "es" ? MONTH_FULL_ES : MONTH_FULL_EN;
 
-  // Collect all fee transactions once
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [activePreset, setActivePreset] = useState<string>("all");
+
+  function applyPreset(preset: string) {
+    setActivePreset(preset);
+    switch (preset) {
+      case "thisMonth":
+        setDateFrom(firstOfMonth());
+        setDateTo(todayStr());
+        break;
+      case "last3":
+        setDateFrom(monthsAgo(3));
+        setDateTo(todayStr());
+        break;
+      case "thisYear":
+        setDateFrom(firstOfYear());
+        setDateTo(todayStr());
+        break;
+      case "all":
+      default:
+        setDateFrom("");
+        setDateTo("");
+        break;
+    }
+  }
+
+  function inPeriod(timestamp: number): boolean {
+    if (dateFrom) {
+      const from = new Date(dateFrom + "T00:00:00").getTime();
+      if (timestamp < from) return false;
+    }
+    if (dateTo) {
+      const to = new Date(dateTo + "T23:59:59").getTime();
+      if (timestamp > to) return false;
+    }
+    return true;
+  }
+
+  // ── Platform overview (unfiltered) ──
+  const platform = useMemo(() => {
+    const activeConcerts = concerts.filter((c) => c.status === "active");
+    const uniqueOrganizers = new Set(
+      concerts.map((c) => c.organizerEmail.toLowerCase()),
+    );
+    return {
+      totalEvents: concerts.length,
+      activeEvents: activeConcerts.length,
+      organizers: uniqueOrganizers.size,
+    };
+  }, [concerts]);
+
+  // ── All fee transactions (unfiltered, for chart) ──
   const allFeeTransactions = useMemo(() => {
     const txns: Transaction[] = [];
     for (const bal of organizerBalances) {
       for (const txn of bal.transactions || []) {
-        if (txn.type === "fee") {
-          txns.push(txn);
-        }
+        if (txn.type === "fee") txns.push(txn);
       }
     }
     return txns;
   }, [organizerBalances]);
 
-  // Derive available years from fee transactions
-  const availableYears = useMemo(() => {
-    const years = new Set<number>();
-    for (const txn of allFeeTransactions) {
-      years.add(new Date(txn.createdAt).getFullYear());
-    }
-    // Also include years from orders
-    for (const c of concerts) {
-      for (const tt of c.ticketTypes) {
-        for (const o of tt.orders) {
-          if (o.status === "approved" && o.createdAt) {
-            years.add(new Date(o.createdAt).getFullYear());
-          }
-        }
-      }
-    }
-    return [...years].sort((a, b) => b - a);
-  }, [allFeeTransactions, concerts]);
-
-  const [filterYear, setFilterYear] = useState<number | "all">("all");
-  const [filterMonth, setFilterMonth] = useState<number | "all">("all");
-
-  // Filter helper
-  function inPeriod(timestamp: number): boolean {
-    if (filterYear === "all") return true;
-    const d = new Date(timestamp);
-    if (d.getFullYear() !== filterYear) return false;
-    if (filterMonth === "all") return true;
-    return d.getMonth() === filterMonth;
-  }
-
-  const stats = useMemo(() => {
-    // Filtered fee transactions
-    const filteredFees = allFeeTransactions.filter((txn) => inPeriod(txn.createdAt));
+  // ── Period KPIs (filtered) ──
+  const periodStats = useMemo(() => {
+    const filteredFees = allFeeTransactions.filter((txn) =>
+      inPeriod(txn.createdAt),
+    );
 
     const totalRevenue = filteredFees.reduce(
       (sum, txn) => sum + Math.abs(txn.amount),
       0,
     );
 
-    // Fees by event
     const feesByEvent = new Map<string, number>();
     for (const txn of filteredFees) {
       if (txn.concertId) {
@@ -127,7 +157,6 @@ export default function SuperAdminStats({
       }
     }
 
-    // Tickets sold & gross revenue per event (filtered by order date)
     const ticketsByEvent = new Map<string, number>();
     const grossByEvent = new Map<string, number>();
     for (const concert of concerts) {
@@ -148,13 +177,11 @@ export default function SuperAdminStats({
       (a, b) => a + b,
       0,
     );
-    const activeConcerts = concerts.filter((c) => c.status === "active");
-    const uniqueOrganizers = new Set(
-      concerts.map((c) => c.organizerEmail.toLowerCase()),
+    const totalGrossRevenue = [...grossByEvent.values()].reduce(
+      (a, b) => a + b,
+      0,
     );
-    const avgFee = totalTicketsSold > 0 ? totalRevenue / totalTicketsSold : 0;
 
-    // Per-event breakdown sorted by fees desc - include all events
     const eventBreakdown = concerts
       .map((c) => {
         const fc = c.platformFeeConfig as unknown;
@@ -179,29 +206,24 @@ export default function SuperAdminStats({
     return {
       totalRevenue,
       totalTicketsSold,
-      totalEventsCount: concerts.length,
-      activeConcertsCount: activeConcerts.length,
-      avgFee,
-      organizersCount: uniqueOrganizers.size,
+      totalGrossRevenue,
       eventBreakdown,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [concerts, organizerBalances, allFeeTransactions, filterYear, filterMonth]);
+  }, [concerts, organizerBalances, allFeeTransactions, dateFrom, dateTo]);
 
-  // Monthly revenue chart data
+  // ── Monthly revenue chart (always global) ──
   const monthlyChartData = useMemo(() => {
-    // Group all fee transactions by year-month
     const byMonth = new Map<string, number>();
     for (const txn of allFeeTransactions) {
       const d = new Date(txn.createdAt);
       const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, "0")}`;
       byMonth.set(key, (byMonth.get(key) || 0) + Math.abs(txn.amount));
     }
-
     if (byMonth.size === 0) return [];
-
-    // Sort by key chronologically
-    const sorted = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    const sorted = [...byMonth.entries()].sort((a, b) =>
+      a[0].localeCompare(b[0]),
+    );
     return sorted.map(([key, amount]) => {
       const [yearStr, monthStr] = key.split("-");
       const monthIdx = parseInt(monthStr, 10);
@@ -213,104 +235,128 @@ export default function SuperAdminStats({
     });
   }, [allFeeTransactions, monthNames]);
 
-  const maxMonthlyRevenue = Math.max(...monthlyChartData.map((d) => d.amount), 1);
+  const maxMonthlyRevenue = Math.max(
+    ...monthlyChartData.map((d) => d.amount),
+    1,
+  );
 
-  const kpis = [
-    {
-      label: t("admin.totalRevenue"),
-      value: `$${stats.totalRevenue.toFixed(2)}`,
-      color: "text-success",
-    },
-    {
-      label: t("admin.ticketsSold"),
-      value: stats.totalTicketsSold,
-      color: "text-accent-light",
-    },
-    {
-      label: t("admin.activeEvents"),
-      value: stats.activeConcertsCount,
-      color: "text-accent-light",
-    },
-    {
-      label: t("admin.totalEvents"),
-      value: stats.totalEventsCount,
-      color: "text-foreground",
-    },
-    {
-      label: t("admin.avgFee"),
-      value: `$${stats.avgFee.toFixed(2)}`,
-      color: "text-foreground",
-    },
-    {
-      label: t("admin.organizers"),
-      value: stats.organizersCount,
-      color: "text-foreground",
-    },
-  ];
+  const presetBtnClass = (id: string) =>
+    `px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+      activePreset === id
+        ? "bg-accent text-white"
+        : "bg-background border border-border text-muted hover:text-foreground"
+    }`;
 
   return (
-    <div>
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-6">
+    <div className="space-y-8">
+      {/* ── Section 1: Platform Overview ── */}
+      <div className="bg-surface border border-border rounded-xl px-6 py-4">
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">
+            {t("admin.platformOverview")}
+          </h2>
+        </div>
+        <div className="flex flex-wrap gap-8">
+          <div>
+            <p className="text-2xl font-bold">{platform.totalEvents}</p>
+            <p className="text-xs text-muted">{t("admin.totalEvents")}</p>
+          </div>
+          <div className="border-l border-border pl-8">
+            <p className="text-2xl font-bold text-accent-light">
+              {platform.activeEvents}
+            </p>
+            <p className="text-xs text-muted">{t("admin.activeEvents")}</p>
+          </div>
+          <div className="border-l border-border pl-8">
+            <p className="text-2xl font-bold">{platform.organizers}</p>
+            <p className="text-xs text-muted">{t("admin.organizers")}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section 2: Date Range Filter ── */}
+      <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="block text-xs text-muted mb-1">{t("admin.year")}</label>
-          <select
-            value={filterYear === "all" ? "all" : filterYear}
+          <label className="block text-xs text-muted mb-1">
+            {t("admin.dateFrom")}
+          </label>
+          <input
+            type="date"
+            value={dateFrom}
             onChange={(e) => {
-              const v = e.target.value;
-              setFilterYear(v === "all" ? "all" : parseInt(v, 10));
-              setFilterMonth("all");
+              setDateFrom(e.target.value);
+              setActivePreset("");
             }}
             className="px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30"
-          >
-            <option value="all">{t("admin.allTime")}</option>
-            {availableYears.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
+          />
         </div>
-        {filterYear !== "all" && (
-          <div>
-            <label className="block text-xs text-muted mb-1">{t("admin.month")}</label>
-            <select
-              value={filterMonth === "all" ? "all" : filterMonth}
-              onChange={(e) => {
-                const v = e.target.value;
-                setFilterMonth(v === "all" ? "all" : parseInt(v, 10));
-              }}
-              className="px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30"
-            >
-              <option value="all">{t("admin.allMonths")}</option>
-              {monthFull.map((name, i) => (
-                <option key={i} value={i}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-        {kpis.map((kpi) => (
-          <div
-            key={kpi.label}
-            className="bg-surface border border-border rounded-xl p-5"
+        <div>
+          <label className="block text-xs text-muted mb-1">
+            {t("admin.dateTo")}
+          </label>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setActivePreset("");
+            }}
+            className="px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30"
+          />
+        </div>
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => applyPreset("thisMonth")}
+            className={presetBtnClass("thisMonth")}
           >
-            <p className="text-muted text-sm">{kpi.label}</p>
-            <p className={`text-3xl font-bold mt-1 ${kpi.color}`}>
-              {kpi.value}
-            </p>
-          </div>
-        ))}
+            {t("admin.thisMonth")}
+          </button>
+          <button
+            onClick={() => applyPreset("last3")}
+            className={presetBtnClass("last3")}
+          >
+            {t("admin.last3Months")}
+          </button>
+          <button
+            onClick={() => applyPreset("thisYear")}
+            className={presetBtnClass("thisYear")}
+          >
+            {t("admin.thisYear")}
+          </button>
+          <button
+            onClick={() => applyPreset("all")}
+            className={presetBtnClass("all")}
+          >
+            {t("admin.allTime")}
+          </button>
+        </div>
       </div>
 
-      {/* Monthly Revenue Chart */}
+      {/* ── Section 3: Period KPIs ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-surface border border-border rounded-xl p-5">
+          <p className="text-muted text-sm">{t("admin.totalRevenue")}</p>
+          <p className="text-3xl font-bold mt-1 text-success">
+            ${periodStats.totalRevenue.toFixed(2)}
+          </p>
+        </div>
+        <div className="bg-surface border border-border rounded-xl p-5">
+          <p className="text-muted text-sm">{t("admin.ticketsSold")}</p>
+          <p className="text-3xl font-bold mt-1 text-accent-light">
+            {periodStats.totalTicketsSold}
+          </p>
+        </div>
+        <div className="bg-surface border border-border rounded-xl p-5">
+          <p className="text-muted text-sm">{t("admin.grossRevenue")}</p>
+          <p className="text-3xl font-bold mt-1">
+            ${periodStats.totalGrossRevenue.toFixed(2)}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Section 4: Monthly Revenue Chart ── */}
       {monthlyChartData.length > 1 && (
-        <div className="mb-8">
+        <div>
           <h2 className="text-xl font-semibold mb-4">
             {t("admin.monthlyRevenue")}
           </h2>
@@ -326,7 +372,10 @@ export default function SuperAdminStats({
                     <span className="text-xs font-medium text-success">
                       ${d.amount.toFixed(0)}
                     </span>
-                    <div className="w-full flex items-end" style={{ height: "140px" }}>
+                    <div
+                      className="w-full flex items-end"
+                      style={{ height: "140px" }}
+                    >
                       <div
                         className="w-full bg-accent/70 rounded-t-md transition-all hover:bg-accent"
                         style={{ height: `${Math.max(pct, 2)}%` }}
@@ -343,79 +392,85 @@ export default function SuperAdminStats({
         </div>
       )}
 
-      {/* Profitability by Event */}
-      <h2 className="text-xl font-semibold mb-4">
-        {t("admin.profitByEvent")}
-      </h2>
+      {/* ── Section 5: Profitability by Event ── */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">
+          {t("admin.profitByEvent")}
+        </h2>
 
-      {stats.eventBreakdown.length === 0 ? (
-        <p className="text-muted text-center py-10">
-          {t("admin.noStatsData")}
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {stats.eventBreakdown.map((ev) => (
-            <div
-              key={ev.id}
-              className="bg-surface border border-border rounded-xl p-5"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-lg truncate">{ev.name}</p>
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                        ev.status === "active"
-                          ? "bg-success/10 text-success"
-                          : "bg-muted/10 text-muted"
-                      }`}
-                    >
-                      {ev.status}
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted truncate">
-                    {ev.organizer} &middot; {ev.date}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-4 text-sm shrink-0">
-                  <div className="text-center">
-                    <p className="text-muted text-xs">
-                      {t("admin.ticketsSold")}
-                    </p>
-                    <p className="font-bold text-accent-light">
-                      {ev.ticketsSold}
+        {periodStats.eventBreakdown.length === 0 ? (
+          <p className="text-muted text-center py-10">
+            {t("admin.noStatsData")}
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {periodStats.eventBreakdown.map((ev) => (
+              <div
+                key={ev.id}
+                className="bg-surface border border-border rounded-xl p-5"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-lg truncate">
+                        {ev.name}
+                      </p>
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                          ev.status === "active"
+                            ? "bg-success/10 text-success"
+                            : "bg-muted/10 text-muted"
+                        }`}
+                      >
+                        {ev.status}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted truncate">
+                      {ev.organizer} &middot; {ev.date}
                     </p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-muted text-xs">
-                      {t("admin.grossRevenue")}
-                    </p>
-                    <p className="font-bold">${ev.grossRevenue.toFixed(2)}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-muted text-xs">
-                      {t("admin.feesCollected")}
-                    </p>
-                    <p className="font-bold text-success">
-                      ${ev.feesCollected.toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-muted text-xs">
-                      {t("admin.billingMode")}
-                    </p>
-                    <p className="font-medium">
-                      {ev.billingMode === "postpaid"
-                        ? t("admin.postpaid")
-                        : t("admin.prepaid")}
-                    </p>
+                  <div className="flex flex-wrap gap-4 text-sm shrink-0">
+                    <div className="text-center">
+                      <p className="text-muted text-xs">
+                        {t("admin.ticketsSold")}
+                      </p>
+                      <p className="font-bold text-accent-light">
+                        {ev.ticketsSold}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-muted text-xs">
+                        {t("admin.grossRevenue")}
+                      </p>
+                      <p className="font-bold">
+                        ${ev.grossRevenue.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-muted text-xs">
+                        {t("admin.feesCollected")}
+                      </p>
+                      <p className="font-bold text-success">
+                        ${ev.feesCollected.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-muted text-xs">
+                        {t("admin.billingMode")}
+                      </p>
+                      <p className="font-medium">
+                        {ev.billingMode === "postpaid"
+                          ? t("admin.postpaid")
+                          : t("admin.prepaid")}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
