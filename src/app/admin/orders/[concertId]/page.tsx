@@ -1879,7 +1879,10 @@ export default function ConcertOrdersPage() {
   });
 
   const totalTicketsIssued = ticketBreakdown.reduce((s, t) => s + t.approved, 0);
-  const totalCapacity = concert.ticketTypes.reduce((s, tt) => s + tt.quantity, 0);
+  const totalCapacity = concert.ticketTypes.reduce((s, tt) => {
+    const phases = tt.phases || [];
+    return s + (phases.length > 0 ? phases.reduce((ps, p) => ps + p.quantity, 0) : tt.quantity);
+  }, 0);
   const totalScanned = allOrders.filter((o) => o.visited).length;
   const scannedPercent = totalTicketsIssued > 0 ? Math.round((totalScanned / totalTicketsIssued) * 100) : 0;
 
