@@ -26,11 +26,14 @@ const makeUpdateProxy = () =>
     },
   );
 
+const mockVerifyToken = vi.fn();
+
 vi.mock("@/lib/adminDb", () => ({
   adminDb: {
     query: (...args: unknown[]) => mockQuery(...args),
     transact: (...args: unknown[]) => mockTransact(...args),
     tx: makeUpdateProxy(),
+    auth: { verifyToken: (...args: unknown[]) => mockVerifyToken(...args) },
   },
 }));
 
@@ -44,10 +47,10 @@ vi.mock("@/lib/scannerToken", () => ({
 }));
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-function makeRequest(url: string, body: Record<string, unknown>): NextRequest {
+function makeRequest(url: string, body: Record<string, unknown>, extraHeaders?: Record<string, string>): NextRequest {
   return new NextRequest(new URL(url, "http://localhost:3000"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...extraHeaders },
     body: JSON.stringify(body),
   });
 }
@@ -75,6 +78,7 @@ describe("POST /api/mark-visited", () => {
   });
 
   it("marks visited with valid admin email", async () => {
+    mockVerifyToken.mockResolvedValueOnce({ email: "admin@example.com" });
     mockQuery.mockResolvedValueOnce({
       orders: [
         {
@@ -90,7 +94,7 @@ describe("POST /api/mark-visited", () => {
       makeRequest("/api/mark-visited", {
         orderId: VALID_ORDER_ID,
         userEmail: "admin@example.com",
-      }),
+      }, { Authorization: "Bearer test-token" }),
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -169,6 +173,7 @@ describe("POST /api/mark-visited", () => {
   });
 
   it("super admin email bypasses concert scope restriction", async () => {
+    mockVerifyToken.mockResolvedValueOnce({ email: "matickets.ve@gmail.com" });
     mockQuery.mockResolvedValueOnce({
       orders: [
         {
@@ -184,13 +189,14 @@ describe("POST /api/mark-visited", () => {
       makeRequest("/api/mark-visited", {
         orderId: VALID_ORDER_ID,
         userEmail: "matickets.ve@gmail.com",
-      }),
+      }, { Authorization: "Bearer test-token" }),
     );
     expect(res.status).toBe(200);
     expect(mockQuery).toHaveBeenCalledTimes(1);
   });
 
   it("rejects non-organizer email → 401", async () => {
+    mockVerifyToken.mockResolvedValueOnce({ email: "random@example.com" });
     mockQuery.mockResolvedValueOnce({
       orders: [
         {
@@ -206,12 +212,13 @@ describe("POST /api/mark-visited", () => {
       makeRequest("/api/mark-visited", {
         orderId: VALID_ORDER_ID,
         userEmail: "random@example.com",
-      }),
+      }, { Authorization: "Bearer test-token" }),
     );
     expect(res.status).toBe(401);
   });
 
   it("double mark-visited rejects second scan (409)", async () => {
+    mockVerifyToken.mockResolvedValue({ email: "admin@example.com" });
     // First scan: order not yet visited
     mockQuery.mockResolvedValueOnce({
       orders: [
@@ -235,14 +242,15 @@ describe("POST /api/mark-visited", () => {
       ],
     });
 
+    const authHeaders = { Authorization: "Bearer test-token" };
     const req1 = makeRequest("/api/mark-visited", {
       orderId: VALID_ORDER_ID,
       userEmail: "admin@example.com",
-    });
+    }, authHeaders);
     const req2 = makeRequest("/api/mark-visited", {
       orderId: VALID_ORDER_ID,
       userEmail: "admin@example.com",
-    });
+    }, authHeaders);
 
     const res1 = await handler(req1);
     const res2 = await handler(req2);
@@ -265,20 +273,22 @@ describe("POST /api/mark-visited", () => {
   });
 
   it("rejects missing orderId → 400", async () => {
+    mockVerifyToken.mockResolvedValueOnce({ email: "admin@example.com" });
     const res = await handler(
       makeRequest("/api/mark-visited", {
         userEmail: "admin@example.com",
-      }),
+      }, { Authorization: "Bearer test-token" }),
     );
     expect(res.status).toBe(400);
   });
 
   it("rejects non-string orderId → 400", async () => {
+    mockVerifyToken.mockResolvedValueOnce({ email: "admin@example.com" });
     const res = await handler(
       makeRequest("/api/mark-visited", {
         orderId: 12345,
         userEmail: "admin@example.com",
-      }),
+      }, { Authorization: "Bearer test-token" }),
     );
     expect(res.status).toBe(400);
   });

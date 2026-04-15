@@ -1,9 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { assignOrderNumber } from "@/lib/orderNumber";
+import { isAuthorizedForConcert } from "@/lib/authHelpers";
 
 export async function POST(req: NextRequest) {
   try {
+    // Require auth
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    let authenticatedEmail: string;
+    try {
+      const user = await adminDb.auth.verifyToken(authHeader.slice(7));
+      if (!user?.email) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      authenticatedEmail = user.email.toLowerCase();
+    } catch {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+
     const { orderId } = await req.json();
     if (!orderId) {
       return NextResponse.json({ error: "orderId is required" }, { status: 400 });
@@ -31,6 +48,12 @@ export async function POST(req: NextRequest) {
 
     if (!concert) {
       return NextResponse.json({ error: "Concert not found for order" }, { status: 404 });
+    }
+
+    // Verify the caller is authorized for this concert
+    const organizerEmail = (concert as { organizerEmail?: string }).organizerEmail ?? "";
+    if (!isAuthorizedForConcert(authenticatedEmail, organizerEmail)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     const orderNumber = await assignOrderNumber(

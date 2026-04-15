@@ -22,7 +22,21 @@ export async function POST(req: NextRequest) {
       }
       scopedConcertId = result.concertId;
     } else if (userEmail) {
-      authenticatedEmail = userEmail.toLowerCase();
+      // Verify the email belongs to a real authenticated user via Bearer token
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const token = authHeader.slice(7);
+      try {
+        const user = await adminDb.auth.verifyToken(token);
+        if (!user?.email) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+        authenticatedEmail = user.email.toLowerCase();
+      } catch {
+        return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+      }
     } else {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

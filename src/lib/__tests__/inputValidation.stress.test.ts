@@ -34,11 +34,14 @@ const makeUpdateProxy = () =>
     },
   );
 
+const mockVerifyToken = vi.fn();
+
 vi.mock("@/lib/adminDb", () => ({
   adminDb: {
     query: (...args: unknown[]) => mockQuery(...args),
     transact: (...args: unknown[]) => mockTransact(...args),
     tx: makeUpdateProxy(),
+    auth: { verifyToken: (...args: unknown[]) => mockVerifyToken(...args) },
   },
 }));
 
@@ -74,10 +77,10 @@ vi.mock("@/lib/queueAdmission", async (importOriginal) => {
 });
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-function makeRequest(url: string, body: Record<string, unknown>): NextRequest {
+function makeRequest(url: string, body: Record<string, unknown>, extraHeaders?: Record<string, string>): NextRequest {
   return new NextRequest(new URL(url, "http://localhost:3000"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...extraHeaders },
     body: JSON.stringify(body),
   });
 }
@@ -536,6 +539,7 @@ describe("POST /api/assign-order-number — concurrent race", () => {
   });
 
   it("FIXED: concurrent calls retry on transact failure → eventual success", async () => {
+    mockVerifyToken.mockResolvedValue({ email: "admin@example.com" });
     // Both requests will query the same order and concert data
     const orderData = {
       orders: [
@@ -547,6 +551,7 @@ describe("POST /api/assign-order-number — concurrent race", () => {
               id: CONCERT_ID,
               name: "Rock Show",
               lastOrderSeq: 5,
+              organizerEmail: "admin@example.com",
             },
           },
         },
@@ -580,12 +585,13 @@ describe("POST /api/assign-order-number — concurrent race", () => {
       .mockRejectedValueOnce(new Error("Conflict"))
       .mockResolvedValueOnce(undefined);
 
+    const authHeaders = { Authorization: "Bearer test-token" };
     const [res1, res2] = await Promise.all([
       handler(
-        makeRequest("/api/assign-order-number", { orderId: "order-1" }),
+        makeRequest("/api/assign-order-number", { orderId: "order-1" }, authHeaders),
       ),
       handler(
-        makeRequest("/api/assign-order-number", { orderId: "order-1" }),
+        makeRequest("/api/assign-order-number", { orderId: "order-1" }, authHeaders),
       ),
     ]);
 

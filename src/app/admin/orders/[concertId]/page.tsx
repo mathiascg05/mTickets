@@ -967,7 +967,7 @@ function CreateOrderModal({
         orderIds.map((oid) =>
           fetch("/api/assign-order-number", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${refreshToken}` },
             body: JSON.stringify({ orderId: oid }),
           }),
         ),
@@ -1441,7 +1441,7 @@ function ImportCsvModal({
         orderIds.map((oid) =>
           fetch("/api/assign-order-number", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${refreshToken}` },
             body: JSON.stringify({ orderId: oid }),
           }),
         ),

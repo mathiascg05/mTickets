@@ -11,7 +11,7 @@ export async function isEmailSuppressed(email: string): Promise<boolean> {
       $: { where: { email: normalize(email) }, limit: 1 },
     },
   });
-  return emailSuppressions.length > 0;
+  return (emailSuppressions ?? []).length > 0;
 }
 
 export async function suppressEmail(
