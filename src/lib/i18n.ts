@@ -243,8 +243,8 @@ const translations: Translations = {
     en: "Under review",
   },
   "ticket.stepUnderReviewDesc": {
-    es: "El organizador está verificando tu pago. Esto puede tomar algunas horas.",
-    en: "The organizer is verifying your payment. This may take a few hours.",
+    es: "El organizador está verificando tu pago. Esto puede tomar horas o días.",
+    en: "The organizer is verifying your payment. This may take hours or days.",
   },
   "ticket.stepTicketReady": {
     es: "Entrada lista",
