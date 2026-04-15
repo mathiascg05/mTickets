@@ -108,11 +108,6 @@ export async function sendTicketEmailForOrder(orderId: string): Promise<{ succes
         content: qrBuffer,
         cid: "qr-code@matickets",
       },
-      {
-        filename: "ticket-qr.png",
-        content: qrBuffer,
-        contentType: "image/png",
-      },
     ],
   };
 
