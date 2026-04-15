@@ -249,17 +249,8 @@ export default function BuyPage() {
     setRateRefreshing(true);
 
     fetch(`/api/exchange-rates?currency=${selectedPmCurrency}`)
-      .then((res) => res.json())
-      .then((json) => {
-        if (!cancelled && json.promedio) {
-          db.transact(
-            db.tx.exchangeRates[rateId].update({
-              currency: selectedPmCurrency,
-              rate: json.promedio,
-              fetchedAt: Date.now(),
-            }),
-          );
-        }
+      .then(() => {
+        // Rate is cached server-side by the API endpoint
       })
       .catch(() => {})
       .finally(() => {
