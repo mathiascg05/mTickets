@@ -211,6 +211,8 @@ const translations: Translations = {
   "ticket.notFound": { es: "Entrada no encontrada", en: "Ticket not found" },
   "ticket.showQR": { es: "Muestra este código QR en la entrada", en: "Show this QR code at the entrance" },
   "ticket.scanned": { es: "✓ Ya fue escaneado", en: "✓ Already scanned" },
+  "ticket.saveImage": { es: "Guardar entrada como imagen", en: "Save ticket as image" },
+  "ticket.savingImage": { es: "Generando imagen...", en: "Generating image..." },
   "ticket.awaitingApproval": { es: "Esperando Aprobación", en: "Awaiting Approval" },
   "ticket.awaitingDesc": {
     es: "Tu pago está siendo revisado. Recibirás tu código QR por correo una vez aprobado.",

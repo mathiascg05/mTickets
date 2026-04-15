@@ -2,9 +2,9 @@
 
 import { db } from "@/lib/db";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
 import { useLanguage } from "@/lib/LanguageContext";
@@ -120,6 +120,60 @@ function EmailGate({
         </div>
       </main>
     </div>
+  );
+}
+
+function DownloadImageButton({ orderId, email }: { orderId: string; email: string }) {
+  const { t } = useLanguage();
+  const searchParams = useSearchParams();
+  const [downloading, setDownloading] = useState(false);
+
+  // Check if a download token was passed via email link
+  const dlToken = searchParams.get("dl");
+
+  const handleDownload = useCallback(async () => {
+    setDownloading(true);
+    try {
+      let token = dlToken;
+      if (!token) {
+        // Request a token from the API
+        const res = await fetch(`/api/download-token/${orderId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        if (!res.ok) throw new Error("Failed to get token");
+        const data = await res.json();
+        token = data.token;
+      }
+
+      // Trigger download
+      const link = document.createElement("a");
+      link.href = `/api/ticket-image/${orderId}?token=${token}`;
+      link.download = `entrada-${orderId}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch {
+      // Silently fail — user can retry
+    } finally {
+      setDownloading(false);
+    }
+  }, [orderId, email, dlToken]);
+
+  return (
+    <button
+      onClick={handleDownload}
+      disabled={downloading}
+      className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-xl font-medium transition-colors disabled:opacity-50 text-sm"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
+      </svg>
+      {downloading ? t("ticket.savingImage") : t("ticket.saveImage")}
+    </button>
   );
 }
 
@@ -261,6 +315,7 @@ export default function TicketPage() {
                 <p className="text-sm text-muted">
                   {t("ticket.showQR")}
                 </p>
+                <DownloadImageButton orderId={orderId} email={order.email} />
                 {order.visited && (
                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-success/10 text-success border border-success/30 rounded-full">
                     {t("ticket.scanned")}
