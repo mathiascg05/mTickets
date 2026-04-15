@@ -3,8 +3,8 @@ import crypto from "crypto";
 const TOKEN_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 function getSecret(): Buffer {
-  const secret = process.env.INSTANT_APP_ADMIN_TOKEN;
-  if (!secret) throw new Error("INSTANT_APP_ADMIN_TOKEN is not set");
+  const secret = process.env.SCANNER_TOKEN_SECRET;
+  if (!secret) throw new Error("SCANNER_TOKEN_SECRET is not set");
   return Buffer.from(secret, "utf-8");
 }
 

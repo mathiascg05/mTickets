@@ -3,7 +3,9 @@ import { createHmac, timingSafeEqual } from "crypto";
 const RESET_TTL = 30 * 60 * 1000; // 30 minutes
 
 function getSecret(): string {
-  return process.env.UNSUBSCRIBE_SECRET || process.env.INSTANT_APP_ADMIN_TOKEN || "fallback-secret";
+  const secret = process.env.RESET_TOKEN_SECRET;
+  if (!secret) throw new Error("RESET_TOKEN_SECRET is not set");
+  return secret;
 }
 
 /** Generate a password reset token that expires in 30 minutes */

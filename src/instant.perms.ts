@@ -224,7 +224,7 @@ const rules = {
     allow: {
       view: `data.path.startsWith('event-assets/') || auth.email == '${SUPER_ADMIN}'`,
       create:
-        "data.path.startsWith('payment-proofs/') || data.path.startsWith('event-assets/')",
+        "data.path.startsWith('payment-proofs/') || (auth.email != null && data.path.startsWith('event-assets/'))",
     },
   },
 } satisfies InstantRules;
