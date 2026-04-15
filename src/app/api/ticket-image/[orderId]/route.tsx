@@ -3,6 +3,7 @@ import { ImageResponse } from "next/og";
 import QRCode from "qrcode";
 import { adminDb } from "@/lib/adminDb";
 import { verifyDownloadToken } from "@/lib/downloadToken";
+import sharp from "sharp";
 import fs from "fs";
 import path from "path";
 
@@ -103,16 +104,20 @@ export async function GET(
     color: { dark: "#1a2b4a", light: "#ffffff" },
   });
 
-  // Try to get flyer as data URI for background
+  // Try to get flyer, blur it with sharp, and convert to data URI
   const flyerUrl = c.flyerUrl as string | undefined;
   let flyerDataUri: string | null = null;
   if (flyerUrl) {
     try {
       const res = await fetch(flyerUrl);
       if (res.ok) {
-        const buf = await res.arrayBuffer();
-        const contentType = res.headers.get("content-type") || "image/jpeg";
-        flyerDataUri = `data:${contentType};base64,${Buffer.from(buf).toString("base64")}`;
+        const rawBuf = Buffer.from(await res.arrayBuffer());
+        const blurred = await sharp(rawBuf)
+          .resize(630, 1120, { fit: "cover", position: "centre" })
+          .blur(30)
+          .png()
+          .toBuffer();
+        flyerDataUri = `data:image/png;base64,${blurred.toString("base64")}`;
       }
     } catch {
       // Fall through — use gradient
@@ -136,18 +141,16 @@ export async function GET(
           background: `linear-gradient(180deg, ${primaryColor} 0%, ${darkColor} 100%)`,
         }}
       >
-        {/* Background flyer image if available */}
+        {/* Background: pre-blurred flyer */}
         {flyerDataUri && (
           <img
             src={flyerDataUri}
             style={{
               position: "absolute",
-              top: "-30px",
-              left: "-30px",
-              width: "690px",
-              height: "1290px",
-              objectFit: "cover",
-              opacity: 0.25,
+              top: 0,
+              left: 0,
+              width: "630px",
+              height: "1120px",
             }}
           />
         )}
@@ -160,7 +163,7 @@ export async function GET(
             width: "100%",
             height: "100%",
             background: flyerDataUri
-              ? `linear-gradient(180deg, ${primaryColor}cc 0%, ${primaryColor}99 100%)`
+              ? `linear-gradient(180deg, ${primaryColor}bb 0%, ${primaryColor}88 100%)`
               : "transparent",
           }}
         />
