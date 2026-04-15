@@ -87,7 +87,7 @@ export async function GET(
     const logoUrl = c.logoUrl as string | undefined;
     if (logoUrl) {
       try {
-        const res = await fetch(logoUrl, { next: { revalidate: 3600 } });
+        const res = await fetch(logoUrl, { cache: "no-store" });
         if (res.ok) {
           const buf = await res.arrayBuffer();
           const ct = res.headers.get("content-type") || "image/png";
@@ -106,7 +106,7 @@ export async function GET(
       const file = $files[0];
       const url = file?.url as string | undefined;
       if (url) {
-        const res = await fetch(url, { next: { revalidate: 3600 } });
+        const res = await fetch(url, { cache: "no-store" });
         if (res.ok) {
           const buf = await res.arrayBuffer();
           const ct = res.headers.get("content-type") || "image/png";
@@ -138,7 +138,7 @@ export async function GET(
     const flyerUrl = c.flyerUrl as string | undefined;
     if (flyerUrl) {
       try {
-        const res = await fetch(flyerUrl, { next: { revalidate: 3600 } });
+        const res = await fetch(flyerUrl, { cache: "no-store" });
         if (res.ok) return Buffer.from(await res.arrayBuffer());
       } catch {
         // Fall through
@@ -154,7 +154,7 @@ export async function GET(
       });
       const file = $files[0];
       if (file?.url) {
-        const res = await fetch(file.url as string, { next: { revalidate: 3600 } });
+        const res = await fetch(file.url as string, { cache: "no-store" });
         if (res.ok) return Buffer.from(await res.arrayBuffer());
       }
     } catch {
@@ -413,7 +413,7 @@ export async function GET(
     headers: {
       "Content-Type": "image/png",
       "Content-Disposition": `attachment; filename="entrada-${orderNumber || orderId}.png"`,
-      "Cache-Control": "private, max-age=3600",
+      "Cache-Control": "no-cache",
     },
   });
 }
