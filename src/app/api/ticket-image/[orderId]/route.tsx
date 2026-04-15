@@ -113,7 +113,7 @@ export async function GET(
       if (res.ok) {
         const rawBuf = Buffer.from(await res.arrayBuffer());
         const blurred = await sharp(rawBuf)
-          .resize(630, 1120, { fit: "cover", position: "centre" })
+          .resize(1260, 2240, { fit: "cover", position: "centre" })
           .blur(30)
           .png()
           .toBuffer();
@@ -149,8 +149,8 @@ export async function GET(
               position: "absolute",
               top: 0,
               left: 0,
-              width: "630px",
-              height: "1120px",
+              width: "1260px",
+              height: "2240px",
             }}
           />
         )}
@@ -187,7 +187,7 @@ export async function GET(
             flexDirection: "column",
             width: "100%",
             height: "100%",
-            padding: "52px 44px",
+            padding: "104px 88px",
             position: "relative",
             justifyContent: "space-between",
             alignItems: "center",
@@ -206,23 +206,23 @@ export async function GET(
               <img
                 src={logoDataUri}
                 style={{
-                  width: "80px",
-                  height: "80px",
-                  borderRadius: "16px",
+                  width: "160px",
+                  height: "160px",
+                  borderRadius: "32px",
                   objectFit: "contain",
-                  marginBottom: "16px",
-                  boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+                  marginBottom: "32px",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
                 }}
               />
             )}
             <div
               style={{
-                fontSize: "38px",
+                fontSize: "76px",
                 fontWeight: 700,
                 lineHeight: 1.15,
-                textShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                textShadow: "0 4px 16px rgba(0,0,0,0.3)",
                 textAlign: "center",
-                maxWidth: "560px",
+                maxWidth: "1120px",
               }}
             >
               {eventName.length > 40 ? eventName.slice(0, 39) + "\u2026" : eventName}
@@ -232,16 +232,16 @@ export async function GET(
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                marginTop: "14px",
-                gap: "2px",
+                marginTop: "28px",
+                gap: "4px",
               }}
             >
               {eventDate && (
                 <div
                   style={{
-                    fontSize: "18px",
+                    fontSize: "36px",
                     opacity: 0.9,
-                    textShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                    textShadow: "0 2px 8px rgba(0,0,0,0.3)",
                   }}
                 >
                   {eventDate}
@@ -250,9 +250,9 @@ export async function GET(
               {venue && (
                 <div
                   style={{
-                    fontSize: "18px",
+                    fontSize: "36px",
                     opacity: 0.9,
-                    textShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                    textShadow: "0 2px 8px rgba(0,0,0,0.3)",
                   }}
                 >
                   {venue}
@@ -260,13 +260,13 @@ export async function GET(
               )}
             </div>
             {/* Ticket type pill */}
-            <div style={{ display: "flex", marginTop: "18px" }}>
+            <div style={{ display: "flex", marginTop: "36px" }}>
               <div
                 style={{
                   background: "rgba(255,255,255,0.2)",
-                  borderRadius: "20px",
-                  padding: "6px 22px",
-                  fontSize: "15px",
+                  borderRadius: "40px",
+                  padding: "12px 44px",
+                  fontSize: "30px",
                   fontWeight: 600,
                 }}
               >
@@ -286,14 +286,14 @@ export async function GET(
             <div
               style={{
                 background: "#ffffff",
-                borderRadius: "24px",
-                padding: "24px",
-                boxShadow: "0 8px 40px rgba(0,0,0,0.3)",
+                borderRadius: "48px",
+                padding: "48px",
+                boxShadow: "0 16px 80px rgba(0,0,0,0.3)",
                 display: "flex",
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qrDataUrl} width={240} height={240} />
+              <img src={qrDataUrl} width={480} height={480} />
             </div>
           </div>
 
@@ -308,9 +308,9 @@ export async function GET(
           >
             <div
               style={{
-                fontSize: "22px",
+                fontSize: "44px",
                 fontWeight: 600,
-                textShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                textShadow: "0 2px 8px rgba(0,0,0,0.3)",
                 textAlign: "center",
               }}
             >
@@ -321,10 +321,10 @@ export async function GET(
             {orderNumber && (
               <div
                 style={{
-                  fontSize: "15px",
+                  fontSize: "30px",
                   opacity: 0.7,
-                  marginTop: "4px",
-                  textShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                  marginTop: "8px",
+                  textShadow: "0 2px 8px rgba(0,0,0,0.3)",
                 }}
               >
                 {orderNumber}
@@ -332,10 +332,10 @@ export async function GET(
             )}
             <div
               style={{
-                fontSize: "13px",
+                fontSize: "26px",
                 opacity: 0.35,
                 fontWeight: 600,
-                marginTop: "20px",
+                marginTop: "40px",
               }}
             >
               maTickets
@@ -345,8 +345,8 @@ export async function GET(
       </div>
     ),
     {
-      width: 630,
-      height: 1120,
+      width: 1260,
+      height: 2240,
       fonts: [
         { name: "Inter", data: interRegular!, weight: 400, style: "normal" as const },
         { name: "Inter", data: interBold!, weight: 700, style: "normal" as const },
