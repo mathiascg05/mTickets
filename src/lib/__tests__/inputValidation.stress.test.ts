@@ -49,6 +49,7 @@ vi.mock("@instantdb/admin", () => ({
 vi.mock("@/lib/mailer", () => ({
   transporter: { sendMail: vi.fn().mockResolvedValue(undefined) },
   generateMessageId: () => "mock-msg-id@matickets.com",
+  EMAIL_FROM: "test@matickets.net",
 }));
 
 vi.mock("@/lib/emailTemplate", () => ({
@@ -124,7 +125,7 @@ beforeEach(() => {
   mockTransact.mockReset();
   mockTransact.mockResolvedValue(undefined);
   // Default catch-all: post-write validation queries get empty results → validation skipped
-  mockQuery.mockResolvedValue({ ticketTypes: [], concerts: [], orders: [] });
+  mockQuery.mockResolvedValue({ ticketTypes: [], concerts: [], orders: [], emailSuppressions: [] });
   process.env.GMAIL_USER = "test@gmail.com";
 });
 
@@ -420,9 +421,9 @@ describe("POST /api/create-order — input validation", () => {
     });
 
     it("valid maximum payload succeeds", async () => {
-      mockQuery.mockResolvedValueOnce({
-        ticketTypes: [baseTicketType()],
-      });
+      mockQuery
+        .mockResolvedValueOnce({ orders: [] }) // reference number duplicate check
+        .mockResolvedValueOnce({ ticketTypes: [baseTicketType()] });
 
       const reservationId = "b0000000-0000-4000-8000-000000000001";
       const purchaseGroupId = "b0000000-0000-4000-8000-000000000002";

@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const TEST_ADMIN_TOKEN = "test-admin-token-for-hmac";
+const TEST_SCANNER_SECRET = "test-scanner-secret-for-hmac";
 
 beforeEach(() => {
-  process.env.INSTANT_APP_ADMIN_TOKEN = TEST_ADMIN_TOKEN;
+  process.env.SCANNER_TOKEN_SECRET = TEST_SCANNER_SECRET;
 });
 
 afterEach(() => {
-  delete process.env.INSTANT_APP_ADMIN_TOKEN;
+  delete process.env.SCANNER_TOKEN_SECRET;
 });
 
 describe("scannerToken", () => {
@@ -33,7 +33,7 @@ describe("scannerToken", () => {
       "base64url",
     );
     const sig = crypto
-      .createHmac("sha256", Buffer.from(TEST_ADMIN_TOKEN, "utf-8"))
+      .createHmac("sha256", Buffer.from(TEST_SCANNER_SECRET, "utf-8"))
       .update(payloadB64)
       .digest("base64url");
     const expiredToken = `${payloadB64}.${sig}`;

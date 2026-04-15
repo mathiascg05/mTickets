@@ -49,6 +49,7 @@ vi.mock("@instantdb/admin", () => ({
 vi.mock("@/lib/mailer", () => ({
   transporter: { sendMail: vi.fn().mockResolvedValue(undefined) },
   generateMessageId: () => "mock-msg-id@matickets.com",
+  EMAIL_FROM: "test@matickets.net",
 }));
 
 vi.mock("@/lib/emailTemplate", () => ({
@@ -129,7 +130,7 @@ beforeEach(() => {
   mockTransact.mockReset();
   mockTransact.mockResolvedValue(undefined);
   // Default catch-all: post-write validation queries get empty results → validation skipped
-  mockQuery.mockResolvedValue({ ticketTypes: [], concerts: [] });
+  mockQuery.mockResolvedValue({ ticketTypes: [], concerts: [], orders: [], emailSuppressions: [] });
   process.env.GMAIL_USER = "test@gmail.com";
 });
 
