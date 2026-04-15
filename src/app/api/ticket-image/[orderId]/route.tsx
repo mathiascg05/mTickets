@@ -78,21 +78,43 @@ export async function GET(
   const orderNumber = (order.orderNumber as string) || "";
   const attendeeName = `${order.firstName} ${order.lastName}`;
 
-  // Try to get logo as data URI
-  const logoUrl = c.logoUrl as string | undefined;
+  // Try to get logo as data URI (admin SDK first, then direct URL)
   let logoDataUri: string | null = null;
-  if (logoUrl) {
+  async function fetchLogoDataUri(): Promise<string | null> {
+    // 1. Try admin SDK
     try {
-      const res = await fetch(logoUrl);
-      if (res.ok) {
-        const buf = await res.arrayBuffer();
-        const contentType = res.headers.get("content-type") || "image/png";
-        logoDataUri = `data:${contentType};base64,${Buffer.from(buf).toString("base64")}`;
+      const { $files } = await adminDb.query({
+        $files: {
+          $: { where: { path: { $like: `event-assets/${concertId}/logo%` } } },
+        },
+      });
+      const file = $files[0];
+      const url = file?.url as string | undefined;
+      if (url) {
+        const res = await fetch(url);
+        if (res.ok) {
+          const buf = await res.arrayBuffer();
+          const ct = res.headers.get("content-type") || "image/png";
+          return `data:${ct};base64,${Buffer.from(buf).toString("base64")}`;
+        }
       }
-    } catch {
-      // No logo — skip
+    } catch { /* fall through */ }
+
+    // 2. Try stored URL
+    const logoUrl = c.logoUrl as string | undefined;
+    if (logoUrl) {
+      try {
+        const res = await fetch(logoUrl);
+        if (res.ok) {
+          const buf = await res.arrayBuffer();
+          const ct = res.headers.get("content-type") || "image/png";
+          return `data:${ct};base64,${Buffer.from(buf).toString("base64")}`;
+        }
+      } catch { /* fall through */ }
     }
+    return null;
   }
+  logoDataUri = await fetchLogoDataUri();
 
   // Generate QR code as data URI
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -105,22 +127,52 @@ export async function GET(
   });
 
   // Try to get flyer, blur it with sharp, and convert to data URI
-  const flyerUrl = c.flyerUrl as string | undefined;
   let flyerDataUri: string | null = null;
-  if (flyerUrl) {
+  const concertId = c.id as string;
+
+  // Try multiple approaches to get the flyer image
+  async function fetchFlyerBuffer(): Promise<Buffer | null> {
+    // 1. Try admin SDK storage download (bypasses permissions)
     try {
-      const res = await fetch(flyerUrl);
-      if (res.ok) {
-        const rawBuf = Buffer.from(await res.arrayBuffer());
-        const blurred = await sharp(rawBuf)
-          .resize(1260, 2240, { fit: "cover", position: "centre" })
-          .blur(30)
-          .png()
-          .toBuffer();
-        flyerDataUri = `data:image/png;base64,${blurred.toString("base64")}`;
+      const { $files } = await adminDb.query({
+        $files: {
+          $: { where: { path: { $like: `event-assets/${concertId}/flyer%` } } },
+        },
+      });
+      const file = $files[0];
+      if (file?.url) {
+        const res = await fetch(file.url as string);
+        if (res.ok) return Buffer.from(await res.arrayBuffer());
       }
     } catch {
-      // Fall through — use gradient
+      // Fall through
+    }
+
+    // 2. Try the stored flyerUrl directly
+    const flyerUrl = c.flyerUrl as string | undefined;
+    if (flyerUrl) {
+      try {
+        const res = await fetch(flyerUrl);
+        if (res.ok) return Buffer.from(await res.arrayBuffer());
+      } catch {
+        // Fall through
+      }
+    }
+
+    return null;
+  }
+
+  const flyerRaw = await fetchFlyerBuffer();
+  if (flyerRaw) {
+    try {
+      const blurred = await sharp(flyerRaw)
+        .resize(1260, 2240, { fit: "cover", position: "centre" })
+        .blur(30)
+        .png()
+        .toBuffer();
+      flyerDataUri = `data:image/png;base64,${blurred.toString("base64")}`;
+    } catch {
+      // Sharp processing failed — use gradient
     }
   }
 
