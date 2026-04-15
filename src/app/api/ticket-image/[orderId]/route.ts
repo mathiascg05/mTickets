@@ -56,15 +56,18 @@ export async function GET(
   const flyerUrl = c.flyerUrl as string | undefined;
   const primaryColor = (c.primaryColor as string) || "#1a2b4a";
 
-  let flyerBuffer: Buffer;
+  let flyerBuffer: Buffer | null = null;
   if (flyerUrl) {
-    const flyerRes = await fetch(flyerUrl);
-    if (!flyerRes.ok) {
-      return NextResponse.json({ error: "Failed to fetch event flyer" }, { status: 500 });
+    try {
+      const flyerRes = await fetch(flyerUrl);
+      if (flyerRes.ok) {
+        flyerBuffer = Buffer.from(await flyerRes.arrayBuffer());
+      }
+    } catch {
+      // Flyer fetch failed — fall through to solid color fallback
     }
-    flyerBuffer = Buffer.from(await flyerRes.arrayBuffer());
-  } else {
-    // Generate a solid color fallback if no flyer
+  }
+  if (!flyerBuffer) {
     const sharp = (await import("sharp")).default;
     const { r, g, b } = hexToRgb(primaryColor);
     flyerBuffer = await sharp({
