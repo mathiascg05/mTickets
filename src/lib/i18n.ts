@@ -533,6 +533,16 @@ const translations: Translations = {
   "admin.void": { es: "Anular", en: "Void" },
   "admin.voidConfirm": { es: "¿Estás seguro de anular esta transacción? Se creará un ajuste que revierte el monto.", en: "Are you sure you want to void this transaction? An adjustment will be created to reverse the amount." },
 
+  // ── Super Admin Stats ──
+  "admin.statistics": { es: "Estadísticas", en: "Statistics" },
+  "admin.ticketsSold": { es: "Tickets Vendidos", en: "Tickets Sold" },
+  "admin.avgFee": { es: "Fee Promedio", en: "Average Fee" },
+  "admin.organizers": { es: "Organizadores", en: "Organizers" },
+  "admin.profitByEvent": { es: "Rentabilidad por Evento", en: "Profitability by Event" },
+  "admin.feesCollected": { es: "Fees Cobrados", en: "Fees Collected" },
+  "admin.grossRevenue": { es: "Ventas Brutas", en: "Gross Revenue" },
+  "admin.noStatsData": { es: "No hay datos disponibles", en: "No data available" },
+
   // ── Reconciliation ──
   "admin.reconcile": { es: "Conciliar Pagos", en: "Reconcile Payments" },
   "admin.reconcileDesc": { es: "Sube el estado de cuenta de tu banco para conciliar pagos de Pago Móvil automáticamente.", en: "Upload your bank statement to automatically reconcile Pago Móvil payments." },

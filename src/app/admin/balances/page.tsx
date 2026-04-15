@@ -5,6 +5,7 @@ import { id } from "@instantdb/react";
 import { useAuthContext } from "@/lib/AuthContext";
 import { useLanguage } from "@/lib/LanguageContext";
 import { useState } from "react";
+import SuperAdminStats from "./SuperAdminStats";
 
 export default function BalancesPage() {
   const { isSuperAdmin } = useAuthContext();
@@ -17,7 +18,7 @@ export default function BalancesPage() {
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
   const [voidingTxnId, setVoidingTxnId] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"balances" | "report">("balances");
+  const [activeTab, setActiveTab] = useState<"balances" | "report" | "stats">("balances");
 
   const { isLoading, data } = db.useQuery({
     organizerBalances: {
@@ -28,6 +29,7 @@ export default function BalancesPage() {
     concerts: {
       $: { order: { createdAt: "desc" } },
       platformFeeConfig: {},
+      ticketTypes: { orders: {} },
     },
   });
 
@@ -230,6 +232,16 @@ export default function BalancesPage() {
         >
           {t("admin.postpaidReport")}
         </button>
+        <button
+          onClick={() => setActiveTab("stats")}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "stats"
+              ? "border-accent text-accent"
+              : "border-transparent text-muted hover:text-foreground"
+          }`}
+        >
+          {t("admin.statistics")}
+        </button>
       </div>
 
       {activeTab === "report" && (
@@ -292,6 +304,13 @@ export default function BalancesPage() {
             })
           )}
         </div>
+      )}
+
+      {activeTab === "stats" && (
+        <SuperAdminStats
+          concerts={concerts}
+          organizerBalances={organizerBalances}
+        />
       )}
 
       {activeTab === "balances" && <>
