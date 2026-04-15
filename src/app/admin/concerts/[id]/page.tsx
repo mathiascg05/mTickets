@@ -1962,6 +1962,19 @@ function BrandingSection({
     try {
       const ext = file.name.split(".").pop() || "jpg";
       const path = `event-assets/${concertId}/flyer.${ext}`;
+
+      // Delete old flyer files to prevent stale images in ticket generation
+      try {
+        const { data: { $files: oldFiles } } = await db.queryOnce({
+          $files: { $: { where: { path: { $like: `event-assets/${concertId}/flyer%` } } } },
+        });
+        if (oldFiles.length > 0) {
+          await db.transact(oldFiles.map((f) => db.tx.$files[f.id].delete()));
+        }
+      } catch {
+        // Cleanup failed — proceed with upload anyway
+      }
+
       await db.storage.upload(path, file);
 
       // Query for the uploaded file to get its CDN URL
@@ -2000,6 +2013,19 @@ function BrandingSection({
     try {
       const ext = file.name.split(".").pop() || "png";
       const path = `event-assets/${concertId}/logo.${ext}`;
+
+      // Delete old logo files to prevent stale images in ticket generation
+      try {
+        const { data: { $files: oldFiles } } = await db.queryOnce({
+          $files: { $: { where: { path: { $like: `event-assets/${concertId}/logo%` } } } },
+        });
+        if (oldFiles.length > 0) {
+          await db.transact(oldFiles.map((f) => db.tx.$files[f.id].delete()));
+        }
+      } catch {
+        // Cleanup failed — proceed with upload anyway
+      }
+
       await db.storage.upload(path, file);
 
       const { data: { $files } } = await db.queryOnce({ $files: { $: { where: { path } } } });
@@ -2019,7 +2045,18 @@ function BrandingSection({
     if (logoInputRef.current) logoInputRef.current.value = "";
   }
 
-  function removeFlyer() {
+  async function removeFlyer() {
+    // Delete flyer files from storage
+    try {
+      const { data: { $files: oldFiles } } = await db.queryOnce({
+        $files: { $: { where: { path: { $like: `event-assets/${concertId}/flyer%` } } } },
+      });
+      if (oldFiles.length > 0) {
+        await db.transact(oldFiles.map((f) => db.tx.$files[f.id].delete()));
+      }
+    } catch {
+      // Storage cleanup failed — still clear the URL
+    }
     db.transact(
       db.tx.concerts[concertId].update({
         flyerUrl: "",
@@ -2028,7 +2065,18 @@ function BrandingSection({
     );
   }
 
-  function removeLogo() {
+  async function removeLogo() {
+    // Delete logo files from storage
+    try {
+      const { data: { $files: oldFiles } } = await db.queryOnce({
+        $files: { $: { where: { path: { $like: `event-assets/${concertId}/logo%` } } } },
+      });
+      if (oldFiles.length > 0) {
+        await db.transact(oldFiles.map((f) => db.tx.$files[f.id].delete()));
+      }
+    } catch {
+      // Storage cleanup failed — still clear the URL
+    }
     db.transact(
       db.tx.concerts[concertId].update({ logoUrl: "" }),
     );

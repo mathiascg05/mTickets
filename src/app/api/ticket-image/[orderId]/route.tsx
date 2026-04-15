@@ -78,10 +78,25 @@ export async function GET(
   const orderNumber = (order.orderNumber as string) || "";
   const attendeeName = `${order.firstName} ${order.lastName}`;
 
-  // Try to get logo as data URI (admin SDK first, then direct URL)
+  const concertId = c.id as string;
+
+  // Try to get logo as data URI (stored URL first, then $files fallback)
   let logoDataUri: string | null = null;
   async function fetchLogoDataUri(): Promise<string | null> {
-    // 1. Try admin SDK
+    // 1. Try stored URL (always points to the latest upload)
+    const logoUrl = c.logoUrl as string | undefined;
+    if (logoUrl) {
+      try {
+        const res = await fetch(logoUrl, { next: { revalidate: 3600 } });
+        if (res.ok) {
+          const buf = await res.arrayBuffer();
+          const ct = res.headers.get("content-type") || "image/png";
+          return `data:${ct};base64,${Buffer.from(buf).toString("base64")}`;
+        }
+      } catch { /* fall through */ }
+    }
+
+    // 2. Fallback: query $files by path pattern
     try {
       const { $files } = await adminDb.query({
         $files: {
@@ -91,7 +106,7 @@ export async function GET(
       const file = $files[0];
       const url = file?.url as string | undefined;
       if (url) {
-        const res = await fetch(url);
+        const res = await fetch(url, { next: { revalidate: 3600 } });
         if (res.ok) {
           const buf = await res.arrayBuffer();
           const ct = res.headers.get("content-type") || "image/png";
@@ -100,18 +115,6 @@ export async function GET(
       }
     } catch { /* fall through */ }
 
-    // 2. Try stored URL
-    const logoUrl = c.logoUrl as string | undefined;
-    if (logoUrl) {
-      try {
-        const res = await fetch(logoUrl);
-        if (res.ok) {
-          const buf = await res.arrayBuffer();
-          const ct = res.headers.get("content-type") || "image/png";
-          return `data:${ct};base64,${Buffer.from(buf).toString("base64")}`;
-        }
-      } catch { /* fall through */ }
-    }
     return null;
   }
   logoDataUri = await fetchLogoDataUri();
@@ -128,11 +131,21 @@ export async function GET(
 
   // Try to get flyer, blur it with sharp, and convert to data URI
   let flyerDataUri: string | null = null;
-  const concertId = c.id as string;
 
-  // Try multiple approaches to get the flyer image
+  // Try stored URL first (always current), then $files fallback
   async function fetchFlyerBuffer(): Promise<Buffer | null> {
-    // 1. Try admin SDK storage download (bypasses permissions)
+    // 1. Try the stored flyerUrl (always points to the latest upload)
+    const flyerUrl = c.flyerUrl as string | undefined;
+    if (flyerUrl) {
+      try {
+        const res = await fetch(flyerUrl, { next: { revalidate: 3600 } });
+        if (res.ok) return Buffer.from(await res.arrayBuffer());
+      } catch {
+        // Fall through
+      }
+    }
+
+    // 2. Fallback: query $files by path pattern
     try {
       const { $files } = await adminDb.query({
         $files: {
@@ -141,22 +154,11 @@ export async function GET(
       });
       const file = $files[0];
       if (file?.url) {
-        const res = await fetch(file.url as string);
+        const res = await fetch(file.url as string, { next: { revalidate: 3600 } });
         if (res.ok) return Buffer.from(await res.arrayBuffer());
       }
     } catch {
       // Fall through
-    }
-
-    // 2. Try the stored flyerUrl directly
-    const flyerUrl = c.flyerUrl as string | undefined;
-    if (flyerUrl) {
-      try {
-        const res = await fetch(flyerUrl);
-        if (res.ok) return Buffer.from(await res.arrayBuffer());
-      } catch {
-        // Fall through
-      }
     }
 
     return null;
@@ -166,11 +168,11 @@ export async function GET(
   if (flyerRaw) {
     try {
       const blurred = await sharp(flyerRaw)
-        .resize(1260, 2240, { fit: "cover", position: "centre" })
-        .blur(30)
-        .png()
+        .resize(630, 1120, { fit: "cover", position: "centre" })
+        .blur(20)
+        .jpeg({ quality: 70 })
         .toBuffer();
-      flyerDataUri = `data:image/png;base64,${blurred.toString("base64")}`;
+      flyerDataUri = `data:image/jpeg;base64,${blurred.toString("base64")}`;
     } catch {
       // Sharp processing failed — use gradient
     }
