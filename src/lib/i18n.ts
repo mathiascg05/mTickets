@@ -538,10 +538,16 @@ const translations: Translations = {
   "admin.ticketsSold": { es: "Tickets Vendidos", en: "Tickets Sold" },
   "admin.avgFee": { es: "Fee Promedio", en: "Average Fee" },
   "admin.organizers": { es: "Organizadores", en: "Organizers" },
+  "admin.totalEvents": { es: "Total Eventos", en: "Total Events" },
   "admin.profitByEvent": { es: "Rentabilidad por Evento", en: "Profitability by Event" },
   "admin.feesCollected": { es: "Fees Cobrados", en: "Fees Collected" },
   "admin.grossRevenue": { es: "Ventas Brutas", en: "Gross Revenue" },
   "admin.noStatsData": { es: "No hay datos disponibles", en: "No data available" },
+  "admin.allTime": { es: "Todo", en: "All Time" },
+  "admin.year": { es: "Año", en: "Year" },
+  "admin.month": { es: "Mes", en: "Month" },
+  "admin.allMonths": { es: "Todos los meses", en: "All Months" },
+  "admin.monthlyRevenue": { es: "Revenue Mensual", en: "Monthly Revenue" },
 
   // ── Reconciliation ──
   "admin.reconcile": { es: "Conciliar Pagos", en: "Reconcile Payments" },
