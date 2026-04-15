@@ -2036,29 +2036,36 @@ export default function ConcertOrdersPage() {
             </div>
           </div>
           <div className="space-y-3">
+            {/* Order status breakdown */}
+            <div>
+              <div className="flex items-center gap-3 text-xs mb-1.5">
+                <span className="text-muted">{t("admin.orderStatus")}</span>
+                <span className="text-success font-medium">{t("common.approved")} {totalOrders > 0 ? Math.round((approvedCount / totalOrders) * 100) : 0}%</span>
+                <span className="text-warning font-medium">{t("common.pending")} {totalOrders > 0 ? Math.round((pendingCount / totalOrders) * 100) : 0}%</span>
+                <span className="text-danger font-medium">{t("common.rejected")} {totalOrders > 0 ? Math.round((rejectedCount / totalOrders) * 100) : 0}%</span>
+              </div>
+              <div className="w-full bg-border rounded-full h-2.5 flex overflow-hidden">
+                {approvedCount > 0 && (
+                  <div className="bg-success h-2.5 transition-all" style={{ width: `${(approvedCount / totalOrders) * 100}%` }} />
+                )}
+                {pendingCount > 0 && (
+                  <div className="bg-warning h-2.5 transition-all" style={{ width: `${(pendingCount / totalOrders) * 100}%` }} />
+                )}
+                {rejectedCount > 0 && (
+                  <div className="bg-danger h-2.5 transition-all" style={{ width: `${(rejectedCount / totalOrders) * 100}%` }} />
+                )}
+              </div>
+            </div>
             {/* Approved vs Capacity */}
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-muted">{t("admin.approvedVsCapacity")}</span>
-                <span className="font-medium text-success">{totalCapacity > 0 ? Math.round((totalTicketsIssued / totalCapacity) * 100) : 0}%</span>
-              </div>
-              <div className="w-full bg-border rounded-full h-2">
-                <div
-                  className="bg-success h-2 rounded-full transition-all"
-                  style={{ width: `${totalCapacity > 0 ? Math.min(Math.round((totalTicketsIssued / totalCapacity) * 100), 100) : 0}%` }}
-                />
-              </div>
-            </div>
-            {/* Approval rate */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-muted">{t("admin.approvalRate")}</span>
-                <span className="font-medium text-accent-light">{totalOrders > 0 ? Math.round((approvedCount / totalOrders) * 100) : 0}%</span>
+                <span className="font-medium text-accent-light">{totalCapacity > 0 ? Math.round((totalTicketsIssued / totalCapacity) * 100) : 0}%</span>
               </div>
               <div className="w-full bg-border rounded-full h-2">
                 <div
                   className="bg-accent-light h-2 rounded-full transition-all"
-                  style={{ width: `${totalOrders > 0 ? Math.min(Math.round((approvedCount / totalOrders) * 100), 100) : 0}%` }}
+                  style={{ width: `${totalCapacity > 0 ? Math.min(Math.round((totalTicketsIssued / totalCapacity) * 100), 100) : 0}%` }}
                 />
               </div>
             </div>
@@ -2066,11 +2073,11 @@ export default function ConcertOrdersPage() {
             <div>
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-muted">{t("admin.scannedVsApproved")}</span>
-                <span className="font-medium text-warning">{scannedPercent}%</span>
+                <span className="font-medium text-accent-light">{scannedPercent}%</span>
               </div>
               <div className="w-full bg-border rounded-full h-2">
                 <div
-                  className="bg-warning h-2 rounded-full transition-all"
+                  className="bg-accent-light h-2 rounded-full transition-all"
                   style={{ width: `${Math.min(scannedPercent, 100)}%` }}
                 />
               </div>
