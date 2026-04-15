@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { useState, useEffect, useCallback } from "react";
 
@@ -29,6 +29,71 @@ function StatusBadge({ status }: { status: string }) {
     >
       {statusLabels[status] || status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
+  );
+}
+
+function StepProgress({ status }: { status: string }) {
+  const { t } = useLanguage();
+
+  const steps = [
+    {
+      label: t("ticket.stepPaymentSent"),
+      description: t("ticket.stepPaymentSentDesc"),
+      state: "done" as const,
+    },
+    {
+      label: t("ticket.stepUnderReview"),
+      description: t("ticket.stepUnderReviewDesc"),
+      state: (status === "pending" ? "active" : status === "approved" ? "done" : "error") as "done" | "active" | "error" | "upcoming",
+    },
+    {
+      label: t("ticket.stepTicketReady"),
+      description: t("ticket.stepTicketReadyDesc"),
+      state: (status === "approved" ? "done" : "upcoming") as "done" | "active" | "error" | "upcoming",
+    },
+  ];
+
+  const stateStyles = {
+    done: "bg-success/10 border-success text-success",
+    active: "bg-warning/10 border-warning text-warning animate-pulse",
+    error: "bg-danger/10 border-danger text-danger",
+    upcoming: "bg-muted/10 border-border text-muted",
+  };
+
+  const lineStyles = {
+    done: "bg-success",
+    active: "bg-warning",
+    error: "bg-danger",
+    upcoming: "bg-border",
+  };
+
+  return (
+    <div className="py-4 px-2">
+      {steps.map((step, i) => (
+        <div key={step.label} className="flex gap-4">
+          <div className="flex flex-col items-center">
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center border-2 shrink-0 ${stateStyles[step.state]}`}>
+              {step.state === "done" ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              ) : step.state === "active" ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+              ) : step.state === "error" ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M7 7h3v3H7zM14 7h3v3h-3zM7 14h3v3H7zM14 14h3v3h-3z" /></svg>
+              )}
+            </div>
+            {i < steps.length - 1 && (
+              <div className={`w-0.5 h-8 ${lineStyles[step.state]}`} />
+            )}
+          </div>
+          <div className="pb-6 pt-1">
+            <p className={`font-medium text-sm ${step.state === "upcoming" ? "text-muted" : ""}`}>{step.label}</p>
+            <p className="text-xs text-muted mt-0.5">{step.description}</p>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -172,10 +237,13 @@ function DownloadImageButton({ orderId, email }: { orderId: string; email: strin
 export default function TicketPage() {
   const { t } = useLanguage();
   const params = useParams();
+  const searchParams = useSearchParams();
   const orderId = params.orderId as string;
+  const isNewPurchase = searchParams.get("new") === "1";
 
   const [verified, setVerified] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [showConfirmation, setShowConfirmation] = useState(isNewPurchase);
 
   // Check sessionStorage and admin auth on mount
   const { user } = db.useAuth();
@@ -278,6 +346,26 @@ export default function TicketPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-12 space-y-6">
+        {/* Post-purchase confirmation banner */}
+        {showConfirmation && order.status === "pending" && (
+          <div className="bg-surface border border-success/30 rounded-2xl p-6 sm:p-8 text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mb-4">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-success">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold mb-1">{t("ticket.thankYou")}</h2>
+            {order.orderNumber && (
+              <p className="text-sm font-mono font-bold text-accent-light tracking-wide mb-1">
+                {order.orderNumber}
+              </p>
+            )}
+            <p className="text-lg font-medium">{concert?.name}</p>
+            <p className="text-muted text-sm">{ticketType?.name}</p>
+            <p className="text-muted text-sm mt-4">{t("ticket.confirmationDesc")}</p>
+          </div>
+        )}
+
         {/* Main ticket card */}
         <div className="bg-surface border border-border rounded-2xl overflow-hidden">
           <div className="p-6 sm:p-8 text-center">
@@ -315,11 +403,11 @@ export default function TicketPage() {
                 )}
               </div>
             ) : order.status === "pending" ? (
-              <div className="py-8">
-                <div className="text-5xl mb-4">{"⏳"}</div>
-                <p className="text-lg font-medium">{t("ticket.awaitingApproval")}</p>
-                <p className="text-muted text-sm mt-2">
-                  {t("ticket.awaitingDesc")}
+              <div className="py-4">
+                <p className="text-lg font-medium mb-4">{t("ticket.awaitingApproval")}</p>
+                <StepProgress status={order.status} />
+                <p className="text-muted text-xs mt-2 px-4">
+                  {t("ticket.canClose")}
                 </p>
               </div>
             ) : order.status === "cancelled" ? (

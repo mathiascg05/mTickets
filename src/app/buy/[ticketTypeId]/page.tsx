@@ -498,8 +498,11 @@ export default function BuyPage() {
       // Clear reservation from sessionStorage
       sessionStorage.removeItem(STORAGE_KEY_PREFIX + ticketTypeId);
 
+      // Skip the email gate on the ticket page since the user just purchased
+      sessionStorage.setItem(`ticket-verified-${result.orderIds[0]}`, "true");
+
       // Emails are sent in the background by the server — redirect immediately
-      router.push(`/ticket/${result.orderIds[0]}`);
+      router.push(`/ticket/${result.orderIds[0]}?new=1`);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("checkout.somethingWrong"));
       setSubmitting(false);

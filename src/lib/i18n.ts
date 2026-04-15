@@ -218,6 +218,42 @@ const translations: Translations = {
     es: "Tu pago está siendo revisado. Recibirás tu código QR por correo una vez aprobado.",
     en: "Your payment is being reviewed. You will receive your QR code via email once approved.",
   },
+  "ticket.thankYou": {
+    es: "¡Gracias por tu compra!",
+    en: "Thank you for your purchase!",
+  },
+  "ticket.confirmationDesc": {
+    es: "Tu orden ha sido recibida exitosamente. Aquí te explicamos lo que sigue.",
+    en: "Your order has been successfully received. Here's what happens next.",
+  },
+  "ticket.canClose": {
+    es: "Puedes cerrar esta página. Te notificaremos por correo electrónico cuando tu entrada esté lista.",
+    en: "You can close this page. We'll notify you by email when your ticket is ready.",
+  },
+  "ticket.stepPaymentSent": {
+    es: "Pago enviado",
+    en: "Payment sent",
+  },
+  "ticket.stepPaymentSentDesc": {
+    es: "Tu comprobante de pago fue recibido correctamente.",
+    en: "Your payment proof has been received successfully.",
+  },
+  "ticket.stepUnderReview": {
+    es: "En revisión",
+    en: "Under review",
+  },
+  "ticket.stepUnderReviewDesc": {
+    es: "El organizador está verificando tu pago. Esto puede tomar algunas horas.",
+    en: "The organizer is verifying your payment. This may take a few hours.",
+  },
+  "ticket.stepTicketReady": {
+    es: "Entrada lista",
+    en: "Ticket ready",
+  },
+  "ticket.stepTicketReadyDesc": {
+    es: "Recibirás tu código QR por correo y podrás verlo aquí.",
+    en: "You'll receive your QR code by email and can view it here.",
+  },
   "ticket.cancelledTitle": { es: "Entrada Cancelada", en: "Ticket Cancelled" },
   "ticket.cancelledDesc": {
     es: "Esta entrada ha sido cancelada y ya no es válida. Contacta al organizador para más información.",
