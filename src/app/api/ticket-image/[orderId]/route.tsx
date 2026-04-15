@@ -77,6 +77,22 @@ export async function GET(
   const orderNumber = (order.orderNumber as string) || "";
   const attendeeName = `${order.firstName} ${order.lastName}`;
 
+  // Try to get logo as data URI
+  const logoUrl = c.logoUrl as string | undefined;
+  let logoDataUri: string | null = null;
+  if (logoUrl) {
+    try {
+      const res = await fetch(logoUrl);
+      if (res.ok) {
+        const buf = await res.arrayBuffer();
+        const contentType = res.headers.get("content-type") || "image/png";
+        logoDataUri = `data:${contentType};base64,${Buffer.from(buf).toString("base64")}`;
+      }
+    } catch {
+      // No logo — skip
+    }
+  }
+
   // Generate QR code as data URI
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const ticketUrl = `${appUrl}/ticket/${orderId}`;
@@ -174,7 +190,7 @@ export async function GET(
             alignItems: "center",
           }}
         >
-          {/* Top: event info */}
+          {/* Top: logo + event info */}
           <div
             style={{
               display: "flex",
@@ -183,6 +199,19 @@ export async function GET(
               width: "100%",
             }}
           >
+            {logoDataUri && (
+              <img
+                src={logoDataUri}
+                style={{
+                  width: "80px",
+                  height: "80px",
+                  borderRadius: "16px",
+                  objectFit: "contain",
+                  marginBottom: "16px",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+                }}
+              />
+            )}
             <div
               style={{
                 fontSize: "38px",
