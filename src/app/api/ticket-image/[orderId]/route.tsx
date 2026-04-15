@@ -113,10 +113,11 @@ export async function GET(
           width: "100%",
           height: "100%",
           display: "flex",
+          flexDirection: "column",
           position: "relative",
           fontFamily: "Inter",
           color: "#ffffff",
-          background: `linear-gradient(135deg, ${primaryColor} 0%, ${darkColor} 100%)`,
+          background: `linear-gradient(180deg, ${primaryColor} 0%, ${darkColor} 100%)`,
         }}
       >
         {/* Background flyer image if available */}
@@ -125,12 +126,12 @@ export async function GET(
             src={flyerDataUri}
             style={{
               position: "absolute",
-              top: "-40px",
-              left: "-40px",
-              width: "1280px",
-              height: "710px",
+              top: "-30px",
+              left: "-30px",
+              width: "690px",
+              height: "1290px",
               objectFit: "cover",
-              opacity: 0.3,
+              opacity: 0.25,
             }}
           />
         )}
@@ -143,7 +144,7 @@ export async function GET(
             width: "100%",
             height: "100%",
             background: flyerDataUri
-              ? `linear-gradient(135deg, ${primaryColor}cc 0%, ${primaryColor}88 100%)`
+              ? `linear-gradient(180deg, ${primaryColor}cc 0%, ${primaryColor}99 100%)`
               : "transparent",
           }}
         />
@@ -156,7 +157,7 @@ export async function GET(
             width: "100%",
             height: "100%",
             background:
-              "radial-gradient(ellipse at 70% 50%, rgba(255,255,255,0.06) 0%, transparent 60%)",
+              "radial-gradient(ellipse at 50% 30%, rgba(255,255,255,0.08) 0%, transparent 60%)",
           }}
         />
 
@@ -164,123 +165,85 @@ export async function GET(
         <div
           style={{
             display: "flex",
+            flexDirection: "column",
             width: "100%",
             height: "100%",
-            padding: "48px 56px",
+            padding: "52px 44px",
             position: "relative",
             justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
-          {/* Left column */}
+          {/* Top: event info */}
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              justifyContent: "space-between",
-              flex: 1,
-              paddingRight: "40px",
+              alignItems: "center",
+              width: "100%",
             }}
           >
-            {/* Top: event info */}
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <div
-                style={{
-                  fontSize: "42px",
-                  fontWeight: 700,
-                  lineHeight: 1.1,
-                  textShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                  maxWidth: "650px",
-                }}
-              >
-                {eventName.length > 40 ? eventName.slice(0, 39) + "\u2026" : eventName}
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  marginTop: "16px",
-                  gap: "4px",
-                }}
-              >
-                {eventDate && (
-                  <div
-                    style={{
-                      fontSize: "20px",
-                      opacity: 0.9,
-                      textShadow: "0 1px 4px rgba(0,0,0,0.3)",
-                    }}
-                  >
-                    {eventDate}
-                  </div>
-                )}
-                {venue && (
-                  <div
-                    style={{
-                      fontSize: "20px",
-                      opacity: 0.9,
-                      textShadow: "0 1px 4px rgba(0,0,0,0.3)",
-                    }}
-                  >
-                    {venue}
-                  </div>
-                )}
-              </div>
-              {/* Ticket type pill */}
-              <div style={{ display: "flex", marginTop: "20px" }}>
-                <div
-                  style={{
-                    background: "rgba(255,255,255,0.2)",
-                    borderRadius: "20px",
-                    padding: "6px 20px",
-                    fontSize: "16px",
-                    fontWeight: 600,
-                  }}
-                >
-                  {ticketTypeName}
-                </div>
-              </div>
+            <div
+              style={{
+                fontSize: "38px",
+                fontWeight: 700,
+                lineHeight: 1.15,
+                textShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                textAlign: "center",
+                maxWidth: "560px",
+              }}
+            >
+              {eventName.length > 40 ? eventName.slice(0, 39) + "\u2026" : eventName}
             </div>
-
-            {/* Bottom: attendee + branding */}
             <div
               style={{
                 display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-end",
+                flexDirection: "column",
+                alignItems: "center",
+                marginTop: "14px",
+                gap: "2px",
               }}
             >
-              <div style={{ display: "flex", flexDirection: "column" }}>
+              {eventDate && (
                 <div
                   style={{
-                    fontSize: "22px",
-                    fontWeight: 600,
+                    fontSize: "18px",
+                    opacity: 0.9,
                     textShadow: "0 1px 4px rgba(0,0,0,0.3)",
                   }}
                 >
-                  {attendeeName.length > 35
-                    ? attendeeName.slice(0, 34) + "\u2026"
-                    : attendeeName}
+                  {eventDate}
                 </div>
-                {orderNumber && (
-                  <div
-                    style={{
-                      fontSize: "16px",
-                      opacity: 0.7,
-                      marginTop: "4px",
-                      textShadow: "0 1px 4px rgba(0,0,0,0.3)",
-                    }}
-                  >
-                    {orderNumber}
-                  </div>
-                )}
-              </div>
-              <div style={{ fontSize: "14px", opacity: 0.4, fontWeight: 600 }}>
-                maTickets
+              )}
+              {venue && (
+                <div
+                  style={{
+                    fontSize: "18px",
+                    opacity: 0.9,
+                    textShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                  }}
+                >
+                  {venue}
+                </div>
+              )}
+            </div>
+            {/* Ticket type pill */}
+            <div style={{ display: "flex", marginTop: "18px" }}>
+              <div
+                style={{
+                  background: "rgba(255,255,255,0.2)",
+                  borderRadius: "20px",
+                  padding: "6px 22px",
+                  fontSize: "15px",
+                  fontWeight: 600,
+                }}
+              >
+                {ticketTypeName}
               </div>
             </div>
           </div>
 
-          {/* Right column: QR code */}
+          {/* Center: QR code */}
           <div
             style={{
               display: "flex",
@@ -291,22 +254,67 @@ export async function GET(
             <div
               style={{
                 background: "#ffffff",
-                borderRadius: "20px",
-                padding: "20px",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
+                borderRadius: "24px",
+                padding: "24px",
+                boxShadow: "0 8px 40px rgba(0,0,0,0.3)",
                 display: "flex",
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qrDataUrl} width={180} height={180} />
+              <img src={qrDataUrl} width={240} height={240} />
+            </div>
+          </div>
+
+          {/* Bottom: attendee info + branding */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              width: "100%",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "22px",
+                fontWeight: 600,
+                textShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                textAlign: "center",
+              }}
+            >
+              {attendeeName.length > 35
+                ? attendeeName.slice(0, 34) + "\u2026"
+                : attendeeName}
+            </div>
+            {orderNumber && (
+              <div
+                style={{
+                  fontSize: "15px",
+                  opacity: 0.7,
+                  marginTop: "4px",
+                  textShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                }}
+              >
+                {orderNumber}
+              </div>
+            )}
+            <div
+              style={{
+                fontSize: "13px",
+                opacity: 0.35,
+                fontWeight: 600,
+                marginTop: "20px",
+              }}
+            >
+              maTickets
             </div>
           </div>
         </div>
       </div>
     ),
     {
-      width: 1200,
-      height: 630,
+      width: 630,
+      height: 1120,
       fonts: [
         { name: "Inter", data: interRegular!, weight: 400, style: "normal" as const },
         { name: "Inter", data: interBold!, weight: 700, style: "normal" as const },
