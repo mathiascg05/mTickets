@@ -5,7 +5,6 @@ import { buildTicketEmailHtml, buildTicketEmailText } from "@/lib/emailTemplate"
 import { assignOrderNumber } from "@/lib/orderNumber";
 import { isEmailSuppressed } from "@/lib/emailSuppression";
 import { buildMailHeaders } from "@/lib/emailHeaders";
-import { generateDownloadToken } from "@/lib/downloadToken";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -71,9 +70,7 @@ export async function sendTicketEmailForOrder(orderId: string): Promise<{ succes
     color: { dark: "#1a2b4a", light: "#ffffff" },
   });
 
-  // Build ticket page URL with download token for image generation
-  const downloadToken = generateDownloadToken(orderId);
-  const ticketPageUrl = `${appUrl}/ticket/${orderId}?dl=${downloadToken}`;
+  const ticketPageUrl = `${appUrl}/ticket/${orderId}`;
   const primaryColor = (concert as { primaryColor?: string }).primaryColor || "#1a2b4a";
 
   // Build email HTML and plain text

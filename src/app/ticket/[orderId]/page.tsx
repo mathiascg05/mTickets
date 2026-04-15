@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { useState, useEffect, useCallback } from "react";
 
@@ -125,31 +125,23 @@ function EmailGate({
 
 function DownloadImageButton({ orderId, email }: { orderId: string; email: string }) {
   const { t } = useLanguage();
-  const searchParams = useSearchParams();
   const [downloading, setDownloading] = useState(false);
-
-  // Check if a download token was passed via email link
-  const dlToken = searchParams.get("dl");
 
   const handleDownload = useCallback(async () => {
     setDownloading(true);
     try {
-      let token = dlToken;
-      if (!token) {
-        // Request a token from the API
-        const res = await fetch(`/api/download-token/${orderId}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-        if (!res.ok) throw new Error("Failed to get token");
-        const data = await res.json();
-        token = data.token;
-      }
+      // Always request a fresh token to avoid stale/invalid tokens
+      const res = await fetch(`/api/download-token/${orderId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) throw new Error("Failed to get token");
+      const data = await res.json();
 
       // Trigger download
       const link = document.createElement("a");
-      link.href = `/api/ticket-image/${orderId}?token=${token}`;
+      link.href = `/api/ticket-image/${orderId}?token=${data.token}`;
       link.download = `entrada-${orderId}.png`;
       document.body.appendChild(link);
       link.click();
@@ -159,7 +151,7 @@ function DownloadImageButton({ orderId, email }: { orderId: string; email: strin
     } finally {
       setDownloading(false);
     }
-  }, [orderId, email, dlToken]);
+  }, [orderId, email]);
 
   return (
     <button

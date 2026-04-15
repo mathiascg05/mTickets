@@ -269,7 +269,7 @@ export function buildTicketEmailHtml(params: {
         <tr>
           <td align="center" style="padding:4px 32px 20px;">
             <a href="${ticketPageUrl}" target="_blank" style="display:inline-block;background:linear-gradient(135deg, ${brandColor} 0%, ${lighterColor} 100%);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:12px;font-size:15px;font-weight:600;letter-spacing:0.3px;">Guardar mi entrada</a>
-            <p style="margin:8px 0 0;font-size:12px;color:#7a8599;">Descarga una imagen de recuerdo con tu entrada</p>
+            <p style="margin:8px 0 0;font-size:12px;color:#7a8599;">Guarda tu entrada como imagen en tu dispositivo</p>
           </td>
         </tr>` : ""}
         <!-- Event Details -->
