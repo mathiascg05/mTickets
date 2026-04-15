@@ -1,0 +1,28 @@
+// This file configures the initialization of Sentry on the client.
+// The added config here will be used whenever a users loads a page in their browser.
+// https://docs.sentry.io/platforms/javascript/guides/nextjs/
+
+import * as Sentry from "@sentry/nextjs";
+
+Sentry.init({
+  dsn: "https://996d46673bc1493b79ee0f764eba7016@o4511225884573696.ingest.us.sentry.io/4511225943883776",
+
+  // Add optional integrations for additional features
+  integrations: [Sentry.replayIntegration()],
+
+  // Sample 20% of traces in production to balance cost vs visibility
+  tracesSampleRate: 0.2,
+
+  // Enable logs to be sent to Sentry
+  enableLogs: true,
+
+  // Replay 10% of sessions normally, but always capture sessions with errors
+  replaysSessionSampleRate: 0.1,
+  replaysOnErrorSampleRate: 1.0,
+
+  // Enable sending user PII (Personally Identifiable Information)
+  // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
+  sendDefaultPii: true,
+});
+
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
