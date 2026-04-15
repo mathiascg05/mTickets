@@ -222,7 +222,7 @@ const rules = {
   },
   $files: {
     allow: {
-      view: `auth.email == '${SUPER_ADMIN}'`,
+      view: `data.path.startsWith('event-assets/') || auth.email == '${SUPER_ADMIN}'`,
       create:
         "data.path.startsWith('payment-proofs/') || data.path.startsWith('event-assets/')",
     },

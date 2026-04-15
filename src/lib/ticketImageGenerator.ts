@@ -1,4 +1,17 @@
 import sharp from "sharp";
+import fs from "fs";
+import path from "path";
+
+// Load and cache font data as base64 for SVG embedding
+let fontRegularB64: string | null = null;
+let fontBoldB64: string | null = null;
+
+function loadFonts() {
+  if (fontRegularB64) return;
+  const fontsDir = path.join(process.cwd(), "assets", "fonts");
+  fontRegularB64 = fs.readFileSync(path.join(fontsDir, "Inter-Regular.ttf")).toString("base64");
+  fontBoldB64 = fs.readFileSync(path.join(fontsDir, "Inter-Bold.ttf")).toString("base64");
+}
 
 export interface TicketImageParams {
   flyerBuffer: Buffer;
@@ -54,11 +67,22 @@ function buildTextOverlay(params: {
   const orderNumber = escapeXml(params.orderNumber);
   const attendeeName = escapeXml(truncate(params.attendeeName, 35));
 
-  // Left side text layout
+  // Left side text layout — embed fonts as base64 for serverless compatibility
+  loadFonts();
   const svg = `<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
   <style>
+    @font-face {
+      font-family: 'Inter';
+      font-weight: 400;
+      src: url('data:font/truetype;base64,${fontRegularB64}');
+    }
+    @font-face {
+      font-family: 'Inter';
+      font-weight: 700;
+      src: url('data:font/truetype;base64,${fontBoldB64}');
+    }
     .shadow { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }
-    text { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; fill: #ffffff; }
+    text { font-family: 'Inter', sans-serif; fill: #ffffff; }
   </style>
 
   <!-- Event name -->
