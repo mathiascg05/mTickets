@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { isValidUUID } from "@/lib/validation";
-import { processQueueAdmissions } from "@/lib/queueAdmission";
 import { WAITING_TTL, ADMITTED_TTL } from "@/lib/queueConstants";
 
 export async function POST(req: NextRequest) {
@@ -18,7 +17,9 @@ export async function POST(req: NextRequest) {
     const { queueEntries } = await adminDb.query({
       queueEntries: {
         $: { where: { id: queueEntryId } },
-        ticketType: {},
+        ticketType: {
+          queueEntries: {},
+        },
       },
     });
 
@@ -33,44 +34,49 @@ export async function POST(req: NextRequest) {
     if (entry.status !== "waiting" && entry.status !== "admitted") {
       return NextResponse.json({
         status: entry.status,
+        position: 0,
+        totalWaiting: 0,
+        estimatedWaitMin: 0,
       });
     }
 
-    const ticketTypeId = entry.ticketType?.id;
-    if (!ticketTypeId) {
-      return NextResponse.json(
-        { error: "Queue entry has no linked ticketType" },
-        { status: 500 },
-      );
-    }
-
     // Extend TTL for waiting and admitted entries
-    if (entry.status === "waiting") {
-      await adminDb.transact(
-        adminDb.tx.queueEntries[queueEntryId].update({
-          expiresAt: Date.now() + WAITING_TTL,
-        }),
-      );
-    } else if (entry.status === "admitted") {
-      await adminDb.transact(
-        adminDb.tx.queueEntries[queueEntryId].update({
-          expiresAt: Date.now() + ADMITTED_TTL,
-        }),
-      );
-    }
+    const newExpiresAt =
+      entry.status === "waiting"
+        ? Date.now() + WAITING_TTL
+        : Date.now() + ADMITTED_TTL;
 
-    // Piggyback admission processing
-    await processQueueAdmissions(ticketTypeId);
+    await adminDb.transact(
+      adminDb.tx.queueEntries[queueEntryId].update({
+        expiresAt: newExpiresAt,
+      }),
+    );
 
-    // Re-query to get current status
-    const { queueEntries: updated } = await adminDb.query({
-      queueEntries: {
-        $: { where: { id: queueEntryId } },
-      },
-    });
+    // Calculate position from sibling queue entries
+    const now = Date.now();
+    const allEntries = entry.ticketType?.queueEntries || [];
+    const waitingAhead =
+      entry.status === "waiting"
+        ? allEntries.filter(
+            (e: { status: string; expiresAt: number; position: number }) =>
+              e.status === "waiting" &&
+              e.expiresAt > now &&
+              e.position < entry.position,
+          ).length
+        : 0;
+
+    const totalWaiting = allEntries.filter(
+      (e: { status: string; expiresAt: number }) =>
+        e.status === "waiting" && e.expiresAt > now,
+    ).length;
+
+    const estimatedWaitMin = Math.max(1, Math.ceil((waitingAhead * 30) / 60));
 
     return NextResponse.json({
-      status: updated[0]?.status || entry.status,
+      status: entry.status,
+      position: waitingAhead + 1,
+      totalWaiting,
+      estimatedWaitMin,
     });
   } catch (err) {
     console.error("[queue-heartbeat] Error:", err);

@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const HEARTBEAT_INTERVAL = 60_000; // 60s
+const HEARTBEAT_INTERVAL = 15_000; // 15s
 const SESSION_KEY = "queue_session_id";
 const QUEUE_ENTRY_KEY_PREFIX = "queue_entry_";
 
@@ -34,7 +34,13 @@ export default function QueuePage() {
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const heartbeatFailuresRef = useRef(0);
 
-  // Query ticketType info for display
+  // Polling state — updated by heartbeat responses
+  const [queueStatus, setQueueStatus] = useState<string | null>(null);
+  const [position, setPosition] = useState(0);
+  const [totalWaiting, setTotalWaiting] = useState(0);
+  const [estimatedWaitMin, setEstimatedWaitMin] = useState(1);
+
+  // Lightweight subscription: only ticketType + concert for display (no queueEntries)
   const { data: ticketData } = db.useQuery({
     ticketTypes: {
       $: { where: { id: ticketTypeId } },
@@ -44,43 +50,6 @@ export default function QueuePage() {
 
   const ticketType = ticketData?.ticketTypes?.[0];
   const concert = ticketType?.concert;
-
-  // Subscribe to this queue entry for real-time status updates
-  const { data: entryData } = db.useQuery(
-    queueEntryId
-      ? { queueEntries: { $: { where: { id: queueEntryId } } } }
-      : null,
-  );
-
-  // Subscribe to all active entries for this ticketType to compute position
-  const { data: allEntriesData } = db.useQuery({
-    ticketTypes: {
-      $: { where: { id: ticketTypeId } },
-      queueEntries: {},
-    },
-  });
-
-  const currentEntry = entryData?.queueEntries?.[0];
-  const allEntries = allEntriesData?.ticketTypes?.[0]?.queueEntries || [];
-
-  // Compute live position
-  const waitingAhead =
-    currentEntry?.status === "waiting"
-      ? allEntries.filter(
-          (e) =>
-            e.status === "waiting" &&
-            e.expiresAt > Date.now() &&
-            e.position < (currentEntry?.position ?? Infinity),
-        ).length
-      : 0;
-
-  const totalWaiting = allEntries.filter(
-    (e) => e.status === "waiting" && e.expiresAt > Date.now(),
-  ).length;
-
-  // Estimated wait: ~30s per person ahead (average admission cycle)
-  const estimatedWaitSec = waitingAhead * 30;
-  const estimatedWaitMin = Math.max(1, Math.ceil(estimatedWaitSec / 60));
 
   // Join queue on mount
   const joinQueue = useCallback(async () => {
@@ -104,6 +73,7 @@ export default function QueuePage() {
       }
 
       setQueueEntryId(result.queueEntryId);
+      setQueueStatus(result.status);
       sessionStorage.setItem(
         QUEUE_ENTRY_KEY_PREFIX + ticketTypeId,
         result.queueEntryId,
@@ -114,25 +84,6 @@ export default function QueuePage() {
       setJoining(false);
     }
   }, [ticketTypeId, qty]);
-
-  // Validate stored entry belongs to current ticketType once allEntriesData loads
-  const validatedRef = useRef(false);
-  useEffect(() => {
-    if (!queueEntryId || validatedRef.current) return;
-    if (!allEntriesData?.ticketTypes?.[0]) return;
-    validatedRef.current = true;
-
-    const belongsToThisTicketType = allEntries.some(
-      (e) => e.id === queueEntryId,
-    );
-    if (!belongsToThisTicketType) {
-      // Stored entry is for a different ticketType — clear and rejoin
-      sessionStorage.removeItem(QUEUE_ENTRY_KEY_PREFIX + ticketTypeId);
-      setQueueEntryId(null);
-      joinedRef.current = false;
-      joinQueue();
-    }
-  }, [queueEntryId, allEntriesData, allEntries, ticketTypeId, joinQueue]);
 
   useEffect(() => {
     if (joinedRef.current) return;
@@ -150,7 +101,7 @@ export default function QueuePage() {
     }
   }, [ticketTypeId, joinQueue]);
 
-  // Heartbeat
+  // Heartbeat — also updates position via polling
   useEffect(() => {
     if (!queueEntryId) return;
 
@@ -164,6 +115,11 @@ export default function QueuePage() {
         if (res.ok) {
           heartbeatFailuresRef.current = 0;
           setHeartbeatWarning(false);
+          const data = await res.json();
+          setQueueStatus(data.status);
+          setPosition(data.position);
+          setTotalWaiting(data.totalWaiting);
+          setEstimatedWaitMin(data.estimatedWaitMin);
         } else {
           heartbeatFailuresRef.current++;
           if (heartbeatFailuresRef.current >= 3) setHeartbeatWarning(true);
@@ -188,7 +144,7 @@ export default function QueuePage() {
 
   // Auto-redirect when admitted
   useEffect(() => {
-    if (currentEntry?.status === "admitted") {
+    if (queueStatus === "admitted") {
       const buyUrl = phaseId
         ? `/buy/${ticketTypeId}?qty=${qty}&phaseId=${phaseId}&queueToken=${queueEntryId}`
         : `/buy/${ticketTypeId}?qty=${qty}&queueToken=${queueEntryId}`;
@@ -196,26 +152,26 @@ export default function QueuePage() {
       const timer = setTimeout(() => router.push(buyUrl), 1500);
       return () => clearTimeout(timer);
     }
-  }, [currentEntry?.status, ticketTypeId, qty, phaseId, queueEntryId, router]);
+  }, [queueStatus, ticketTypeId, qty, phaseId, queueEntryId, router]);
 
   // Handle expired/completed entries in sessionStorage
   useEffect(() => {
-    if (
-      currentEntry?.status === "expired" ||
-      currentEntry?.status === "completed"
-    ) {
+    if (queueStatus === "expired" || queueStatus === "completed") {
       sessionStorage.removeItem(QUEUE_ENTRY_KEY_PREFIX + ticketTypeId);
     }
-  }, [currentEntry?.status, ticketTypeId]);
+  }, [queueStatus, ticketTypeId]);
 
   const handleRejoin = () => {
     sessionStorage.removeItem(QUEUE_ENTRY_KEY_PREFIX + ticketTypeId);
     joinedRef.current = false;
     setQueueEntryId(null);
+    setQueueStatus(null);
     // Generate a new session so we get a fresh entry
     sessionStorage.removeItem(SESSION_KEY);
     joinQueue();
   };
+
+  const waitingAhead = position > 0 ? position - 1 : 0;
 
   return (
     <EventTheme concert={concert || {}}>
@@ -274,7 +230,7 @@ export default function QueuePage() {
             )}
 
             {/* Admitted — redirecting */}
-            {currentEntry?.status === "admitted" && (
+            {queueStatus === "admitted" && (
               <div className="py-12">
                 <div className="text-6xl mb-4 animate-bounce">{"\uD83C\uDF89"}</div>
                 <h2 className="text-2xl font-bold text-accent-light mb-2">
@@ -286,7 +242,7 @@ export default function QueuePage() {
             )}
 
             {/* Expired */}
-            {currentEntry?.status === "expired" && (
+            {queueStatus === "expired" && (
               <div className="py-8">
                 <div className="text-5xl mb-4">{"\u23F0"}</div>
                 <h2 className="text-xl font-bold mb-2">Your spot expired</h2>
@@ -311,7 +267,7 @@ export default function QueuePage() {
             )}
 
             {/* Waiting */}
-            {currentEntry?.status === "waiting" && !joining && (
+            {queueStatus === "waiting" && !joining && (
               <div className="py-8">
                 {/* Animated progress ring */}
                 <div className="relative inline-flex items-center justify-center mb-6">
@@ -342,7 +298,7 @@ export default function QueuePage() {
                   </svg>
                   <div className="absolute">
                     <span className="text-3xl font-bold text-accent-light">
-                      #{waitingAhead + 1}
+                      #{position}
                     </span>
                   </div>
                 </div>
@@ -359,7 +315,7 @@ export default function QueuePage() {
                     <p className="text-xs text-muted uppercase tracking-wider mb-1">
                       Position
                     </p>
-                    <p className="text-2xl font-bold">{waitingAhead + 1}</p>
+                    <p className="text-2xl font-bold">{position}</p>
                   </div>
                   <div className="bg-background border border-border rounded-xl p-4">
                     <p className="text-xs text-muted uppercase tracking-wider mb-1">

@@ -287,13 +287,19 @@ describe("POST /api/queue-heartbeat — stress tests", () => {
   });
 
   it("concurrent heartbeats for same waiting entry → both succeed, TTL extended", async () => {
+    const now = Date.now();
     mockQuery.mockResolvedValue({
       queueEntries: [
         {
           id: VALID_UUID,
           status: "waiting",
-          ticketType: { id: "tt-1" },
-          expiresAt: Date.now() + 60_000,
+          position: 1,
+          expiresAt: now + 60_000,
+          ticketType: {
+            queueEntries: [
+              { id: VALID_UUID, status: "waiting", position: 1, expiresAt: now + 60_000 },
+            ],
+          },
         },
       ],
     });
@@ -322,8 +328,9 @@ describe("POST /api/queue-heartbeat — stress tests", () => {
         {
           id: VALID_UUID,
           status: "admitted",
-          ticketType: { id: "tt-1" },
+          position: 1,
           expiresAt: Date.now() + 60_000,
+          ticketType: { queueEntries: [] },
         },
       ],
     });
@@ -344,22 +351,25 @@ describe("POST /api/queue-heartbeat — stress tests", () => {
     }
   });
 
-  it("heartbeat for entry that gets admitted between read and response → returns updated status", async () => {
-    mockQuery
-      .mockResolvedValueOnce({
-        queueEntries: [
-          {
-            id: VALID_UUID,
-            status: "waiting",
-            ticketType: { id: "tt-1" },
-            expiresAt: Date.now() + 60_000,
+  it("heartbeat returns position info and does not trigger admission processing", async () => {
+    const now = Date.now();
+    mockQuery.mockResolvedValueOnce({
+      queueEntries: [
+        {
+          id: VALID_UUID,
+          status: "waiting",
+          position: 3,
+          expiresAt: now + 60_000,
+          ticketType: {
+            queueEntries: [
+              { id: "e-1", status: "waiting", position: 1, expiresAt: now + 60_000 },
+              { id: "e-2", status: "waiting", position: 2, expiresAt: now + 60_000 },
+              { id: VALID_UUID, status: "waiting", position: 3, expiresAt: now + 60_000 },
+            ],
           },
-        ],
-      })
-      // Re-query after processQueueAdmissions returns "admitted"
-      .mockResolvedValueOnce({
-        queueEntries: [{ id: VALID_UUID, status: "admitted" }],
-      });
+        },
+      ],
+    });
 
     const res = await handler(
       makeRequest("/api/queue-heartbeat", { queueEntryId: VALID_UUID }),
@@ -367,25 +377,31 @@ describe("POST /api/queue-heartbeat — stress tests", () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.status).toBe("admitted");
+    expect(body.status).toBe("waiting");
+    expect(body.position).toBe(3); // 2 ahead + 1
+    expect(body.totalWaiting).toBe(3);
+    expect(body.estimatedWaitMin).toBe(1);
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    expect(mockProcessQueueAdmissions).not.toHaveBeenCalled();
   });
 
   it("heartbeat right at expiry boundary (expiresAt = Date.now()) → still extends", async () => {
     const now = Date.now();
-    mockQuery
-      .mockResolvedValueOnce({
-        queueEntries: [
-          {
-            id: VALID_UUID,
-            status: "waiting",
-            ticketType: { id: "tt-1" },
-            expiresAt: now, // exactly at boundary
+    mockQuery.mockResolvedValueOnce({
+      queueEntries: [
+        {
+          id: VALID_UUID,
+          status: "waiting",
+          position: 1,
+          expiresAt: now, // exactly at boundary
+          ticketType: {
+            queueEntries: [
+              { id: VALID_UUID, status: "waiting", position: 1, expiresAt: now },
+            ],
           },
-        ],
-      })
-      .mockResolvedValueOnce({
-        queueEntries: [{ id: VALID_UUID, status: "waiting" }],
-      });
+        },
+      ],
+    });
 
     const res = await handler(
       makeRequest("/api/queue-heartbeat", { queueEntryId: VALID_UUID }),
@@ -398,22 +414,22 @@ describe("POST /api/queue-heartbeat — stress tests", () => {
     expect(txn.data.expiresAt).toBeGreaterThan(now);
   });
 
-  it("heartbeat triggers processQueueAdmissions exactly once per call", async () => {
-    mockQuery.mockResolvedValue({
+  it("heartbeat does NOT trigger processQueueAdmissions (optimized out)", async () => {
+    mockQuery.mockResolvedValueOnce({
       queueEntries: [
         {
           id: VALID_UUID,
           status: "waiting",
-          ticketType: { id: "tt-1" },
+          position: 1,
           expiresAt: Date.now() + 60_000,
+          ticketType: { queueEntries: [] },
         },
       ],
     });
 
     await handler(makeRequest("/api/queue-heartbeat", { queueEntryId: VALID_UUID }));
 
-    expect(mockProcessQueueAdmissions).toHaveBeenCalledTimes(1);
-    expect(mockProcessQueueAdmissions).toHaveBeenCalledWith("tt-1");
+    expect(mockProcessQueueAdmissions).not.toHaveBeenCalled();
   });
 });
 

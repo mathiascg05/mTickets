@@ -107,7 +107,7 @@ describe("POST /api/queue-heartbeat", () => {
         {
           id: VALID_UUID,
           status: "completed",
-          ticketType: { id: "tt-1" },
+          ticketType: { queueEntries: [] },
           expiresAt: Date.now() - 1000,
         },
       ],
@@ -120,24 +120,31 @@ describe("POST /api/queue-heartbeat", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe("completed");
+    expect(body.position).toBe(0);
+    expect(body.totalWaiting).toBe(0);
     expect(mockTransact).not.toHaveBeenCalled();
   });
 
-  it("extends TTL with WAITING_TTL for waiting entries", async () => {
-    mockQuery
-      .mockResolvedValueOnce({
-        queueEntries: [
-          {
-            id: VALID_UUID,
-            status: "waiting",
-            ticketType: { id: "tt-1" },
-            expiresAt: Date.now() + 60_000,
+  it("extends TTL with WAITING_TTL for waiting entries and returns position", async () => {
+    const now = Date.now();
+    mockQuery.mockResolvedValueOnce({
+      queueEntries: [
+        {
+          id: VALID_UUID,
+          status: "waiting",
+          position: 5,
+          expiresAt: now + 60_000,
+          ticketType: {
+            queueEntries: [
+              { id: "e-1", status: "waiting", position: 3, expiresAt: now + 60_000 },
+              { id: "e-2", status: "waiting", position: 4, expiresAt: now + 60_000 },
+              { id: VALID_UUID, status: "waiting", position: 5, expiresAt: now + 60_000 },
+              { id: "e-3", status: "admitted", position: 1, expiresAt: now + 60_000 },
+            ],
           },
-        ],
-      })
-      .mockResolvedValueOnce({
-        queueEntries: [{ id: VALID_UUID, status: "waiting" }],
-      });
+        },
+      ],
+    });
 
     const before = Date.now();
     const req = makeRequest("/api/queue-heartbeat", {
@@ -147,6 +154,11 @@ describe("POST /api/queue-heartbeat", () => {
     const after = Date.now();
 
     expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("waiting");
+    expect(body.position).toBe(3); // 2 waiting ahead + 1
+    expect(body.totalWaiting).toBe(3); // 3 waiting entries
+    expect(body.estimatedWaitMin).toBe(1);
     expect(mockTransact).toHaveBeenCalledTimes(1);
 
     const txn = mockTransact.mock.calls[0][0];
@@ -155,21 +167,18 @@ describe("POST /api/queue-heartbeat", () => {
     expect(txn.data.expiresAt).toBeLessThanOrEqual(after + WAITING_TTL);
   });
 
-  it("extends TTL with ADMITTED_TTL for admitted entries (Fix 2)", async () => {
-    mockQuery
-      .mockResolvedValueOnce({
-        queueEntries: [
-          {
-            id: VALID_UUID,
-            status: "admitted",
-            ticketType: { id: "tt-1" },
-            expiresAt: Date.now() + 60_000,
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        queueEntries: [{ id: VALID_UUID, status: "admitted" }],
-      });
+  it("extends TTL with ADMITTED_TTL for admitted entries", async () => {
+    mockQuery.mockResolvedValueOnce({
+      queueEntries: [
+        {
+          id: VALID_UUID,
+          status: "admitted",
+          position: 1,
+          expiresAt: Date.now() + 60_000,
+          ticketType: { queueEntries: [] },
+        },
+      ],
+    });
 
     const before = Date.now();
     const req = makeRequest("/api/queue-heartbeat", {
@@ -179,33 +188,15 @@ describe("POST /api/queue-heartbeat", () => {
     const after = Date.now();
 
     expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("admitted");
+    expect(body.position).toBe(1); // admitted = position 1, 0 waiting ahead
     expect(mockTransact).toHaveBeenCalledTimes(1);
 
     const txn = mockTransact.mock.calls[0][0];
     expect(txn.id).toBe(VALID_UUID);
     expect(txn.data.expiresAt).toBeGreaterThanOrEqual(before + ADMITTED_TTL);
     expect(txn.data.expiresAt).toBeLessThanOrEqual(after + ADMITTED_TTL);
-  });
-
-  it("returns 500 when entry has no linked ticketType", async () => {
-    mockQuery.mockResolvedValueOnce({
-      queueEntries: [
-        {
-          id: VALID_UUID,
-          status: "waiting",
-          ticketType: null,
-          expiresAt: Date.now() + 60_000,
-        },
-      ],
-    });
-
-    const req = makeRequest("/api/queue-heartbeat", {
-      queueEntryId: VALID_UUID,
-    });
-    const res = await handler(req);
-    expect(res.status).toBe(500);
-    const body = await res.json();
-    expect(body.error).toMatch(/no linked ticketType/i);
   });
 });
 
