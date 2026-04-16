@@ -219,12 +219,12 @@ const translations: Translations = {
     en: "Your payment is being reviewed. You will receive your QR code via email once approved.",
   },
   "ticket.thankYou": {
-    es: "¡Gracias por tu compra!",
-    en: "Thank you for your purchase!",
+    es: "Tu orden de compra fue recibida correctamente",
+    en: "Your purchase order has been received successfully",
   },
   "ticket.confirmationDesc": {
-    es: "Tu orden ha sido recibida exitosamente. Aquí te explicamos lo que sigue.",
-    en: "Your order has been successfully received. Here's what happens next.",
+    es: "Aquí te explicamos lo que sigue.",
+    en: "Here's what happens next.",
   },
   "ticket.canClose": {
     es: "Puedes cerrar esta página. Te notificaremos por correo electrónico cuando tu entrada esté lista.",
@@ -251,8 +251,8 @@ const translations: Translations = {
     en: "Ticket ready",
   },
   "ticket.stepTicketReadyDesc": {
-    es: "Recibirás tu código QR por correo y podrás verlo aquí.",
-    en: "You'll receive your QR code by email and can view it here.",
+    es: "Recibirás tu entrada por correo electrónico y también podrás verla online en esta página.",
+    en: "You'll receive your ticket by email and you can also view it online on this page.",
   },
   "ticket.cancelledTitle": { es: "Entrada Cancelada", en: "Ticket Cancelled" },
   "ticket.cancelledDesc": {

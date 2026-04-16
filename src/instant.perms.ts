@@ -50,7 +50,6 @@ const rules = {
     fields: {
       paymentProofPath: "isOwner || isSuperAdmin",
       proofReferenceNumber: "isOwner || isSuperAdmin",
-      cedula: "isOwner || isSuperAdmin",
     },
   },
   paymentMethods: {
