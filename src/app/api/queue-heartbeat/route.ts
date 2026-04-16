@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { isValidUUID } from "@/lib/validation";
 import { WAITING_TTL, ADMITTED_TTL } from "@/lib/queueConstants";
+import { processQueueAdmissions } from "@/lib/queueAdmission";
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,6 +52,12 @@ export async function POST(req: NextRequest) {
         expiresAt: newExpiresAt,
       }),
     );
+
+    // Piggyback admission processing on each heartbeat
+    const ticketTypeId = entry.ticketType?.id;
+    if (ticketTypeId) {
+      await processQueueAdmissions(ticketTypeId);
+    }
 
     // Calculate position from sibling queue entries
     const now = Date.now();

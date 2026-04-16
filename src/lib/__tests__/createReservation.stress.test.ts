@@ -88,7 +88,6 @@ beforeEach(() => {
   mockQuery.mockReset();
   mockTransact.mockReset();
   mockTransact.mockResolvedValue(undefined);
-  // Default catch-all: post-write validation queries get empty results → validation skipped
   mockQuery.mockResolvedValue({ ticketTypes: [] });
 });
 
@@ -134,35 +133,15 @@ describe("POST /api/create-reservation — availability", () => {
     expect(body.error).toMatch(/not enough/i);
   });
 
-  it("FIXED: two concurrent reservations for last ticket → at most one succeeds (post-write validation)", async () => {
-    let queryCallCount = 0;
-    mockQuery.mockImplementation(() => {
-      queryCallCount++;
-      // First 2 calls: initial reads (stale: 1 ticket, 0 reservations)
-      if (queryCallCount <= 2) {
-        return Promise.resolve({
-          ticketTypes: [
-            baseTicketType({
-              quantity: 1,
-              orders: [],
-              reservations: [],
-            }),
-          ],
-        });
-      }
-      // Post-write re-read: 2 reservations now exist for 1 ticket → available < 0
-      return Promise.resolve({
-        ticketTypes: [
-          baseTicketType({
-            quantity: 1,
-            orders: [],
-            reservations: [
-              { id: "generated-reservation-id", quantity: 1, expiresAt: Date.now() + 600_000 },
-              { id: "generated-reservation-id-2", quantity: 1, expiresAt: Date.now() + 600_000 },
-            ],
-          }),
-        ],
-      });
+  it("two concurrent reservations for last ticket → both succeed (post-write validation removed, create-order is the final guard)", async () => {
+    mockQuery.mockResolvedValue({
+      ticketTypes: [
+        baseTicketType({
+          quantity: 1,
+          orders: [],
+          reservations: [],
+        }),
+      ],
     });
 
     const [res1, res2] = await Promise.all([
@@ -170,12 +149,9 @@ describe("POST /api/create-reservation — availability", () => {
       handler(makeRequest(validBody())),
     ]);
 
-    const statuses = [res1.status, res2.status];
-    const successes = statuses.filter((s) => s === 200).length;
-
-    // Post-write validation detects overbooking and rolls back
-    expect(successes).toBeLessThanOrEqual(1);
-    expect(statuses).toContain(409);
+    // Both reservations succeed — create-order handles final overbooking check
+    expect(res1.status).toBe(200);
+    expect(res2.status).toBe(200);
   });
 
   it("counts active reservations against availability", async () => {

@@ -351,7 +351,7 @@ describe("POST /api/queue-heartbeat — stress tests", () => {
     }
   });
 
-  it("heartbeat returns position info and does not trigger admission processing", async () => {
+  it("heartbeat returns position info and triggers admission processing", async () => {
     const now = Date.now();
     mockQuery.mockResolvedValueOnce({
       queueEntries: [
@@ -361,6 +361,7 @@ describe("POST /api/queue-heartbeat — stress tests", () => {
           position: 3,
           expiresAt: now + 60_000,
           ticketType: {
+            id: "tt-1",
             queueEntries: [
               { id: "e-1", status: "waiting", position: 1, expiresAt: now + 60_000 },
               { id: "e-2", status: "waiting", position: 2, expiresAt: now + 60_000 },
@@ -381,8 +382,7 @@ describe("POST /api/queue-heartbeat — stress tests", () => {
     expect(body.position).toBe(3); // 2 ahead + 1
     expect(body.totalWaiting).toBe(3);
     expect(body.estimatedWaitMin).toBe(1);
-    expect(mockQuery).toHaveBeenCalledTimes(1);
-    expect(mockProcessQueueAdmissions).not.toHaveBeenCalled();
+    expect(mockProcessQueueAdmissions).toHaveBeenCalledWith("tt-1");
   });
 
   it("heartbeat right at expiry boundary (expiresAt = Date.now()) → still extends", async () => {
@@ -414,7 +414,7 @@ describe("POST /api/queue-heartbeat — stress tests", () => {
     expect(txn.data.expiresAt).toBeGreaterThan(now);
   });
 
-  it("heartbeat does NOT trigger processQueueAdmissions (optimized out)", async () => {
+  it("heartbeat triggers processQueueAdmissions to advance the queue", async () => {
     mockQuery.mockResolvedValueOnce({
       queueEntries: [
         {
@@ -422,14 +422,14 @@ describe("POST /api/queue-heartbeat — stress tests", () => {
           status: "waiting",
           position: 1,
           expiresAt: Date.now() + 60_000,
-          ticketType: { queueEntries: [] },
+          ticketType: { id: "tt-1", queueEntries: [] },
         },
       ],
     });
 
     await handler(makeRequest("/api/queue-heartbeat", { queueEntryId: VALID_UUID }));
 
-    expect(mockProcessQueueAdmissions).not.toHaveBeenCalled();
+    expect(mockProcessQueueAdmissions).toHaveBeenCalledWith("tt-1");
   });
 });
 

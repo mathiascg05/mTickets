@@ -47,7 +47,7 @@ export async function processQueueAdmissions(ticketTypeId: string) {
   // Get waiting entries sorted by createdAt (FIFO)
   const waitingEntries = entries
     .filter((e) => e.status === "waiting" && e.expiresAt >= now)
-    .sort((a, b) => a.position - b.position);
+    .sort((a, b) => a.position - b.position || a.createdAt - b.createdAt);
 
   const toAdmit = waitingEntries.slice(0, availableSlots);
 

@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/adminDb";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import { isValidUUID, isValidQty } from "@/lib/validation";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
+import { processQueueAdmissions } from "@/lib/queueAdmission";
 
 const RESERVATION_DURATION = 15 * 60 * 1000; // 15 minutes
 
@@ -132,46 +133,12 @@ export async function POST(req: NextRequest) {
     );
 
     // Mark queue entry as "purchasing" so it's no longer counted as "admitted"
-    // This fixes the double-counting bug where activeBuyers = reservations + admitted
+    // This frees an admission slot — immediately admit the next waiting user
     if (queueToken) {
       await adminDb.transact(
         adminDb.tx.queueEntries[queueToken].update({ status: "purchasing" }),
       );
-    }
-
-    // ── Post-write validation: re-read and rollback if overbooked ──
-    {
-      const { ticketTypes: freshTTs } = await adminDb.query({
-        ticketTypes: {
-          $: { where: { id: ticketTypeId } },
-          orders: {},
-          phases: {
-            $: { order: { sortOrder: "asc" } },
-          },
-          reservations: {},
-        },
-      });
-
-      const freshTT = freshTTs[0];
-      if (freshTT) {
-        const freshOrders = freshTT.orders as { id: string; status: string; phaseId?: string }[];
-        const freshReservations = ((freshTT.reservations || []) as { id: string; quantity: number; expiresAt: number; phaseId?: string }[])
-          .filter((r) => r.expiresAt > Date.now());
-        const freshPhases = (freshTT.phases || []) as { id: string; name: string; price: number; quantity: number; endDate?: string; sortOrder: number }[];
-
-        const freshAvail = getAvailability(freshTT, freshPhases, freshOrders, getTodayString(), freshReservations);
-
-        if (freshAvail.available < 0) {
-          // Rollback: delete the just-created reservation
-          await adminDb.transact(
-            adminDb.tx.reservations[reservationId].delete(),
-          );
-          return NextResponse.json(
-            { error: "Tickets oversold due to concurrent reservation. Please try again.", code: "CONCURRENT_CONFLICT" },
-            { status: 409 },
-          );
-        }
-      }
+      await processQueueAdmissions(ticketTypeId);
     }
 
     return NextResponse.json({ reservationId, expiresAt }, { status: 200 });
