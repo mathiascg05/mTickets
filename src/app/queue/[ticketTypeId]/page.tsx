@@ -142,21 +142,28 @@ export default function QueuePage() {
     };
   }, [queueEntryId]);
 
-  // Auto-redirect when admitted
+  // Auto-redirect when admitted or already purchasing/completed
   useEffect(() => {
-    if (queueStatus === "admitted") {
+    if (queueStatus === "admitted" || queueStatus === "purchasing") {
       const buyUrl = phaseId
         ? `/buy/${ticketTypeId}?qty=${qty}&phaseId=${phaseId}&queueToken=${queueEntryId}`
         : `/buy/${ticketTypeId}?qty=${qty}&queueToken=${queueEntryId}`;
-      // Small delay so user sees the "It's your turn!" message
-      const timer = setTimeout(() => router.push(buyUrl), 1500);
+      // Small delay for "admitted" so user sees the message; instant for "purchasing"
+      const delay = queueStatus === "admitted" ? 1500 : 0;
+      const timer = setTimeout(() => router.push(buyUrl), delay);
       return () => clearTimeout(timer);
     }
-  }, [queueStatus, ticketTypeId, qty, phaseId, queueEntryId, router]);
+    if (queueStatus === "completed") {
+      // Already bought — clear storage and go to event page
+      sessionStorage.removeItem(QUEUE_ENTRY_KEY_PREFIX + ticketTypeId);
+      const concertSlug = concert?.slug;
+      router.push(concertSlug ? `/events/${concertSlug}` : "/");
+    }
+  }, [queueStatus, ticketTypeId, qty, phaseId, queueEntryId, router, concert?.slug]);
 
-  // Handle expired/completed entries in sessionStorage
+  // Handle expired entries in sessionStorage
   useEffect(() => {
-    if (queueStatus === "expired" || queueStatus === "completed") {
+    if (queueStatus === "expired") {
       sessionStorage.removeItem(QUEUE_ENTRY_KEY_PREFIX + ticketTypeId);
     }
   }, [queueStatus, ticketTypeId]);
