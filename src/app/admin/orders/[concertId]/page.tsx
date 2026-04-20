@@ -114,9 +114,11 @@ function ExportSection({
       const currency = pmCurrencyMap[order.paymentMethod];
       const rate = order.purchaseRate ?? (currency ? rateMap[currency] : null);
       const amountUsd = currency ? "" : effectivePrice.toFixed(2);
-      const amountBs = order.purchaseAmountBs != null
-        ? order.purchaseAmountBs.toFixed(2)
-        : (rate != null ? (effectivePrice * rate).toFixed(2) : "");
+      const amountBs = currency
+        ? (order.purchaseAmountBs != null
+            ? order.purchaseAmountBs.toFixed(2)
+            : (rate != null ? (effectivePrice * rate).toFixed(2) : ""))
+        : "";
 
       let cfVals: Record<string, string> = {};
       if (order.customFieldValues) {

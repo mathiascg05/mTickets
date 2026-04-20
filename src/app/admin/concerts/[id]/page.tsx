@@ -340,7 +340,8 @@ function PaymentMethodCard({
             name: base.name,
             instructions: "",
             requireScreenshot: true,
-            requireReferenceNumber: false,
+            requireReferenceNumber: base.type !== "efectivo",
+            ...(base.type === "pago_movil" ? { convertCurrency: "USD" } : {}),
             createdAt: Date.now(),
           })
           .link({ concert: concertId }),
@@ -350,12 +351,17 @@ function PaymentMethodCard({
 
   function saveConfig() {
     if (!existing) return;
+    const effectiveConvertCurrency =
+      base.type === "pago_movil" ? (convertCurrency || "USD") : (convertCurrency || "");
+    if (base.type === "pago_movil" && !convertCurrency) {
+      setConvertCurrency("USD");
+    }
     db.transact(
       db.tx.paymentMethods[existing.id].update({
         instructions: instructions || "",
-        convertCurrency: convertCurrency || "",
+        convertCurrency: effectiveConvertCurrency,
         requireScreenshot,
-        requireReferenceNumber,
+        requireReferenceNumber: base.type === "efectivo" ? false : requireReferenceNumber,
         ...(base.type === "zelle" ? { zelleEmail: zelleEmail || undefined, zelleName: zelleName || undefined } : {}),
         ...(base.type === "pago_movil" ? { pmCedula: pmCedula || undefined, pmPhone: pmPhone || undefined, pmBank: pmBank || undefined } : {}),
       }),
@@ -479,11 +485,10 @@ function PaymentMethodCard({
             <div>
               <label className="block text-sm font-medium mb-1">{t("admin.currencyConversion")}</label>
               <select
-                value={convertCurrency}
+                value={convertCurrency || "USD"}
                 onChange={(e) => { setConvertCurrency(e.target.value); setDirty(true); }}
                 className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
               >
-                <option value="">{t("common.none")}</option>
                 <option value="USD">USD &rarr; Bs</option>
                 <option value="EUR">EUR &rarr; Bs</option>
               </select>
@@ -501,15 +506,17 @@ function PaymentMethodCard({
                 />
                 <span className="text-sm">{t("admin.requireScreenshot")}</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={requireReferenceNumber}
-                  onChange={(e) => { setRequireReferenceNumber(e.target.checked); setDirty(true); }}
-                  className="accent-accent-light"
-                />
-                <span className="text-sm">{t("admin.requireRefNumber")}</span>
-              </label>
+              {base.type !== "efectivo" && (
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={requireReferenceNumber}
+                    onChange={(e) => { setRequireReferenceNumber(e.target.checked); setDirty(true); }}
+                    className="accent-accent-light"
+                  />
+                  <span className="text-sm">{t("admin.requireRefNumber")}</span>
+                </label>
+              )}
             </div>
           </div>
           {dirty && (
