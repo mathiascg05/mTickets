@@ -4,6 +4,12 @@ import { db } from "@/lib/db";
 import { AuthProvider } from "@/lib/AuthContext";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
+import {
+  TERMS_VERSION,
+  ORGANIZER_TERMS_VERSION,
+  PRIVACY_VERSION,
+} from "@/lib/legalVersions";
+import { LegalGate, hasAcceptedCurrentLegalTerms } from "@/components/LegalGate";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -14,6 +20,9 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedOrganizerTerms, setAcceptedOrganizerTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,13 +62,27 @@ function LoginForm() {
         setError("Passwords do not match");
         return;
       }
+      if (!acceptedTerms || !acceptedOrganizerTerms || !acceptedPrivacy) {
+        setError(
+          "Debes aceptar los Términos, los Términos del Organizador y la Política de Privacidad.",
+        );
+        return;
+      }
     }
 
     setLoading(true);
     try {
       const body =
         mode === "register"
-          ? { email: email.trim(), password, confirmPassword, action: "register" }
+          ? {
+              email: email.trim(),
+              password,
+              confirmPassword,
+              action: "register",
+              acceptedTermsVersion: TERMS_VERSION,
+              acceptedOrganizerTermsVersion: ORGANIZER_TERMS_VERSION,
+              acceptedPrivacyVersion: PRIVACY_VERSION,
+            }
           : { email: email.trim(), password };
       const res = await fetch("/api/admin-auth", {
         method: "PUT",
@@ -199,6 +222,70 @@ function LoginForm() {
                 />
               </div>
             )}
+            {mode === "register" && (
+              <div className="space-y-2 pt-2 border-t border-border">
+                <label className="flex items-start gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    className="mt-0.5 accent-accent-light"
+                  />
+                  <span>
+                    Acepto los{" "}
+                    <Link
+                      href="/terms"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-accent-light hover:text-accent underline"
+                    >
+                      Términos y Condiciones
+                    </Link>
+                    .
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acceptedOrganizerTerms}
+                    onChange={(e) => setAcceptedOrganizerTerms(e.target.checked)}
+                    className="mt-0.5 accent-accent-light"
+                  />
+                  <span>
+                    Acepto los{" "}
+                    <Link
+                      href="/terminos-organizador"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-accent-light hover:text-accent underline"
+                    >
+                      Términos del Organizador
+                    </Link>
+                    , incluida la obligación de pagar la comisión configurada y cumplir con el SENIAT.
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acceptedPrivacy}
+                    onChange={(e) => setAcceptedPrivacy(e.target.checked)}
+                    className="mt-0.5 accent-accent-light"
+                  />
+                  <span>
+                    Acepto la{" "}
+                    <Link
+                      href="/privacy"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-accent-light hover:text-accent underline"
+                    >
+                      Política de Privacidad
+                    </Link>
+                    .
+                  </span>
+                </label>
+              </div>
+            )}
             {error && <p className="text-danger text-sm">{error}</p>}
             <button
               type="submit"
@@ -297,6 +384,8 @@ export default function AdminLayout({
 
   const currentUser = userData?.$users?.[0];
   const userIsSuperAdmin = currentUser?.type === "superadmin" || userEmail === SUPER_ADMIN_EMAIL;
+  const hasAcceptedLegal = hasAcceptedCurrentLegalTerms(currentUser);
+  const refreshToken = (user as { refresh_token?: string } | null)?.refresh_token ?? "";
 
   const navItems = [
     { href: "/admin", label: t("admin.dashboard") },
@@ -319,6 +408,21 @@ export default function AdminLayout({
 
   if (!user || !userEmail) {
     return <LoginForm />;
+  }
+
+  // Wait for the user record before deciding on legal gate to avoid flicker.
+  const userRecordLoaded = userData?.$users !== undefined && currentUser !== undefined;
+
+  if (userRecordLoaded && !hasAcceptedLegal) {
+    return (
+      <LegalGate
+        refreshToken={refreshToken}
+        onAccepted={() => {
+          // The $users query is reactive; acceptance will re-render automatically.
+        }}
+        onSignOut={() => db.auth.signOut()}
+      />
+    );
   }
 
   return (

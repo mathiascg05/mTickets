@@ -3,6 +3,11 @@ import { id } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
 import { hashPassword, verifyPassword, validatePassword } from "@/lib/password";
+import {
+  TERMS_VERSION,
+  ORGANIZER_TERMS_VERSION,
+  PRIVACY_VERSION,
+} from "@/lib/legalVersions";
 
 /** POST /api/admin-auth — check if email exists (login vs register) */
 export async function POST(req: NextRequest) {
@@ -45,7 +50,15 @@ export async function POST(req: NextRequest) {
 /** PUT /api/admin-auth — register or login with password */
 export async function PUT(req: NextRequest) {
   try {
-    const { email, password, confirmPassword, action } = await req.json();
+    const {
+      email,
+      password,
+      confirmPassword,
+      action,
+      acceptedTermsVersion,
+      acceptedOrganizerTermsVersion,
+      acceptedPrivacyVersion,
+    } = await req.json();
 
     if (typeof email !== "string" || !email.includes("@")) {
       return NextResponse.json({ error: "Invalid input" }, { status: 400 });
@@ -64,6 +77,19 @@ export async function PUT(req: NextRequest) {
       }
       if (password !== confirmPassword) {
         return NextResponse.json({ error: "Passwords do not match" }, { status: 400 });
+      }
+      if (
+        acceptedTermsVersion !== TERMS_VERSION ||
+        acceptedOrganizerTermsVersion !== ORGANIZER_TERMS_VERSION ||
+        acceptedPrivacyVersion !== PRIVACY_VERSION
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Debes aceptar los Términos, los Términos del Organizador y la Política de Privacidad para crear una cuenta.",
+          },
+          { status: 400 },
+        );
       }
 
       // Check user doesn't already exist
@@ -91,9 +117,18 @@ export async function PUT(req: NextRequest) {
       if (newUsers.length > 0) {
         const userId = newUsers[0].id;
         const userType = normalizedEmail === SUPER_ADMIN_EMAIL ? "superadmin" : "organizer";
+        const now = Date.now();
 
         await adminDb.transact([
-          adminDb.tx.$users[userId].update({ type: userType }),
+          adminDb.tx.$users[userId].update({
+            type: userType,
+            acceptedTermsVersion: TERMS_VERSION,
+            acceptedTermsAt: now,
+            acceptedOrganizerTermsVersion: ORGANIZER_TERMS_VERSION,
+            acceptedOrganizerTermsAt: now,
+            acceptedPrivacyVersion: PRIVACY_VERSION,
+            acceptedPrivacyAt: now,
+          }),
           adminDb.tx.credentials[id()]
             .update({ passwordHash, createdAt: Date.now() })
             .link({ user: userId }),

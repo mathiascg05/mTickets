@@ -1,0 +1,283 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import {
+  ORGANIZER_TERMS_VERSION,
+  ORGANIZER_TERMS_EFFECTIVE_DATE,
+  LEGAL_CONTACT_EMAIL,
+} from "@/lib/legalVersions";
+
+export const metadata: Metadata = {
+  title: "Términos del Organizador | maTickets",
+};
+
+export default function OrganizerTermsPage() {
+  return (
+    <div className="min-h-screen">
+      <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <Link href="/" className="text-xl font-bold tracking-wide">
+            ma<span className="text-white/60">Tickets</span>
+          </Link>
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
+        <h1 className="text-3xl font-bold mb-2">
+          Términos y Condiciones para Organizadores
+        </h1>
+        <p className="text-muted text-sm mb-8">
+          Versión {ORGANIZER_TERMS_VERSION} · Vigente desde el{" "}
+          {ORGANIZER_TERMS_EFFECTIVE_DATE}
+        </p>
+
+        <div className="space-y-6 text-foreground/80 leading-relaxed">
+          <section>
+            <p>
+              Los presentes Términos rigen la relación entre <strong>maTickets</strong>
+              (en adelante, &quot;la Plataforma&quot;) y las personas naturales o jurídicas
+              que utilizan la Plataforma para publicar, vender y gestionar entradas
+              de sus eventos (en adelante, &quot;el Organizador&quot;). Al registrarse
+              como organizador, aceptar estos términos o publicar un evento, el
+              Organizador declara haberlos leído, comprendido y aceptado
+              íntegramente.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold mb-2 text-foreground">1. Naturaleza de la relación</h2>
+            <p>
+              El Organizador es el <strong>vendedor final</strong> de las entradas y
+              el responsable único de la producción, ejecución y atención al
+              comprador de su evento. maTickets provee exclusivamente la
+              infraestructura tecnológica para publicar el evento, recibir solicitudes
+              de compra, validar comprobantes y emitir entradas electrónicas.
+              maTickets no es agencia, mandatario, comisionista ni socio del
+              Organizador y no percibe el dinero pagado por los compradores.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold mb-2 text-foreground">2. Obligaciones del Organizador</h2>
+            <ol className="list-decimal list-inside space-y-2">
+              <li>
+                <strong>Veracidad del evento:</strong> publicar información exacta
+                sobre fecha, hora, lugar, artistas, precios, capacidad y
+                condiciones del evento. Cualquier modificación sustancial debe
+                notificarse oportunamente a los compradores.
+              </li>
+              <li>
+                <strong>Prestación del servicio:</strong> realizar el evento en los
+                términos ofrecidos y garantizar el acceso a los compradores cuya
+                entrada haya sido aprobada.
+              </li>
+              <li>
+                <strong>Atención al comprador:</strong> gestionar las consultas,
+                reclamos, reembolsos, cancelaciones y cambios de titularidad de
+                sus eventos. maTickets no interviene en esa relación más allá de
+                los canales de comunicación que habilita.
+              </li>
+              <li>
+                <strong>Política de reembolso:</strong> definir y publicar su propia
+                política de reembolsos y cumplirla. La política del Organizador
+                prevalece entre el Organizador y el comprador; maTickets no se
+                obliga ni responde por ella.
+              </li>
+              <li>
+                <strong>Cumplimiento fiscal (SENIAT):</strong> emitir las facturas
+                o documentos equivalentes a los compradores conforme a la
+                normativa venezolana vigente, declarar y enterar el Impuesto al
+                Valor Agregado (IVA), el Impuesto Sobre la Renta (ISLR) y demás
+                tributos aplicables sobre las ventas realizadas a través de la
+                Plataforma. El Organizador es único responsable ante la
+                administración tributaria.
+              </li>
+              <li>
+                <strong>Veracidad de datos bancarios y de pago:</strong> proveer
+                datos precisos y actualizados para los métodos de pago
+                configurados (Zelle, Pago Móvil, transferencia, efectivo u
+                otros). El Organizador responde por los errores derivados de la
+                información incorrecta.
+              </li>
+              <li>
+                <strong>Tratamiento de datos personales de compradores:</strong>{" "}
+                actuar como corresponsable del tratamiento, utilizar los datos
+                exclusivamente para las finalidades propias del evento y
+                garantizar su confidencialidad. El Organizador se obliga a
+                cumplir la Política de Privacidad de la Plataforma y la normativa
+                constitucional y legal venezolana sobre protección de datos.
+              </li>
+              <li>
+                <strong>Legalidad del evento:</strong> obtener todos los permisos,
+                licencias, derechos de autor, seguros y autorizaciones exigidos
+                por ley para la realización del evento.
+              </li>
+              <li>
+                <strong>Conducta:</strong> no utilizar la Plataforma para actos
+                prohibidos por la Ley Especial contra los Delitos Informáticos,
+                lavado de activos, eventos contrarios al orden público o
+                normativa penal venezolana.
+              </li>
+            </ol>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold mb-2 text-foreground">
+              3. Comisión por uso de la Plataforma
+            </h2>
+            <p>
+              El uso de la Plataforma está sujeto al pago de una <strong>comisión</strong>{" "}
+              a favor de maTickets configurable por evento, compuesta por un
+              porcentaje sobre el precio de cada entrada{" "}
+              <em>(feePercent)</em> y/o un monto fijo por orden{" "}
+              <em>(feeFixed)</em>. Las tasas aplicables para cada evento se
+              muestran al Organizador en el panel administrativo antes de su
+              activación.
+            </p>
+            <p className="mt-2">
+              Existen dos modalidades de cobro, según se defina para cada evento:
+            </p>
+            <ul className="list-disc list-inside space-y-1 mt-1">
+              <li>
+                <strong>Prepaid:</strong> el Organizador carga saldo en su cuenta
+                de la Plataforma por adelantado, contra el cual se descuentan las
+                comisiones de cada orden aprobada.
+              </li>
+              <li>
+                <strong>Postpaid:</strong> las comisiones se acumulan como deuda
+                del Organizador con maTickets y deben ser liquidadas en los plazos
+                que se comuniquen al efecto.
+              </li>
+            </ul>
+            <p className="mt-2">
+              La comisión se devenga al momento de la aprobación de cada orden.
+              La no liquidación oportuna genera intereses moratorios a la tasa
+              legal correspondiente y faculta a maTickets a suspender o dar de
+              baja al Organizador sin perjuicio de otras acciones legales.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold mb-2 text-foreground">4. Obligaciones y límites de maTickets</h2>
+            <p>maTickets se compromete a, de forma razonable:</p>
+            <ul className="list-disc list-inside space-y-1 mt-2">
+              <li>Mantener la Plataforma disponible, sin acuerdos formales de nivel de servicio (SLA).</li>
+              <li>Implementar medidas de seguridad razonables para la información almacenada.</li>
+              <li>Proveer soporte técnico por los canales publicados.</li>
+              <li>Notificar al Organizador cambios relevantes en funcionalidades o condiciones.</li>
+            </ul>
+            <p className="mt-2">
+              maTickets no garantiza disponibilidad ininterrumpida y no es
+              responsable por fallos derivados de proveedores de infraestructura
+              de terceros, del Organizador o del comprador, ni por eventos de
+              fuerza mayor.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold mb-2 text-foreground">5. Propiedad intelectual</h2>
+            <p>
+              El Organizador conserva la titularidad de su marca, contenidos,
+              imágenes y material publicado del evento, y otorga a maTickets una{" "}
+              <strong>licencia limitada, no exclusiva, revocable y
+              gratuita</strong> para mostrarlos en la Plataforma con el fin de
+              publicitar y vender las entradas. maTickets es titular del software,
+              diseño, código y marca &quot;maTickets&quot;, y no concede al Organizador
+              derecho alguno sobre estos.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold mb-2 text-foreground">6. Indemnidad</h2>
+            <p>
+              El Organizador <strong>mantiene indemne</strong> a maTickets frente a
+              cualquier reclamo, demanda, sanción administrativa o indemnización
+              derivada de: (a) el incumplimiento de sus obligaciones bajo estos
+              Términos; (b) reclamos de compradores, artistas, proveedores o
+              autoridades relacionados con el evento; (c) violaciones a derechos
+              de terceros; (d) incumplimientos tributarios o regulatorios del
+              Organizador.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold mb-2 text-foreground">7. Suspensión y terminación</h2>
+            <p>
+              maTickets podrá suspender o dar de baja la cuenta del Organizador,
+              sin perjuicio de los derechos adquiridos por los compradores, en
+              caso de:
+            </p>
+            <ul className="list-disc list-inside space-y-1 mt-2">
+              <li>Incumplimiento de estos Términos.</li>
+              <li>Impago reiterado de comisiones.</li>
+              <li>Indicios razonables de fraude, información falsa o eventos inexistentes.</li>
+              <li>Reclamos sustentados de compradores o de autoridades.</li>
+              <li>Uso de la Plataforma para finalidades ilícitas.</li>
+            </ul>
+            <p className="mt-2">
+              Salvo casos graves, maTickets notificará previamente al Organizador
+              otorgando un plazo razonable para subsanar. El Organizador puede
+              terminar la relación en cualquier momento, previo cumplimiento de
+              sus obligaciones pendientes (eventos en curso, comisiones
+              devengadas, atención a compradores aprobados).
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold mb-2 text-foreground">8. Confidencialidad</h2>
+            <p>
+              Cada parte se obliga a tratar como confidencial la información
+              comercial, técnica o personal a la que acceda en virtud de la
+              relación. Esta obligación subsiste tras la terminación.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold mb-2 text-foreground">9. Modificaciones</h2>
+            <p>
+              maTickets podrá modificar estos Términos. Los cambios se comunicarán
+              con al menos quince (15) días de antelación y pueden requerir nueva
+              aceptación expresa por parte del Organizador para continuar
+              utilizando la Plataforma.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold mb-2 text-foreground">10. Ley aplicable y jurisdicción</h2>
+            <p>
+              Estos Términos se rigen por las leyes de la{" "}
+              <strong>República Bolivariana de Venezuela</strong>. Para cualquier
+              controversia, las partes se someten a los tribunales de la ciudad
+              de Caracas, renunciando a cualquier otro fuero.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold mb-2 text-foreground">11. Contacto</h2>
+            <p>
+              Consultas o notificaciones relacionadas con estos Términos:{" "}
+              <a
+                href={`mailto:${LEGAL_CONTACT_EMAIL}`}
+                className="text-accent-light hover:text-accent underline"
+              >
+                {LEGAL_CONTACT_EMAIL}
+              </a>
+              .
+            </p>
+          </section>
+        </div>
+
+        <div className="mt-12 pt-6 border-t border-border flex flex-wrap gap-4">
+          <Link href="/" className="text-accent-light hover:text-accent transition-colors">
+            Volver al inicio
+          </Link>
+          <Link href="/terms" className="text-accent-light hover:text-accent transition-colors">
+            Términos del Comprador
+          </Link>
+          <Link href="/privacy" className="text-accent-light hover:text-accent transition-colors">
+            Política de Privacidad
+          </Link>
+        </div>
+      </main>
+    </div>
+  );
+}

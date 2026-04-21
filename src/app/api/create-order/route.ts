@@ -39,6 +39,8 @@ type CreateOrderBody = {
   purchaseRate?: number;
   purchaseRateCurrency?: string;
   purchaseAmountBs?: number;
+  acceptedTermsVersion?: string;
+  acceptedPrivacyVersion?: string;
 };
 
 const MAX_RETRIES = 10;
@@ -62,6 +64,8 @@ export async function POST(req: NextRequest) {
       purchaseRate,
       purchaseRateCurrency,
       purchaseAmountBs,
+      acceptedTermsVersion,
+      acceptedPrivacyVersion,
     } = body;
 
     // Input validation
@@ -366,6 +370,8 @@ export async function POST(req: NextRequest) {
             ...(purchaseGroupId ? { purchaseGroupId } : {}),
             ...(purchaseRate ? { purchaseRate, purchaseRateCurrency } : {}),
             ...(purchaseAmountBs != null ? { purchaseAmountBs } : {}),
+            ...(acceptedTermsVersion ? { acceptedTermsVersion } : {}),
+            ...(acceptedPrivacyVersion ? { acceptedPrivacyVersion } : {}),
           })
           .link({ ticketType: ticketTypeId });
       });

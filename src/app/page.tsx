@@ -76,9 +76,22 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="bg-accent text-white/60 py-8">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center text-sm">
-          <p className="font-semibold text-white mb-1">ma<span className="text-white/60">Tickets</span></p>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center text-sm space-y-3">
+          <p className="font-semibold text-white">ma<span className="text-white/60">Tickets</span></p>
           <p>{t("home.footer")}</p>
+          <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs">
+            <Link href="/terms" className="hover:text-white transition-colors">
+              Términos
+            </Link>
+            <span className="text-white/30">·</span>
+            <Link href="/privacy" className="hover:text-white transition-colors">
+              Privacidad
+            </Link>
+            <span className="text-white/30">·</span>
+            <Link href="/terminos-organizador" className="hover:text-white transition-colors">
+              Términos del Organizador
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>

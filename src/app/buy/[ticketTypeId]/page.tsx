@@ -5,6 +5,7 @@ import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { db } from "@/lib/db";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
+import { TERMS_VERSION, PRIVACY_VERSION } from "@/lib/legalVersions";
 import { id } from "@instantdb/react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -480,6 +481,8 @@ export default function BuyPage() {
             purchaseRateCurrency: cachedRate.currency,
             purchaseAmountBs: Math.round((total / qty) * rateValue * 100) / 100,
           } : {}),
+          acceptedTermsVersion: TERMS_VERSION,
+          acceptedPrivacyVersion: PRIVACY_VERSION,
         }),
       });
 

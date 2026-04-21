@@ -10,6 +10,12 @@ const _schema = i.schema({
       email: i.string().unique().indexed().optional(),
       imageURL: i.string().optional(),
       type: i.string().optional(),
+      acceptedTermsVersion: i.string().optional(),
+      acceptedTermsAt: i.number().optional(),
+      acceptedOrganizerTermsVersion: i.string().optional(),
+      acceptedOrganizerTermsAt: i.number().optional(),
+      acceptedPrivacyVersion: i.string().optional(),
+      acceptedPrivacyAt: i.number().optional(),
     }),
     concerts: i.entity({
       name: i.string(),
@@ -60,6 +66,8 @@ const _schema = i.schema({
       purchaseRate: i.number().optional(),
       purchaseRateCurrency: i.string().optional(),
       purchaseAmountBs: i.number().optional(),
+      acceptedTermsVersion: i.string().optional(),
+      acceptedPrivacyVersion: i.string().optional(),
       createdAt: i.number().indexed(),
     }),
     paymentMethods: i.entity({
