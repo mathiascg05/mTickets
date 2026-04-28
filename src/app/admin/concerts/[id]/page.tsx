@@ -861,9 +861,9 @@ function TicketTypeItem({
 
   return (
     <div className="border border-border rounded-lg">
-      <div className="flex items-center justify-between p-4">
-        <div>
-          <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between p-4 gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
             <input
               value={tt.name}
               onChange={(e) =>
@@ -873,8 +873,7 @@ function TicketTypeItem({
                   }),
                 )
               }
-              size={Math.max(tt.name.length, 8)}
-              className="font-medium text-base text-foreground font-sans bg-transparent border-b border-transparent hover:border-border focus:border-accent-light focus:outline-none transition-colors py-0.5 px-0"
+              className="font-medium text-base text-foreground font-sans bg-transparent border-b border-transparent hover:border-border focus:border-accent-light focus:outline-none transition-colors py-0 px-0 w-full"
             />
             {tt.visibility === "hidden" && (
               <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-[10px] font-semibold uppercase tracking-wider">{t("common.hidden")}</span>
