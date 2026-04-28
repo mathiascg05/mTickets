@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { isAuthorizedForConcert } from "@/lib/authHelpers";
 import { approveOrderInternal } from "@/lib/approveOrder";
+import { cancelOrderInternal } from "@/lib/cancelOrder";
 
 type RequestBody = {
   orderId: string;
@@ -108,10 +109,19 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "cancel") {
-      await adminDb.transact([
-        adminDb.tx.orders[orderId].update({ status: "cancelled" }),
-      ]);
-      return NextResponse.json({ success: true });
+      const result = await cancelOrderInternal(orderId);
+      if (!result.success) {
+        const statusCode = result.errorCode === "NOT_FOUND" ? 404 : 400;
+        return NextResponse.json(
+          { error: result.errorCode, message: result.error },
+          { status: statusCode },
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        feeReversed: result.feeReversed,
+        feeAmount: result.feeAmount,
+      });
     }
 
     // Approve flow — delegate to shared function
