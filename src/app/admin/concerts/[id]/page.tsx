@@ -297,6 +297,7 @@ type PaymentMethodData = {
   convertCurrency?: string;
   requireScreenshot?: boolean;
   requireReferenceNumber?: boolean;
+  showConversionDetail?: boolean;
   zelleEmail?: string;
   zelleName?: string;
   pmCedula?: string;
@@ -318,6 +319,7 @@ function PaymentMethodCard({
   const [convertCurrency, setConvertCurrency] = useState(existing?.convertCurrency || "");
   const [requireScreenshot, setRequireScreenshot] = useState(existing?.requireScreenshot !== false);
   const [requireReferenceNumber, setRequireReferenceNumber] = useState(existing?.requireReferenceNumber === true);
+  const [showConversionDetail, setShowConversionDetail] = useState(existing?.showConversionDetail !== false);
   const [zelleEmail, setZelleEmail] = useState(existing?.zelleEmail || "");
   const [zelleName, setZelleName] = useState(existing?.zelleName || "");
   const [pmCedula, setPmCedula] = useState(existing?.pmCedula || "");
@@ -363,7 +365,7 @@ function PaymentMethodCard({
         requireScreenshot,
         requireReferenceNumber: base.type === "efectivo" ? false : requireReferenceNumber,
         ...(base.type === "zelle" ? { zelleEmail: zelleEmail || undefined, zelleName: zelleName || undefined } : {}),
-        ...(base.type === "pago_movil" ? { pmCedula: pmCedula || undefined, pmPhone: pmPhone || undefined, pmBank: pmBank || undefined } : {}),
+        ...(base.type === "pago_movil" ? { pmCedula: pmCedula || undefined, pmPhone: pmPhone || undefined, pmBank: pmBank || undefined, showConversionDetail } : {}),
       }),
     );
     setDirty(false);
@@ -493,6 +495,17 @@ function PaymentMethodCard({
                 <option value="EUR">EUR &rarr; Bs</option>
               </select>
             </div>
+          )}
+          {base.type === "pago_movil" && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showConversionDetail}
+                onChange={(e) => { setShowConversionDetail(e.target.checked); setDirty(true); }}
+                className="accent-accent-light"
+              />
+              <span className="text-sm">{t("admin.showConversionDetail")}</span>
+            </label>
           )}
           <div>
             <label className="block text-sm font-medium mb-2">{t("admin.requiredProof")}</label>

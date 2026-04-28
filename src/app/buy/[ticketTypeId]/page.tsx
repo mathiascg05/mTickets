@@ -913,10 +913,14 @@ export default function BuyPage() {
                           <p className="text-sm text-muted animate-pulse">
                             {t("checkout.loadingRate")}
                           </p>
-                        ) : cachedRate ? (
+                        ) : cachedRate ? ((() => {
+                          const compact =
+                            (selectedPm as { type?: string }).type === "pago_movil" &&
+                            (selectedPm as { showConversionDetail?: boolean }).showConversionDetail === false;
+                          return (
                           <div>
                             <p className="text-lg font-bold text-foreground">
-                              {t("checkout.totalBs", {
+                              {compact ? t("checkout.totalBsOnly", { bs: totalBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }) : t("checkout.totalBs", {
                                 symbol: cachedRate.currency === "EUR" ? "\u20AC" : "$",
                                 total: total.toFixed(2),
                                 bs: totalBs.toLocaleString("es-VE", {
@@ -925,15 +929,18 @@ export default function BuyPage() {
                                 }),
                               })}
                             </p>
-                            <p className="text-xs text-muted mt-1">
-                              {t("checkout.bcvRate", {
-                                rate: rateValue.toFixed(2),
-                                currency: cachedRate.currency,
-                                updated: new Date(cachedRate.fetchedAt).toLocaleString(),
-                              })}
-                            </p>
+                            {!compact && (
+                              <p className="text-xs text-muted mt-1">
+                                {t("checkout.bcvRate", {
+                                  rate: rateValue.toFixed(2),
+                                  currency: cachedRate.currency,
+                                  updated: new Date(cachedRate.fetchedAt).toLocaleString(),
+                                })}
+                              </p>
+                            )}
                           </div>
-                        ) : (
+                          );
+                        })()) : (
                           <p className="text-sm text-danger">
                             {t("checkout.rateError")}
                           </p>

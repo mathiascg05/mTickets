@@ -77,6 +77,7 @@ const _schema = i.schema({
       convertCurrency: i.string().optional(),
       requireScreenshot: i.boolean().optional(),
       requireReferenceNumber: i.boolean().optional(),
+      showConversionDetail: i.boolean().optional(),
       zelleEmail: i.string().optional(),
       zelleName: i.string().optional(),
       pmCedula: i.string().optional(),
