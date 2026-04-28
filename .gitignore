@@ -47,5 +47,8 @@ next-env.d.ts
 # design assets
 /assets/
 
+# generated legal PDFs (regenerable via `pnpm legal:pdf`)
+/legal/
+
 # Sentry Config File
 .env.sentry-build-plugin
