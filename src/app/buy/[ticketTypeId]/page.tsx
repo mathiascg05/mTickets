@@ -720,6 +720,9 @@ export default function BuyPage() {
               const val = customFieldValues[fieldId] || "";
               let parsedOptions: string[] = [];
               try { parsedOptions = cf.options ? JSON.parse(cf.options) : []; } catch { /* ignore */ }
+              const sortedOptions = [...parsedOptions].sort((a, b) =>
+                a.localeCompare(b, "es", { sensitivity: "base", numeric: true })
+              );
 
               return (
                 <div key={fieldId}>
@@ -781,14 +784,14 @@ export default function BuyPage() {
                       className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                     >
                       <option value="">{t("common.select")}</option>
-                      {parsedOptions.map((opt) => (
+                      {sortedOptions.map((opt) => (
                         <option key={opt} value={opt}>{opt}</option>
                       ))}
                     </select>
                   )}
                   {cf.fieldType === "multiselect" && (
                     <div className="space-y-1.5">
-                      {parsedOptions.map((opt) => {
+                      {sortedOptions.map((opt) => {
                         let selected: string[] = [];
                         try { selected = val ? JSON.parse(val) : []; } catch { /* ignore */ }
                         const isChecked = selected.includes(opt);
@@ -836,7 +839,9 @@ export default function BuyPage() {
                         className="mt-1 accent-accent-light"
                       />
                       <div>
-                        <p className="font-medium">{pm.name}</p>
+                        <p className="font-medium">
+                          {(pm as { type?: string }).type === "pago_movil" ? "Pago Móvil" : pm.name}
+                        </p>
                       </div>
                     </label>
                   ))}
