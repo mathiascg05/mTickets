@@ -298,6 +298,7 @@ type PaymentMethodData = {
   requireScreenshot?: boolean;
   requireReferenceNumber?: boolean;
   showConversionDetail?: boolean;
+  customRate?: number;
   zelleEmail?: string;
   zelleName?: string;
   pmCedula?: string;
@@ -320,6 +321,11 @@ function PaymentMethodCard({
   const [requireScreenshot, setRequireScreenshot] = useState(existing?.requireScreenshot !== false);
   const [requireReferenceNumber, setRequireReferenceNumber] = useState(existing?.requireReferenceNumber === true);
   const [showConversionDetail, setShowConversionDetail] = useState(existing?.showConversionDetail !== false);
+  const [rateMode, setRateMode] = useState<"USD" | "EUR" | "custom">(
+    existing?.customRate ? "custom" : ((existing?.convertCurrency as "USD" | "EUR") || "USD")
+  );
+  const [customRate, setCustomRate] = useState<string>(existing?.customRate ? String(existing.customRate) : "");
+  const [customRateError, setCustomRateError] = useState<string>("");
   const [zelleEmail, setZelleEmail] = useState(existing?.zelleEmail || "");
   const [zelleName, setZelleName] = useState(existing?.zelleName || "");
   const [pmCedula, setPmCedula] = useState(existing?.pmCedula || "");
@@ -353,8 +359,17 @@ function PaymentMethodCard({
 
   function saveConfig() {
     if (!existing) return;
-    const effectiveConvertCurrency =
-      base.type === "pago_movil" ? (convertCurrency || "USD") : (convertCurrency || "");
+    const isCustom = base.type === "pago_movil" && rateMode === "custom";
+    const parsedCustomRate = isCustom ? parseFloat(customRate) : NaN;
+    if (isCustom && (!Number.isFinite(parsedCustomRate) || parsedCustomRate <= 0)) {
+      setCustomRateError(t("admin.customRateInvalid"));
+      return;
+    }
+    const effectiveConvertCurrency = isCustom
+      ? "USD"
+      : base.type === "pago_movil"
+        ? (convertCurrency || "USD")
+        : (convertCurrency || "");
     if (base.type === "pago_movil" && !convertCurrency) {
       setConvertCurrency("USD");
     }
@@ -365,7 +380,13 @@ function PaymentMethodCard({
         requireScreenshot,
         requireReferenceNumber: base.type === "efectivo" ? false : requireReferenceNumber,
         ...(base.type === "zelle" ? { zelleEmail: zelleEmail || undefined, zelleName: zelleName || undefined } : {}),
-        ...(base.type === "pago_movil" ? { pmCedula: pmCedula || undefined, pmPhone: pmPhone || undefined, pmBank: pmBank || undefined, showConversionDetail } : {}),
+        ...(base.type === "pago_movil" ? {
+          pmCedula: pmCedula || undefined,
+          pmPhone: pmPhone || undefined,
+          pmBank: pmBank || undefined,
+          showConversionDetail,
+          customRate: isCustom ? parsedCustomRate : null,
+        } : {}),
       }),
     );
     setDirty(false);
@@ -487,13 +508,41 @@ function PaymentMethodCard({
             <div>
               <label className="block text-sm font-medium mb-1">{t("admin.currencyConversion")}</label>
               <select
-                value={convertCurrency || "USD"}
-                onChange={(e) => { setConvertCurrency(e.target.value); setDirty(true); }}
+                value={rateMode}
+                onChange={(e) => {
+                  const next = e.target.value as "USD" | "EUR" | "custom";
+                  setRateMode(next);
+                  if (next === "custom") {
+                    setConvertCurrency("USD");
+                  } else {
+                    setConvertCurrency(next);
+                    setCustomRate("");
+                    setCustomRateError("");
+                  }
+                  setDirty(true);
+                }}
                 className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
               >
                 <option value="USD">USD &rarr; Bs</option>
                 <option value="EUR">EUR &rarr; Bs</option>
+                <option value="custom">{t("admin.currencyCustom")}</option>
               </select>
+              {rateMode === "custom" && (
+                <div className="mt-2">
+                  <label className="block text-sm font-medium mb-1">{t("admin.customRateLabel")}</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={customRate}
+                    onChange={(e) => { setCustomRate(e.target.value); setCustomRateError(""); setDirty(true); }}
+                    className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  />
+                  {customRateError && (
+                    <p className="text-xs text-danger mt-1">{customRateError}</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {base.type === "pago_movil" && (

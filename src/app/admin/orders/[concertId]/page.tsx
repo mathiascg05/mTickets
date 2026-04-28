@@ -858,6 +858,7 @@ function CreateOrderModal({
   onClose,
   refreshToken,
   pmCurrencyMap,
+  pmCustomRateMap,
   rateMap,
 }: {
   refreshToken: string;
@@ -875,6 +876,7 @@ function CreateOrderModal({
   };
   onClose: () => void;
   pmCurrencyMap: Record<string, string>;
+  pmCustomRateMap: Record<string, number>;
   rateMap: Record<string, number>;
 }) {
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState(
@@ -942,13 +944,17 @@ function CreateOrderModal({
             ...(purchaseGroupId ? { purchaseGroupId } : {}),
             ...(isCortesia
               ? { discountAmount: selectedOption.price }
-              : pmCurrencyMap[paymentMethod] && rateMap[pmCurrencyMap[paymentMethod]]
-                ? {
-                    purchaseRate: rateMap[pmCurrencyMap[paymentMethod]],
-                    purchaseRateCurrency: pmCurrencyMap[paymentMethod],
-                    purchaseAmountBs: Math.round(selectedOption.price * rateMap[pmCurrencyMap[paymentMethod]] * 100) / 100,
-                  }
-                : {}),
+              : (() => {
+                  const customRate = pmCustomRateMap[paymentMethod];
+                  const currency = pmCurrencyMap[paymentMethod];
+                  const effectiveRate = customRate ?? (currency ? rateMap[currency] : undefined);
+                  if (!effectiveRate) return {};
+                  return {
+                    purchaseRate: effectiveRate,
+                    purchaseRateCurrency: customRate ? "USD" : currency,
+                    purchaseAmountBs: Math.round(selectedOption.price * effectiveRate * 100) / 100,
+                  };
+                })()),
             ...(Object.keys(cfValues).length > 0
               ? {
                   customFieldValues: JSON.stringify(
@@ -1771,9 +1777,13 @@ export default function ConcertOrdersPage() {
 
   // Map payment method name → convertCurrency for Bs calculation
   const pmCurrencyMap: Record<string, string> = {};
+  const pmCustomRateMap: Record<string, number> = {};
   for (const pm of concert.paymentMethods || []) {
     if (pm.convertCurrency) {
       pmCurrencyMap[pm.name] = pm.convertCurrency;
+    }
+    if ((pm as { customRate?: number }).customRate) {
+      pmCustomRateMap[pm.name] = (pm as { customRate?: number }).customRate as number;
     }
   }
 
@@ -3040,6 +3050,7 @@ export default function ConcertOrdersPage() {
           onClose={() => setShowCreateModal(false)}
           refreshToken={refreshToken}
           pmCurrencyMap={pmCurrencyMap}
+          pmCustomRateMap={pmCustomRateMap}
           rateMap={rateMap}
         />
       )}

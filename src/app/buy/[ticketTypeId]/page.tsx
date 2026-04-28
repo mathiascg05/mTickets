@@ -226,18 +226,21 @@ export default function BuyPage() {
     }
   }, [isLoading, ticketTypeForGate, queueIsActive, hasValidQueueToken, ticketTypeId, qty, router]);
 
-  const selectedPmCurrency = data?.ticketTypes?.[0]?.concert?.paymentMethods?.find(
+  const selectedPmRecord = data?.ticketTypes?.[0]?.concert?.paymentMethods?.find(
     (pm) => pm.id === selectedPaymentMethod,
-  )?.convertCurrency;
+  );
+  const selectedPmCurrency = selectedPmRecord?.convertCurrency;
+  const selectedPmCustomRate = (selectedPmRecord as { customRate?: number } | undefined)?.customRate;
 
-  // Find cached rate for selected currency
-  const cachedRate = selectedPmCurrency
+  // Find cached rate for selected currency (skipped when a custom rate is configured)
+  const cachedRate = selectedPmCurrency && !selectedPmCustomRate
     ? data?.exchangeRates?.find((r) => r.currency === selectedPmCurrency)
     : null;
 
   // Auto-refresh if rate is stale (older than last 9am/1pm VET window)
   useEffect(() => {
     if (!selectedPmCurrency) return;
+    if (selectedPmCustomRate) return;
 
     const rateId = RATE_IDS[selectedPmCurrency];
     if (!rateId) return;
@@ -341,7 +344,7 @@ export default function BuyPage() {
   const feeAmount = (subtotal * feePercent) / 100 + feeFixed * qty;
   const total = subtotal - discount + feeAmount;
 
-  const rateValue = cachedRate?.rate ?? 0;
+  const rateValue = selectedPmCustomRate ?? cachedRate?.rate ?? 0;
   const totalBs = Math.round(total * rateValue * 100) / 100;
 
   function applyCoupon() {
@@ -476,9 +479,9 @@ export default function BuyPage() {
           paymentProofPath: filePath || undefined,
           purchaseGroupId,
           queueToken: queueToken || undefined,
-          ...(cachedRate ? {
+          ...((selectedPmCustomRate || cachedRate) ? {
             purchaseRate: rateValue,
-            purchaseRateCurrency: cachedRate.currency,
+            purchaseRateCurrency: selectedPmCustomRate ? "USD" : cachedRate!.currency,
             purchaseAmountBs: Math.round((total / qty) * rateValue * 100) / 100,
           } : {}),
           acceptedTermsVersion: TERMS_VERSION,
@@ -909,19 +912,22 @@ export default function BuyPage() {
 
                     {selectedPm?.convertCurrency && (
                       <div className="mt-3 pt-3 border-t border-warning/20">
-                        {rateRefreshing && !cachedRate ? (
+                        {rateRefreshing && !cachedRate && !selectedPmCustomRate ? (
                           <p className="text-sm text-muted animate-pulse">
                             {t("checkout.loadingRate")}
                           </p>
-                        ) : cachedRate ? ((() => {
+                        ) : (cachedRate || selectedPmCustomRate) ? ((() => {
                           const compact =
                             (selectedPm as { type?: string }).type === "pago_movil" &&
                             (selectedPm as { showConversionDetail?: boolean }).showConversionDetail === false;
+                          const isCustom = !!selectedPmCustomRate;
+                          const sourceCurrency = isCustom ? "USD" : cachedRate!.currency;
+                          const sourceSymbol = sourceCurrency === "EUR" ? "€" : "$";
                           return (
                           <div>
                             <p className="text-lg font-bold text-foreground">
                               {compact ? t("checkout.totalBsOnly", { bs: totalBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }) : t("checkout.totalBs", {
-                                symbol: cachedRate.currency === "EUR" ? "\u20AC" : "$",
+                                symbol: sourceSymbol,
                                 total: total.toFixed(2),
                                 bs: totalBs.toLocaleString("es-VE", {
                                   minimumFractionDigits: 2,
@@ -931,11 +937,13 @@ export default function BuyPage() {
                             </p>
                             {!compact && (
                               <p className="text-xs text-muted mt-1">
-                                {t("checkout.bcvRate", {
-                                  rate: rateValue.toFixed(2),
-                                  currency: cachedRate.currency,
-                                  updated: new Date(cachedRate.fetchedAt).toLocaleString(),
-                                })}
+                                {isCustom
+                                  ? t("checkout.customRate", { rate: rateValue.toFixed(2) })
+                                  : t("checkout.bcvRate", {
+                                      rate: rateValue.toFixed(2),
+                                      currency: cachedRate!.currency,
+                                      updated: new Date(cachedRate!.fetchedAt).toLocaleString(),
+                                    })}
                               </p>
                             )}
                           </div>

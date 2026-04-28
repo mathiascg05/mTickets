@@ -78,6 +78,7 @@ const _schema = i.schema({
       requireScreenshot: i.boolean().optional(),
       requireReferenceNumber: i.boolean().optional(),
       showConversionDetail: i.boolean().optional(),
+      customRate: i.number().optional(),
       zelleEmail: i.string().optional(),
       zelleName: i.string().optional(),
       pmCedula: i.string().optional(),
