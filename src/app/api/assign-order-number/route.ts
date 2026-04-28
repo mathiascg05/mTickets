@@ -26,12 +26,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "orderId is required" }, { status: 400 });
     }
 
-    // Query order with its concert info
+    // Query order with its concert info (including collaborators)
     const { orders } = await adminDb.query({
       orders: {
         $: { where: { id: orderId } },
         ticketType: {
-          concert: {},
+          concert: {
+            collaborators: {},
+          },
         },
       },
     });
@@ -50,9 +52,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Concert not found for order" }, { status: 404 });
     }
 
-    // Verify the caller is authorized for this concert
-    const organizerEmail = (concert as { organizerEmail?: string }).organizerEmail ?? "";
-    if (!isAuthorizedForConcert(authenticatedEmail, organizerEmail)) {
+    // Verify the caller is authorized for this concert (organizer or collaborator)
+    const concertAuth = concert as {
+      organizerEmail?: string;
+      collaborators?: { email: string }[];
+    };
+    if (
+      !isAuthorizedForConcert(authenticatedEmail, {
+        organizerEmail: concertAuth.organizerEmail ?? "",
+        collaborators: concertAuth.collaborators,
+      })
+    ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 

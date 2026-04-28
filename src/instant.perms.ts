@@ -12,7 +12,7 @@ const rules = {
     },
     bind: [
       "isOwner",
-      "auth.email == data.organizerEmail",
+      "auth.email == data.organizerEmail || auth.email in data.ref('collaborators.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -29,7 +29,7 @@ const rules = {
     },
     bind: [
       "isOwner",
-      "auth.email in data.ref('concert.organizerEmail')",
+      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.collaborators.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -43,7 +43,7 @@ const rules = {
     },
     bind: [
       "isOwner",
-      "auth.email in data.ref('ticketType.concert.organizerEmail')",
+      "auth.email in data.ref('ticketType.concert.organizerEmail') || auth.email in data.ref('ticketType.concert.collaborators.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -61,7 +61,7 @@ const rules = {
     },
     bind: [
       "isOwner",
-      "auth.email in data.ref('concert.organizerEmail')",
+      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.collaborators.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -75,7 +75,7 @@ const rules = {
     },
     bind: [
       "isOwner",
-      "auth.email in data.ref('concert.organizerEmail')",
+      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.collaborators.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -89,7 +89,7 @@ const rules = {
     },
     bind: [
       "isOwner",
-      "auth.email in data.ref('ticketType.concert.organizerEmail')",
+      "auth.email in data.ref('ticketType.concert.organizerEmail') || auth.email in data.ref('ticketType.concert.collaborators.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -103,7 +103,7 @@ const rules = {
     },
     bind: [
       "isOwner",
-      "auth.email in data.ref('concert.organizerEmail')",
+      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.collaborators.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -117,7 +117,7 @@ const rules = {
     },
     bind: [
       "isOwner",
-      "auth.email in data.ref('ticketType.concert.organizerEmail')",
+      "auth.email in data.ref('ticketType.concert.organizerEmail') || auth.email in data.ref('ticketType.concert.collaborators.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -131,7 +131,7 @@ const rules = {
     },
     bind: [
       "isOwner",
-      "auth.email in data.ref('ticketType.concert.organizerEmail')",
+      "auth.email in data.ref('ticketType.concert.organizerEmail') || auth.email in data.ref('ticketType.concert.collaborators.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -154,7 +154,7 @@ const rules = {
     },
     bind: [
       "isOwner",
-      "auth.email in data.ref('concert.organizerEmail')",
+      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.collaborators.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -196,7 +196,7 @@ const rules = {
     },
     bind: [
       "isOwner",
-      "auth.email in data.ref('concert.organizerEmail')",
+      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.collaborators.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -209,6 +209,22 @@ const rules = {
       delete: "false",
     },
     bind: [],
+  },
+  eventCollaborators: {
+    allow: {
+      view: "isOwner || isCollaborator || isSuperAdmin",
+      create: "isOwner || isSuperAdmin",
+      update: "false",
+      delete: "isOwner || isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('concert.organizerEmail')",
+      "isCollaborator",
+      "auth.email in data.ref('concert.collaborators.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
   },
   emailSuppressions: {
     allow: {

@@ -174,6 +174,11 @@ const _schema = i.schema({
       passwordHash: i.string(),
       createdAt: i.number().indexed(),
     }),
+    eventCollaborators: i.entity({
+      email: i.string().indexed(),
+      invitedAt: i.number().indexed(),
+      invitedByEmail: i.string(),
+    }),
   },
   links: {
     concertTicketTypes: {
@@ -329,6 +334,19 @@ const _schema = i.schema({
         on: "$users",
         has: "one",
         label: "credentials",
+      },
+    },
+    concertCollaborators: {
+      forward: {
+        on: "eventCollaborators",
+        has: "one",
+        label: "concert",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "concerts",
+        has: "many",
+        label: "collaborators",
       },
     },
   },

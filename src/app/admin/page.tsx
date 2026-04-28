@@ -18,11 +18,33 @@ export default function AdminDashboard() {
     },
   });
 
+  // Events the user collaborates on (separate query — InstantDB types don't
+  // support dotted paths inside `or` clauses, so we union client-side).
+  const { data: collabData } = db.useQuery(
+    isSuperAdmin || !email
+      ? null
+      : {
+          eventCollaborators: {
+            $: { where: { email } },
+            concert: { ticketTypes: { orders: {} } },
+          },
+        },
+  );
+
   if (isLoading || !data) {
     return <div className="animate-pulse text-muted">{t("common.loading")}</div>;
   }
 
-  const { concerts } = data;
+  const ownedConcerts = data.concerts;
+  const collabConcerts = (collabData?.eventCollaborators ?? [])
+    .map((ec) => ec.concert)
+    .filter((c): c is NonNullable<typeof c> => c != null);
+  const seenIds = new Set<string>();
+  const concerts = [...ownedConcerts, ...collabConcerts].filter((c) => {
+    if (seenIds.has(c.id)) return false;
+    seenIds.add(c.id);
+    return true;
+  });
   const orders = concerts.flatMap((c) => c.ticketTypes.flatMap((tt) => tt.orders));
   const activeConcerts = concerts.filter((c) => c.status === "active");
   const pendingOrders = orders.filter((o) => o.status === "pending");

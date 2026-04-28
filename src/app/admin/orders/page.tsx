@@ -17,11 +17,34 @@ export default function AdminOrdersPage() {
     },
   });
 
+  // Events the user collaborates on (separate query — see admin/page.tsx).
+  const { data: collabData } = db.useQuery(
+    isSuperAdmin || !email
+      ? null
+      : {
+          eventCollaborators: {
+            $: { where: { email } },
+            concert: { ticketTypes: { orders: {} } },
+          },
+        },
+  );
+
   if (isLoading || !data) {
     return <div className="animate-pulse text-muted">Loading...</div>;
   }
 
-  const { concerts } = data;
+  const ownedConcerts = data.concerts;
+  const collabConcerts = (collabData?.eventCollaborators ?? [])
+    .map((ec) => ec.concert)
+    .filter((c): c is NonNullable<typeof c> => c != null);
+  const seenIds = new Set<string>();
+  const concerts = [...ownedConcerts, ...collabConcerts]
+    .filter((c) => {
+      if (seenIds.has(c.id)) return false;
+      seenIds.add(c.id);
+      return true;
+    })
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 
   return (
     <div>

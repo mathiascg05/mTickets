@@ -45,10 +45,23 @@ export async function POST(req: NextRequest) {
     const { orders } = await adminDb.query({
       orders: {
         $: { where: { id: orderId } },
-        ticketType: { concert: {} },
+        ticketType: { concert: { collaborators: {} } },
       },
     });
-    const order = orders[0] as { id: string; visited?: boolean; status?: string; ticketType?: { concert?: { id: string; organizerEmail?: string } } } | undefined;
+    const order = orders[0] as
+      | {
+          id: string;
+          visited?: boolean;
+          status?: string;
+          ticketType?: {
+            concert?: {
+              id: string;
+              organizerEmail?: string;
+              collaborators?: { email: string }[];
+            };
+          };
+        }
+      | undefined;
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
@@ -61,10 +74,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // If email auth, verify user is organizer or super admin
+    // If email auth, verify user is organizer, collaborator, or super admin
     if (authenticatedEmail) {
-      const organizerEmail = order.ticketType?.concert?.organizerEmail ?? "";
-      if (!isAuthorizedForConcert(authenticatedEmail, organizerEmail)) {
+      const concertInfo = order.ticketType?.concert;
+      if (
+        !concertInfo ||
+        !isAuthorizedForConcert(authenticatedEmail, {
+          organizerEmail: concertInfo.organizerEmail ?? "",
+          collaborators: concertInfo.collaborators,
+        })
+      ) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
     }

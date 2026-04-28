@@ -33,12 +33,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Fetch order with its ticket type and concert
+    // Fetch order with its ticket type and concert (with collaborators)
     const { orders } = await adminDb.query({
       orders: {
         $: { where: { id: orderId } },
         ticketType: {
-          concert: {},
+          concert: {
+            collaborators: {},
+          },
         },
       },
     });
@@ -81,7 +83,9 @@ export async function POST(req: NextRequest) {
     const rawConcert = ticketType?.concert as unknown;
     const concert = (
       Array.isArray(rawConcert) ? rawConcert[0] : rawConcert
-    ) as { organizerEmail: string } | undefined;
+    ) as
+      | { organizerEmail: string; collaborators?: { email: string }[] }
+      | undefined;
 
     if (!concert) {
       return NextResponse.json(
@@ -90,8 +94,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify the caller is authorized for this concert
-    if (!isAuthorizedForConcert(user.email, concert.organizerEmail)) {
+    // Verify the caller is authorized for this concert (organizer or collaborator)
+    if (!isAuthorizedForConcert(user.email, concert)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

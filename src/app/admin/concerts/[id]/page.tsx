@@ -15,7 +15,7 @@ export default function AdminConcertEditPage() {
   const params = useParams();
   const concertId = params.id as string;
 
-  const { isSuperAdmin } = useAuthContext();
+  const { email: currentUserEmail, isSuperAdmin } = useAuthContext();
 
   const { isLoading, data } = db.useQuery({
     concerts: {
@@ -35,6 +35,9 @@ export default function AdminConcertEditPage() {
       },
       coupons: {
         $: { order: { createdAt: "asc" } },
+      },
+      collaborators: {
+        $: { order: { invitedAt: "asc" } },
       },
       platformFeeConfig: {},
     },
@@ -75,6 +78,13 @@ export default function AdminConcertEditPage() {
           <ScannerPinSection
             concertId={concertId}
             currentPin={concert.scannerPin}
+          />
+          <CollaboratorsSection
+            concertId={concertId}
+            organizerEmail={concert.organizerEmail}
+            currentUserEmail={currentUserEmail}
+            isSuperAdmin={isSuperAdmin}
+            collaborators={concert.collaborators}
           />
           <BrandingSection
             concertId={concertId}
@@ -2003,6 +2013,161 @@ function ScannerPinSection({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+function CollaboratorsSection({
+  concertId,
+  organizerEmail,
+  currentUserEmail,
+  isSuperAdmin,
+  collaborators,
+}: {
+  concertId: string;
+  organizerEmail: string;
+  currentUserEmail: string;
+  isSuperAdmin: boolean;
+  collaborators: Array<{
+    id: string;
+    email: string;
+    invitedAt: number;
+    invitedByEmail: string;
+  }>;
+}) {
+  const { t } = useLanguage();
+  const [emailInput, setEmailInput] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const lowerCurrent = currentUserEmail.toLowerCase();
+  const lowerOrganizer = organizerEmail.toLowerCase();
+  const canManage = isSuperAdmin || lowerCurrent === lowerOrganizer;
+
+  function handleAdd() {
+    setError(null);
+    const trimmed = emailInput.trim().toLowerCase();
+    if (!trimmed) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError(t("admin.collaboratorInvalidEmail"));
+      return;
+    }
+    if (trimmed === lowerOrganizer) {
+      setError(t("admin.collaboratorIsOrganizer"));
+      return;
+    }
+    if (collaborators.some((c) => c.email.toLowerCase() === trimmed)) {
+      setError(t("admin.collaboratorAlreadyInvited"));
+      return;
+    }
+    const newId = id();
+    db.transact(
+      db.tx.eventCollaborators[newId]
+        .update({
+          email: trimmed,
+          invitedAt: Date.now(),
+          invitedByEmail: currentUserEmail,
+        })
+        .link({ concert: concertId }),
+    );
+    setEmailInput("");
+  }
+
+  function handleRemove(collaboratorId: string) {
+    if (!confirm(t("admin.removeCollaboratorConfirm"))) return;
+    db.transact(db.tx.eventCollaborators[collaboratorId].delete());
+  }
+
+  function formatDate(ts: number) {
+    return new Date(ts).toLocaleDateString();
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <h2 className="text-lg font-semibold mb-2">
+        {t("admin.collaborators")}
+      </h2>
+      <p className="text-sm text-muted mb-4">{t("admin.collaboratorsDesc")}</p>
+
+      {canManage && (
+        <div className="mb-4">
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={emailInput}
+              onChange={(e) => {
+                setEmailInput(e.target.value);
+                setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAdd();
+                }
+              }}
+              placeholder={t("admin.collaboratorEmailPlaceholder")}
+              className="flex-1 px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+            />
+            <button
+              onClick={handleAdd}
+              disabled={!emailInput.trim()}
+              className="px-4 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
+            >
+              {t("admin.invite")}
+            </button>
+          </div>
+          {error && (
+            <p className="text-sm text-danger mt-2">{error}</p>
+          )}
+        </div>
+      )}
+
+      <ul className="space-y-2">
+        <li className="flex items-center justify-between px-3 py-2 rounded-lg bg-background border border-border">
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate">{organizerEmail}</p>
+            <p className="text-xs text-muted">
+              {t("admin.collaboratorPrimary")}
+              {lowerCurrent === lowerOrganizer && (
+                <span className="ml-1">{t("admin.collaboratorYou")}</span>
+              )}
+            </p>
+          </div>
+        </li>
+        {collaborators.length === 0 ? (
+          <li className="px-3 py-3 text-sm text-muted text-center">
+            {t("admin.noCollaboratorsYet")}
+          </li>
+        ) : (
+          collaborators.map((c) => (
+            <li
+              key={c.id}
+              className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-background border border-border"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {c.email}
+                  {c.email.toLowerCase() === lowerCurrent && (
+                    <span className="ml-1 text-muted">
+                      {t("admin.collaboratorYou")}
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-muted">
+                  {t("admin.invitedOn")} {formatDate(c.invitedAt)}
+                </p>
+              </div>
+              {canManage && (
+                <button
+                  onClick={() => handleRemove(c.id)}
+                  className="px-3 py-1.5 border border-danger/30 text-danger rounded-lg hover:bg-danger/10 transition-colors text-xs font-medium shrink-0"
+                >
+                  {t("admin.remove")}
+                </button>
+              )}
+            </li>
+          ))
+        )}
+      </ul>
     </div>
   );
 }

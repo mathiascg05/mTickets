@@ -27,11 +27,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Reply is required (max 5000 chars)." }, { status: 400 });
     }
 
-    // Fetch message with its concert
+    // Fetch message with its concert (and collaborators for auth)
     const { messages } = await adminDb.query({
       messages: {
         $: { where: { id: messageId } },
-        concert: {},
+        concert: {
+          collaborators: {},
+        },
       },
     });
 
@@ -44,10 +46,15 @@ export async function POST(req: NextRequest) {
     const concert = Array.isArray(rawConcert) ? rawConcert[0] : rawConcert;
     const eventName = concert?.name ?? "Event";
 
-    // Verify user is organizer of this concert or super admin
+    // Verify user is organizer/collaborator of this concert or super admin
     const { isAuthorizedForConcert } = await import("@/lib/authHelpers");
-    const organizerEmail: string = concert?.organizerEmail ?? "";
-    if (!user.email || !isAuthorizedForConcert(user.email, organizerEmail)) {
+    if (
+      !user.email ||
+      !isAuthorizedForConcert(user.email, {
+        organizerEmail: concert?.organizerEmail ?? "",
+        collaborators: concert?.collaborators,
+      })
+    ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

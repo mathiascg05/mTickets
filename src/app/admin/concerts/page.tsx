@@ -42,6 +42,18 @@ export default function AdminConcertsPage() {
     },
   });
 
+  // Events the user collaborates on (separate query — see admin/page.tsx).
+  const { data: collabData } = db.useQuery(
+    isSuperAdmin || !email
+      ? null
+      : {
+          eventCollaborators: {
+            $: { where: { email } },
+            concert: { ticketTypes: {} },
+          },
+        },
+  );
+
   // Backfill slugs for existing concerts missing them
   useEffect(() => {
     if (!data?.concerts) return;
@@ -56,6 +68,19 @@ export default function AdminConcertsPage() {
   if (isLoading || !data) {
     return <div className="animate-pulse text-muted">{t("common.loading")}</div>;
   }
+
+  const ownedConcerts = data.concerts;
+  const collabConcerts = (collabData?.eventCollaborators ?? [])
+    .map((ec) => ec.concert)
+    .filter((c): c is NonNullable<typeof c> => c != null);
+  const seenIds = new Set<string>();
+  const allConcerts = [...ownedConcerts, ...collabConcerts]
+    .filter((c) => {
+      if (seenIds.has(c.id)) return false;
+      seenIds.add(c.id);
+      return true;
+    })
+    .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -148,12 +173,12 @@ export default function AdminConcertsPage() {
       )}
 
       <div className="space-y-3">
-        {data.concerts.length === 0 ? (
+        {allConcerts.length === 0 ? (
           <p className="text-muted text-center py-12">
             {t("admin.noEvents")}
           </p>
         ) : (
-          data.concerts.map((concert) => (
+          allConcerts.map((concert) => (
             <Link
               key={concert.id}
               href={`/admin/concerts/${concert.id}`}

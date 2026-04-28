@@ -39,10 +39,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify authorization
+    // Verify authorization (organizer or collaborator)
     const { concerts } = await adminDb.query({
       concerts: {
         $: { where: { id: concertId } },
+        collaborators: {},
       },
     });
 
@@ -54,7 +55,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!isAuthorizedForConcert(user.email, concert.organizerEmail)) {
+    if (
+      !isAuthorizedForConcert(user.email, {
+        organizerEmail: concert.organizerEmail,
+        collaborators: concert.collaborators,
+      })
+    ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

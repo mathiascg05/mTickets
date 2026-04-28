@@ -408,6 +408,24 @@ const translations: Translations = {
   "admin.savePIN": { es: "Guardar PIN", en: "Save PIN" },
   "admin.clearPIN": { es: "Borrar PIN", en: "Clear PIN" },
 
+  // ── Collaborators ──
+  "admin.collaborators": { es: "Colaboradores", en: "Collaborators" },
+  "admin.collaboratorsDesc": {
+    es: "Agrega personas que también podrán administrar este evento. Tendrán los mismos permisos que tú (excepto eliminar el evento o cambiar la lista de colaboradores). Si la persona aún no tiene cuenta, su acceso se activa automáticamente al iniciar sesión con el email invitado.",
+    en: "Add people who can also administer this event. They get the same permissions as you (except deleting the event or managing this list). If the person doesn't have an account yet, access activates automatically the first time they sign in with the invited email.",
+  },
+  "admin.collaboratorEmailPlaceholder": { es: "correo@ejemplo.com", en: "email@example.com" },
+  "admin.invite": { es: "Invitar", en: "Invite" },
+  "admin.remove": { es: "Quitar", en: "Remove" },
+  "admin.invitedOn": { es: "Invitado el", en: "Invited on" },
+  "admin.noCollaboratorsYet": { es: "Aún no hay colaboradores.", en: "No collaborators yet." },
+  "admin.collaboratorAlreadyInvited": { es: "Este email ya fue invitado.", en: "This email is already invited." },
+  "admin.collaboratorIsOrganizer": { es: "Este email es el organizador principal.", en: "This email is the primary organizer." },
+  "admin.collaboratorInvalidEmail": { es: "Email inválido.", en: "Invalid email." },
+  "admin.removeCollaboratorConfirm": { es: "¿Quitar a este colaborador?", en: "Remove this collaborator?" },
+  "admin.collaboratorPrimary": { es: "Organizador principal", en: "Primary organizer" },
+  "admin.collaboratorYou": { es: "(tú)", en: "(you)" },
+
   // ── Admin extra strings ──
   "admin.eventNotFound": { es: "Evento no encontrado", en: "Event not found" },
   "admin.deleteTicketTypeConfirm": { es: "¿Eliminar este tipo de entrada?", en: "Delete this ticket type?" },
