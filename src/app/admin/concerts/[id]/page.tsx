@@ -873,7 +873,8 @@ function TicketTypeItem({
                   }),
                 )
               }
-              className="font-medium bg-transparent border-b border-transparent hover:border-border focus:border-accent-light focus:outline-none transition-colors py-0.5"
+              size={Math.max(tt.name.length, 8)}
+              className="font-medium text-base text-foreground font-sans bg-transparent border-b border-transparent hover:border-border focus:border-accent-light focus:outline-none transition-colors py-0.5 px-0"
             />
             {tt.visibility === "hidden" && (
               <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-[10px] font-semibold uppercase tracking-wider">{t("common.hidden")}</span>
