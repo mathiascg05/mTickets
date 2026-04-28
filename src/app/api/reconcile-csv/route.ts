@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       .map((pm: { name: string }) => pm.name);
 
     if (pmNames.length === 0) {
-      const label = effectivePaymentType === "zelle" ? "Zelle" : "Pago Movil";
+      const label = effectivePaymentType === "zelle" ? "Zelle" : "Pago Móvil";
       return NextResponse.json(
         { error: `No ${label} payment method configured for this concert` },
         { status: 400 },

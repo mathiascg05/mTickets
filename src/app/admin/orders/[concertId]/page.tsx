@@ -1687,14 +1687,6 @@ export default function ConcertOrdersPage() {
   const [resendType, setResendType] = useState<"confirmation" | "ticket">("confirmation");
   const [resendingOrderId, setResendingOrderId] = useState<string | null>(null);
 
-  const userEmail = user?.email || "";
-  const { data: balanceData } = db.useQuery(
-    userEmail
-      ? { organizerBalances: { $: { where: { email: userEmail.toLowerCase() } } } }
-      : null,
-  );
-  const organizerBalance = balanceData?.organizerBalances?.[0];
-
   const { data: feeConfigData } = db.useQuery(
     concertId
       ? { platformFeeConfigs: { $: { where: { "concert.id": concertId } } } }
@@ -1741,6 +1733,14 @@ export default function ConcertOrdersPage() {
       $: { where: { "ticketType.concert.id": concertId } },
     },
   });
+
+  const concertOrganizerEmail = data?.concerts?.[0]?.organizerEmail?.toLowerCase() || "";
+  const { data: balanceData } = db.useQuery(
+    concertOrganizerEmail
+      ? { organizerBalances: { $: { where: { email: concertOrganizerEmail } } } }
+      : null,
+  );
+  const organizerBalance = balanceData?.organizerBalances?.[0];
 
   if (isLoading || !data) {
     return <div className="animate-pulse text-muted">{t("common.loading")}</div>;

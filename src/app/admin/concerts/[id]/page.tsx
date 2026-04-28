@@ -240,10 +240,10 @@ function ConcertEditForm({ concert, isSuperAdmin }: { concert: ConcertData; isSu
         </div>
         <div>
           <label className="block text-sm font-medium mb-1.5">
-            {t("common.description")}
+            {t("common.description")}{" "}
+            <span className="text-muted font-normal">({t("common.optional")})</span>
           </label>
           <textarea
-            required
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
@@ -296,7 +296,7 @@ function ConcertEditForm({ concert, isSuperAdmin }: { concert: ConcertData; isSu
 const BASE_METHODS = [
   { type: "efectivo", name: "Efectivo" },
   { type: "zelle", name: "Zelle" },
-  { type: "pago_movil", name: "Pago Movil" },
+  { type: "pago_movil", name: "Pago Móvil" },
 ] as const;
 
 type PaymentMethodData = {
