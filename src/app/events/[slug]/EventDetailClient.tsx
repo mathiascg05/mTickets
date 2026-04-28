@@ -129,17 +129,19 @@ export default function EventDetailClient() {
                 <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-0.5">{t("common.date")}</p>
                 <p className="text-sm text-foreground">{formatDate(concert.date)}</p>
               </div>
-              <div>
-                <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-0.5">{t("common.venue")}</p>
-                {concert.venueMapUrl ? (
-                  <a href={concert.venueMapUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-accent-light hover:underline inline-flex items-center gap-1">
-                    {concert.venue}
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                  </a>
-                ) : (
-                  <p className="text-sm text-foreground">{concert.venue}</p>
-                )}
-              </div>
+              {concert.venue && (
+                <div>
+                  <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-0.5">{t("common.venue")}</p>
+                  {concert.venueMapUrl ? (
+                    <a href={concert.venueMapUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-accent-light hover:underline inline-flex items-center gap-1">
+                      {concert.venue}
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                    </a>
+                  ) : (
+                    <p className="text-sm text-foreground">{concert.venue}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <p className="text-foreground/80 leading-relaxed mb-10 whitespace-pre-wrap">
