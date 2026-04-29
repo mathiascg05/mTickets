@@ -403,7 +403,7 @@ export async function POST(req: NextRequest) {
             { status: 500 },
           );
         }
-        console.warn(`[create-order] Transaction attempt ${attempt + 1} failed, retrying...`);
+        console.warn(`[create-order] Transaction attempt ${attempt + 1} failed, retrying:`, err);
         await new Promise((r) => setTimeout(r, 50 + Math.random() * 200));
       }
     }
