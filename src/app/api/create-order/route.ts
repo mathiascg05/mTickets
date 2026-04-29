@@ -28,6 +28,7 @@ type CreateOrderBody = {
     cedula: string;
   }[];
   paymentMethodName: string;
+  paymentMethodId?: string;
   promoter?: string;
   customFieldValues?: string;
   couponCode?: string;
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
       qty,
       attendees,
       paymentMethodName,
+      paymentMethodId,
       promoter,
       customFieldValues,
       couponCode,
@@ -97,6 +99,12 @@ export async function POST(req: NextRequest) {
     if (paymentMethodName && (!isValidName(paymentMethodName) || paymentMethodName.length > 100)) {
       return NextResponse.json(
         { error: "Invalid payment method name" },
+        { status: 400 },
+      );
+    }
+    if (paymentMethodId && !isValidUUID(paymentMethodId)) {
+      return NextResponse.json(
+        { error: "Invalid paymentMethodId format" },
         { status: 400 },
       );
     }
@@ -180,6 +188,7 @@ export async function POST(req: NextRequest) {
           coupons: {
             $: { where: { active: true } },
           },
+          paymentMethods: {},
         },
         orders: {},
         phases: {
@@ -208,6 +217,7 @@ export async function POST(req: NextRequest) {
       slug: string;
       lastOrderSeq?: number;
       coupons: { id: string; code: string; discountType: string; discountValue: number; maxUses?: number; active: boolean }[];
+      paymentMethods: { id: string; type?: string; name: string; discountType?: string; discountValue?: number }[];
     };
 
     if (!concert) {
@@ -318,6 +328,30 @@ export async function POST(req: NextRequest) {
       validatedCouponCode = coupon.code;
     }
 
+    // Validate and compute payment-method discount server-side
+    let paymentMethodDiscount = 0;
+    if (paymentMethodId) {
+      const pm = (concert.paymentMethods || []).find(
+        (p) => p.id === paymentMethodId,
+      );
+      if (
+        pm?.discountType &&
+        typeof pm.discountValue === "number" &&
+        pm.discountValue > 0
+      ) {
+        const subtotal = effectivePrice * qty;
+        const computed =
+          pm.discountType === "percentage"
+            ? subtotal * (pm.discountValue / 100)
+            : pm.discountValue;
+        paymentMethodDiscount = Math.max(
+          0,
+          Math.min(computed, subtotal - discountAmount),
+        );
+        paymentMethodDiscount = Math.round(paymentMethodDiscount * 100) / 100;
+      }
+    }
+
     // Generate order numbers using atomic counter with retry
     const prefix = generatePrefix(concert.name);
     let currentSeq = 0;
@@ -366,6 +400,7 @@ export async function POST(req: NextRequest) {
             ...(validatedCouponCode
               ? { couponCode: validatedCouponCode, discountAmount }
               : {}),
+            ...(paymentMethodDiscount > 0 ? { paymentMethodDiscount } : {}),
             ...(activePhase ? { phaseId: activePhase.id } : {}),
             ...(purchaseGroupId ? { purchaseGroupId } : {}),
             ...(purchaseRate ? { purchaseRate, purchaseRateCurrency } : {}),
@@ -505,7 +540,9 @@ export async function POST(req: NextRequest) {
           ? phases.find((p) => p.id === activePhase.id)
           : null;
         const basePrice = phase ? phase.price : ticketType.price;
-        const finalPrice = basePrice - (validatedCouponCode ? discountAmount : 0);
+        const perOrderCouponDiscount = (validatedCouponCode ? discountAmount : 0) / qty;
+        const perOrderPmDiscount = paymentMethodDiscount / qty;
+        const finalPrice = basePrice - perOrderCouponDiscount - perOrderPmDiscount;
         const orderUrl = `${appUrl}/ticket/${orderId}`;
 
         const emailParams = {

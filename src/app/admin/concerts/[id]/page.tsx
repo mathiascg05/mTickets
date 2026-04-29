@@ -314,6 +314,8 @@ type PaymentMethodData = {
   pmCedula?: string;
   pmPhone?: string;
   pmBank?: string;
+  discountType?: string;
+  discountValue?: number;
 };
 
 function PaymentMethodCard({
@@ -341,6 +343,16 @@ function PaymentMethodCard({
   const [pmCedula, setPmCedula] = useState(existing?.pmCedula || "");
   const [pmPhone, setPmPhone] = useState(existing?.pmPhone || "");
   const [pmBank, setPmBank] = useState(existing?.pmBank || "");
+  const [discountEnabled, setDiscountEnabled] = useState(
+    !!existing?.discountType && !!existing?.discountValue && existing.discountValue > 0,
+  );
+  const [discountType, setDiscountType] = useState<"percentage" | "amount">(
+    (existing?.discountType as "percentage" | "amount") || "percentage",
+  );
+  const [discountValue, setDiscountValue] = useState<string>(
+    existing?.discountValue ? String(existing.discountValue) : "",
+  );
+  const [discountError, setDiscountError] = useState<string>("");
   const [dirty, setDirty] = useState(false);
 
   const enabled = !!existing;
@@ -375,6 +387,19 @@ function PaymentMethodCard({
       setCustomRateError(t("admin.customRateInvalid"));
       return;
     }
+    let parsedDiscountValue: number | null = null;
+    if (discountEnabled) {
+      const parsed = parseFloat(discountValue);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        setDiscountError(t("admin.pmDiscountInvalid"));
+        return;
+      }
+      if (discountType === "percentage" && parsed > 100) {
+        setDiscountError(t("admin.pmDiscountInvalid"));
+        return;
+      }
+      parsedDiscountValue = parsed;
+    }
     const effectiveConvertCurrency = isCustom
       ? "USD"
       : base.type === "pago_movil"
@@ -389,6 +414,8 @@ function PaymentMethodCard({
         convertCurrency: effectiveConvertCurrency,
         requireScreenshot,
         requireReferenceNumber: base.type === "efectivo" ? false : requireReferenceNumber,
+        discountType: discountEnabled ? discountType : null,
+        discountValue: parsedDiscountValue,
         ...(base.type === "zelle" ? { zelleEmail: zelleEmail || undefined, zelleName: zelleName || undefined } : {}),
         ...(base.type === "pago_movil" ? {
           pmCedula: pmCedula || undefined,
@@ -399,6 +426,7 @@ function PaymentMethodCard({
         } : {}),
       }),
     );
+    setDiscountError("");
     setDirty(false);
   }
 
@@ -436,6 +464,13 @@ function PaymentMethodCard({
             {existing?.requireReferenceNumber && (
               <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-warning/15 text-warning">
                 {t("admin.refBadge")}
+              </span>
+            )}
+            {existing?.discountType && existing?.discountValue && existing.discountValue > 0 && (
+              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent-light/15 text-accent-light">
+                {existing.discountType === "percentage"
+                  ? `−${existing.discountValue}%`
+                  : `−$${existing.discountValue.toFixed(2)}`}
               </span>
             )}
           </div>
@@ -590,6 +625,58 @@ function PaymentMethodCard({
                 </label>
               )}
             </div>
+          </div>
+          <div className="pt-3 border-t border-border">
+            <label className="flex items-center gap-2 cursor-pointer mb-2">
+              <input
+                type="checkbox"
+                checked={discountEnabled}
+                onChange={(e) => {
+                  setDiscountEnabled(e.target.checked);
+                  setDiscountError("");
+                  setDirty(true);
+                }}
+                className="accent-accent-light"
+              />
+              <span className="text-sm font-medium">{t("admin.pmDiscountEnable")}</span>
+            </label>
+            <p className="text-xs text-muted mb-2">{t("admin.pmDiscountHelp")}</p>
+            {discountEnabled && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t("admin.discountType")}</label>
+                  <select
+                    value={discountType}
+                    onChange={(e) => {
+                      setDiscountType(e.target.value as "percentage" | "amount");
+                      setDiscountError("");
+                      setDirty(true);
+                    }}
+                    className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  >
+                    <option value="percentage">{t("admin.percentage")}</option>
+                    <option value="amount">{t("admin.fixedAmount")}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    {discountType === "percentage" ? "%" : "$ USD"}
+                  </label>
+                  <input
+                    type="number"
+                    step={discountType === "percentage" ? "0.5" : "0.01"}
+                    min="0.01"
+                    max={discountType === "percentage" ? "100" : undefined}
+                    value={discountValue}
+                    onChange={(e) => { setDiscountValue(e.target.value); setDiscountError(""); setDirty(true); }}
+                    className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  />
+                </div>
+                {discountError && (
+                  <p className="col-span-2 text-xs text-danger">{discountError}</p>
+                )}
+              </div>
+            )}
           </div>
           {dirty && (
             <button

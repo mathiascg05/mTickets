@@ -339,10 +339,23 @@ export default function BuyPage() {
       ? Math.min(subtotal, subtotal * (appliedCoupon.discountValue / 100))
       : Math.min(appliedCoupon.discountValue, subtotal)
     : 0;
+  const pmDiscountConfig = selectedPm as
+    | { discountType?: string; discountValue?: number }
+    | undefined;
+  const methodDiscountRaw =
+    pmDiscountConfig?.discountType && pmDiscountConfig?.discountValue && pmDiscountConfig.discountValue > 0
+      ? pmDiscountConfig.discountType === "percentage"
+        ? subtotal * (pmDiscountConfig.discountValue / 100)
+        : pmDiscountConfig.discountValue
+      : 0;
+  const methodDiscount = Math.max(
+    0,
+    Math.min(methodDiscountRaw, subtotal - discount),
+  );
   const feePercent = ticketType.feePercent ?? 0;
   const feeFixed = ticketType.feeFixed ?? 0;
   const feeAmount = (subtotal * feePercent) / 100 + feeFixed * qty;
-  const total = subtotal - discount + feeAmount;
+  const total = subtotal - discount - methodDiscount + feeAmount;
 
   const rateValue = selectedPmCustomRate ?? cachedRate?.rate ?? 0;
   const totalBs = Math.round(total * rateValue * 100) / 100;
@@ -460,6 +473,7 @@ export default function BuyPage() {
             cedula: a.cedula.trim(),
           })),
           paymentMethodName: selectedPm?.name || "",
+          paymentMethodId: selectedPm?.id || undefined,
           customFieldValues: Object.keys(customFieldValues).length > 0
             ? JSON.stringify(
                 Object.fromEntries(
@@ -575,6 +589,14 @@ export default function BuyPage() {
             {appliedCoupon && discount > 0 && (
               <p className="text-sm text-success mt-1">
                 {t("checkout.discount", { code: appliedCoupon.code, amount: `$${discount.toFixed(2)}` })}
+              </p>
+            )}
+            {methodDiscount > 0 && selectedPm && (
+              <p className="text-sm text-success mt-1">
+                {t("checkout.methodDiscount", {
+                  method: (selectedPm as { type?: string }).type === "pago_movil" ? "Pago Móvil" : selectedPm.name,
+                  amount: `$${methodDiscount.toFixed(2)}`,
+                })}
               </p>
             )}
             {feeAmount > 0 && (

@@ -57,7 +57,7 @@ export async function sendTicketEmailForOrder(orderId: string): Promise<{ succes
     (p: { id: string }) => p.id === order.phaseId,
   );
   const basePrice = phase ? phase.price : ticketType.price;
-  const finalPrice = basePrice - (order.discountAmount || 0);
+  const finalPrice = basePrice - (order.discountAmount || 0) - ((order as { paymentMethodDiscount?: number }).paymentMethodDiscount || 0);
 
   // Generate QR code as PNG buffer
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";

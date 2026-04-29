@@ -135,6 +135,7 @@ const translations: Translations = {
   "checkout.couponLimit": { es: "Límite de uso del cupón alcanzado", en: "Coupon usage limit reached" },
   "checkout.serviceFee": { es: "Tarifa de servicio: +${amount}", en: "Service fee: +${amount}" },
   "checkout.discount": { es: "Cupón {code}: -{amount}", en: "Coupon {code}: -{amount}" },
+  "checkout.methodDiscount": { es: "Descuento {method}: -{amount}", en: "{method} discount: -{amount}" },
   "checkout.paymentMethod": { es: "Método de Pago", en: "Payment Method" },
   "checkout.paymentDetails": { es: "Datos de Pago", en: "Payment Details" },
   "checkout.paymentInstructions": { es: "Instrucciones de Pago", en: "Payment Instructions" },
@@ -271,6 +272,7 @@ const translations: Translations = {
   "ticket.ticketType": { es: "Tipo de Entrada", en: "Ticket Type" },
   "ticket.serviceFee": { es: "Tarifa de servicio: +${amount}", en: "Service fee: +${amount}" },
   "ticket.discountLabel": { es: "Descuento: -${amount}", en: "Discount: -${amount}" },
+  "ticket.methodDiscountLabel": { es: "Descuento por método de pago: -${amount}", en: "Payment method discount: -${amount}" },
   "ticket.coupon": { es: "Cupón", en: "Coupon" },
   "ticket.otherTickets": { es: "Otras entradas en esta compra ({count})", en: "Other tickets in this purchase ({count})" },
   "ticket.viewFull": { es: "Ver entrada completa", en: "View full ticket" },
@@ -328,6 +330,15 @@ const translations: Translations = {
   "admin.requireRefNumber": { es: "Requerir número de referencia", en: "Require reference number" },
   "admin.screenshotBadge": { es: "Captura", en: "Screenshot" },
   "admin.refBadge": { es: "Ref. #", en: "Ref. #" },
+  "admin.pmDiscountEnable": { es: "Descuento al elegir este método", en: "Discount when this method is selected" },
+  "admin.pmDiscountHelp": {
+    es: "Se aplica automáticamente al subtotal cuando el comprador selecciona este método.",
+    en: "Applied automatically to the subtotal when the buyer selects this method.",
+  },
+  "admin.pmDiscountInvalid": {
+    es: "Ingresa un valor mayor a 0 (porcentaje máx. 100).",
+    en: "Enter a value greater than 0 (percentage max 100).",
+  },
 
   // ── Admin ticket types ──
   "admin.ticketTypesTitle": { es: "Tipos de Entrada", en: "Ticket Types" },

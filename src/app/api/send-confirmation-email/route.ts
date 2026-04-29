@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       (p: { id: string }) => p.id === order.phaseId,
     );
     const basePrice = phase ? phase.price : ticketType.price;
-    const finalPrice = basePrice - (order.discountAmount || 0);
+    const finalPrice = basePrice - (order.discountAmount || 0) - ((order as { paymentMethodDiscount?: number }).paymentMethodDiscount || 0);
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const orderUrl = `${appUrl}/ticket/${orderId}`;

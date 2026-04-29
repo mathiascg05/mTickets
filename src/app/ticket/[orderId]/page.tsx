@@ -494,9 +494,19 @@ export default function TicketPage() {
                           {t("ticket.discountLabel", { amount: order.discountAmount.toFixed(2) })}
                         </p>
                       )}
+                      {order.paymentMethodDiscount != null && order.paymentMethodDiscount > 0 && (
+                        <p className="text-success">
+                          {t("ticket.methodDiscountLabel", { amount: order.paymentMethodDiscount.toFixed(2) })}
+                        </p>
+                      )}
                       <p className="font-bold text-base">
                         {t("common.total")}: ${displayPrice != null
-                          ? Math.max(0, displayPrice - (order.discountAmount || 0)).toFixed(2)
+                          ? Math.max(
+                              0,
+                              displayPrice
+                                - (order.discountAmount || 0)
+                                - (order.paymentMethodDiscount || 0),
+                            ).toFixed(2)
                           : "N/A"}
                       </p>
                     </div>

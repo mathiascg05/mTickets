@@ -216,7 +216,7 @@ function extractMemoCode(description: string): string | null {
 }
 
 function getExpectedUsdAmount(
-  order: { discountAmount?: number; phaseId?: string },
+  order: { discountAmount?: number; paymentMethodDiscount?: number; phaseId?: string },
   ticketType: {
     price: number;
     feePercent?: number;
@@ -236,9 +236,10 @@ function getExpectedUsdAmount(
   const feePercent = ticketType.feePercent ?? 0;
   const feeFixed = ticketType.feeFixed ?? 0;
   const fee = (price * feePercent) / 100 + feeFixed;
-  // discountAmount on each order is the TOTAL group discount, so divide by groupSize
+  // discountAmount and paymentMethodDiscount on each order are TOTAL group discounts, so divide by groupSize
   const perOrderDiscount = (order.discountAmount || 0) / groupSize;
-  const amount = price + fee - perOrderDiscount;
+  const perOrderPmDiscount = (order.paymentMethodDiscount || 0) / groupSize;
+  const amount = price + fee - perOrderDiscount - perOrderPmDiscount;
   return Math.round(amount * 100) / 100;
 }
 

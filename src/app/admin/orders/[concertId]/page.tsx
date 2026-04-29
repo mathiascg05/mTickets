@@ -48,6 +48,7 @@ type FlatOrder = {
   proofReferenceNumber?: string;
   couponCode?: string;
   discountAmount?: number;
+  paymentMethodDiscount?: number;
   orderNumber?: string;
   createdAt: number;
   ticketTypeName: string;
@@ -110,7 +111,7 @@ function ExportSection({
 
     const rows = sorted.map((order) => {
       const effectivePrice =
-        order.ticketTypePrice - (order.discountAmount || 0);
+        order.ticketTypePrice - (order.discountAmount || 0) - (order.paymentMethodDiscount || 0);
       const currency = pmCurrencyMap[order.paymentMethod];
       const rate = order.purchaseRate ?? (currency ? rateMap[currency] : null);
       const amountUsd = currency ? "" : effectivePrice.toFixed(2);
@@ -1858,13 +1859,13 @@ export default function ConcertOrdersPage() {
   const approvedCount = allOrders.filter((o) => o.status === "approved").length;
   const rejectedCount = allOrders.filter((o) => o.status === "rejected").length;
 
-  const getOrderPrice = (tt: (typeof concert.ticketTypes)[number], order: { phaseId?: string; discountAmount?: number }) => {
+  const getOrderPrice = (tt: (typeof concert.ticketTypes)[number], order: { phaseId?: string; discountAmount?: number; paymentMethodDiscount?: number }) => {
     const phase = (tt.phases || []).find((p: { id: string }) => p.id === order.phaseId);
     const basePrice = phase ? phase.price : tt.price;
     const feePercent = (tt as { feePercent?: number }).feePercent ?? 0;
     const feeFixed = (tt as { feeFixed?: number }).feeFixed ?? 0;
     const fee = (basePrice * feePercent) / 100 + feeFixed;
-    return basePrice + fee - (order.discountAmount || 0);
+    return basePrice + fee - (order.discountAmount || 0) - (order.paymentMethodDiscount || 0);
   };
 
   const totalRevenue = concert.ticketTypes.reduce((sum, tt) => {
@@ -2224,7 +2225,7 @@ export default function ConcertOrdersPage() {
           const orderPhase = (tt.phases || []).find((p: { id: string }) => p.id === order.phaseId);
           const basePrice = orderPhase ? orderPhase.price : tt.price;
           const fee = (basePrice * ((tt as { feePercent?: number }).feePercent ?? 0)) / 100 + ((tt as { feeFixed?: number }).feeFixed ?? 0);
-          const finalPrice = basePrice + fee - (order.discountAmount || 0);
+          const finalPrice = basePrice + fee - (order.discountAmount || 0) - ((order as { paymentMethodDiscount?: number }).paymentMethodDiscount || 0);
           const orderRate = (order as { purchaseRate?: number }).purchaseRate;
           const currency = pmCurrencyMap[pm];
           const rate = orderRate ?? (currency ? rateMap[currency] : null);
@@ -2407,7 +2408,7 @@ export default function ConcertOrdersPage() {
         for (const order of allOrders) {
           const s = order.status;
           const pm = order.paymentMethod;
-          const finalPrice = order.ticketTypePrice - (order.discountAmount || 0);
+          const finalPrice = order.ticketTypePrice - (order.discountAmount || 0) - (order.paymentMethodDiscount || 0);
           const currency = pmCurrencyMap[pm];
           const rate = order.purchaseRate ?? (currency ? rateMap[currency] : null);
           const bsAmount = order.purchaseAmountBs ?? (rate != null ? finalPrice * rate : 0);
@@ -2881,10 +2882,15 @@ export default function ConcertOrdersPage() {
                         {" "}({t("admin.coupon")}: {order.couponCode}, -${(order.discountAmount || 0).toFixed(2)})
                       </span>
                     )}
+                    {(order.paymentMethodDiscount || 0) > 0 && (
+                      <span className="text-success">
+                        {" "}(−${(order.paymentMethodDiscount || 0).toFixed(2)} {order.paymentMethod})
+                      </span>
+                    )}
                     {(() => {
                       const currency = pmCurrencyMap[order.paymentMethod];
                       const rate = order.purchaseRate ?? (currency ? rateMap[currency] : null);
-                      const bsAmt = order.purchaseAmountBs ?? (rate != null ? (order.ticketTypePrice - (order.discountAmount || 0)) * rate : null);
+                      const bsAmt = order.purchaseAmountBs ?? (rate != null ? (order.ticketTypePrice - (order.discountAmount || 0) - (order.paymentMethodDiscount || 0)) * rate : null);
                       return bsAmt != null ? (
                         <span className="text-accent-light font-medium">
                           {" / "}{bsAmt.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs

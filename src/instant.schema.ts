@@ -60,6 +60,7 @@ const _schema = i.schema({
       visited: i.boolean().indexed(),
       couponCode: i.string().optional(),
       discountAmount: i.number().optional(),
+      paymentMethodDiscount: i.number().optional(),
       phaseId: i.string().optional(),
       orderNumber: i.string().optional().unique().indexed(),
       purchaseGroupId: i.string().optional().indexed(),
@@ -84,6 +85,8 @@ const _schema = i.schema({
       pmCedula: i.string().optional(),
       pmPhone: i.string().optional(),
       pmBank: i.string().optional(),
+      discountType: i.string().optional(),
+      discountValue: i.number().optional(),
       createdAt: i.number().indexed(),
     }),
     customFields: i.entity({
