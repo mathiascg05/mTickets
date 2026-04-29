@@ -23,6 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       year: "numeric",
       month: "long",
       day: "numeric",
+      timeZone: "UTC",
     });
     const description = concert.venue
       ? `${date} at ${concert.venue}`
