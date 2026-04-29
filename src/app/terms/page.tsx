@@ -75,6 +75,12 @@ export default function TermsPage() {
               Organizador a través de los métodos que este habilite (Zelle, Pago
               Móvil, efectivo u otros).
             </p>
+            <p className="mt-2">
+              maTickets <strong>no emite facturas ni comprobantes fiscales</strong>{" "}
+              por las entradas. La emisión de la documentación fiscal que
+              corresponda al Comprador, cuando aplique, es responsabilidad
+              exclusiva del Organizador.
+            </p>
           </section>
 
           <section>
@@ -209,6 +215,14 @@ export default function TermsPage() {
               La responsabilidad máxima de maTickets frente al Comprador, de
               verificarse alguna, queda limitada al valor efectivamente atribuible
               al servicio tecnológico prestado para la transacción correspondiente.
+            </p>
+            <p className="mt-2">
+              El servicio se provee <strong>&quot;tal cual&quot; (as-is)</strong>.
+              En ningún caso la responsabilidad total acumulada de maTickets
+              frente al Comprador excederá el monto efectivamente atribuible al
+              servicio tecnológico de la transacción específica reclamada, con
+              un tope global de cincuenta dólares de los Estados Unidos de
+              América (USD 50) o su equivalente en bolívares.
             </p>
           </section>
 

@@ -261,7 +261,7 @@ function LoginForm() {
                     >
                       Términos del Organizador
                     </Link>
-                    , incluida la obligación de pagar la comisión configurada y cumplir con el SENIAT.
+                    , incluida la obligación de pagar la comisión configurada y cumplir con las obligaciones fiscales y regulatorias aplicables a mi actividad.
                   </span>
                 </label>
                 <label className="flex items-start gap-2 text-sm cursor-pointer">

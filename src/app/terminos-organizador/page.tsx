@@ -54,6 +54,12 @@ export default function OrganizerTermsPage() {
               maTickets no es agencia, mandatario, comisionista ni socio del
               Organizador y no percibe el dinero pagado por los compradores.
             </p>
+            <p className="mt-2">
+              maTickets es un servicio de software (SaaS) provisto por su
+              operador. La Plataforma no constituye una agencia comercial, casa
+              de cambio, procesador de pagos, ni emisor de documentos fiscales o
+              títulos valores.
+            </p>
           </section>
 
           <section>
@@ -83,13 +89,22 @@ export default function OrganizerTermsPage() {
                 obliga ni responde por ella.
               </li>
               <li>
-                <strong>Cumplimiento fiscal (SENIAT):</strong> emitir las facturas
-                o documentos equivalentes a los compradores conforme a la
-                normativa venezolana vigente, declarar y enterar el Impuesto al
-                Valor Agregado (IVA), el Impuesto Sobre la Renta (ISLR) y demás
-                tributos aplicables sobre las ventas realizadas a través de la
-                Plataforma. El Organizador es único responsable ante la
-                administración tributaria.
+                <strong>Cumplimiento fiscal y regulatorio:</strong> el
+                Organizador es el único y exclusivo responsable de cumplir con
+                todas las obligaciones fiscales, tributarias, mercantiles,
+                sanitarias, de propiedad intelectual y de cualquier otra
+                naturaleza regulatoria que correspondan a las ventas y a la
+                realización de su evento, en su jurisdicción. Esto incluye —sin
+                limitación— la emisión de facturas, recibos o documentos
+                equivalentes, la declaración y pago de los tributos aplicables,
+                y la obtención de los registros, permisos y autorizaciones
+                necesarios. El Organizador reconoce que{" "}
+                <strong>
+                  maTickets no emite facturas, no actúa como agente de retención
+                  y no es responsable solidario
+                </strong>{" "}
+                de las obligaciones fiscales o regulatorias del Organizador
+                frente a ninguna autoridad.
               </li>
               <li>
                 <strong>Veracidad de datos bancarios y de pago:</strong> proveer
@@ -171,6 +186,16 @@ export default function OrganizerTermsPage() {
               de terceros, del Organizador o del comprador, ni por eventos de
               fuerza mayor.
             </p>
+            <p className="mt-2">
+              El servicio se provee <strong>&quot;tal cual&quot; (as-is)</strong>,
+              sin garantías expresas ni implícitas de comerciabilidad,
+              idoneidad para un fin particular, disponibilidad continua o
+              resultados comerciales. La responsabilidad total acumulada de
+              maTickets frente al Organizador, por cualquier causa, queda
+              limitada al monto de comisiones efectivamente cobradas al
+              Organizador en los seis (6) meses anteriores al hecho que origine
+              el reclamo.
+            </p>
           </section>
 
           <section>
@@ -194,8 +219,9 @@ export default function OrganizerTermsPage() {
               derivada de: (a) el incumplimiento de sus obligaciones bajo estos
               Términos; (b) reclamos de compradores, artistas, proveedores o
               autoridades relacionados con el evento; (c) violaciones a derechos
-              de terceros; (d) incumplimientos tributarios o regulatorios del
-              Organizador.
+              de terceros; (d) cualquier obligación fiscal, tributaria,
+              contable, mercantil, laboral, sanitaria o regulatoria que recaiga
+              sobre el Organizador o sobre el evento, ante cualquier autoridad.
             </p>
           </section>
 

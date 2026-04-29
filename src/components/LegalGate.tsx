@@ -120,8 +120,9 @@ export function LegalGate({
                 >
                   Términos del Organizador
                 </Link>{" "}
-                (versión {ORGANIZER_TERMS_VERSION}), incluidas las obligaciones de
-                pago de comisión y cumplimiento SENIAT.
+                (versión {ORGANIZER_TERMS_VERSION}), incluidas las obligaciones
+                de pago de comisión y de cumplimiento fiscal y regulatorio
+                aplicable a mi actividad.
               </span>
             </label>
             <label className="flex items-start gap-3 cursor-pointer">

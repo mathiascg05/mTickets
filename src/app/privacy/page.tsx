@@ -89,7 +89,7 @@ export default function PrivacyPage() {
               <li>Enviar confirmaciones, tickets y comunicaciones relativas al evento por correo electrónico.</li>
               <li>Permitir al Organizador verificar, aprobar y contactar al Comprador.</li>
               <li>Validar la identidad del asistente al momento del acceso al evento (QR + cédula).</li>
-              <li>Facturar y conciliar las comisiones adeudadas por los Organizadores a maTickets.</li>
+              <li>Calcular, cobrar y conciliar las comisiones adeudadas por los Organizadores por el uso de la Plataforma.</li>
               <li>Prevenir y detectar fraude, usos indebidos y duplicación de comprobantes.</li>
               <li>Dar cumplimiento a requerimientos legales o de autoridad competente.</li>
             </ul>
@@ -100,9 +100,10 @@ export default function PrivacyPage() {
             <ul className="list-disc list-inside space-y-1">
               <li>
                 <strong>Organizador del evento:</strong> recibe los datos de los
-                compradores de sus entradas para aprobar la venta, facturar,
-                gestionar acceso y atención al cliente. El Organizador actúa como
-                corresponsable del tratamiento.
+                compradores de sus entradas para aprobar la venta, gestionar
+                acceso, atención al cliente y cumplir sus propias obligaciones
+                fiscales y comerciales. El Organizador actúa como corresponsable
+                del tratamiento.
               </li>
               <li>
                 <strong>Proveedores tecnológicos:</strong> InstantDB (base de datos
