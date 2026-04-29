@@ -30,6 +30,7 @@ const _schema = i.schema({
       logoUrl: i.string().optional(),
       primaryColor: i.string().optional(),
       lastOrderSeq: i.number().optional().indexed(),
+      orderNumberPrefix: i.string().optional().unique().indexed(),
       organizerEmail: i.string().indexed(),
       defaultLanguage: i.string().optional(),
       createdAt: i.number().indexed(),

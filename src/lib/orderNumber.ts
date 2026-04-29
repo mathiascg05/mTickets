@@ -31,6 +31,55 @@ export function formatOrderNumber(prefix: string, seq: number): string {
   return `${prefix}-${String(seq).padStart(4, "0")}`;
 }
 
+const MUTATION_CHARS = "23456789ZYXWVTSRQPNMLKJHGFDCB".split("");
+
+/**
+ * Pick a globally-unique 4-char prefix for a concert.
+ * Starts from generatePrefix(name); if taken, mutates the last
+ * character through digits 2-9 then non-vowel letters Z..B.
+ * If all 29 mutations of the last char are taken, also mutates
+ * the second-to-last char. Throws if exhausted.
+ */
+export function pickUniquePrefix(concertName: string, taken: Set<string>): string {
+  const base = generatePrefix(concertName);
+  if (!taken.has(base)) return base;
+
+  for (const c of MUTATION_CHARS) {
+    const candidate = base.slice(0, -1) + c;
+    if (!taken.has(candidate)) return candidate;
+  }
+
+  if (base.length >= 2) {
+    for (const c2 of MUTATION_CHARS) {
+      for (const c1 of MUTATION_CHARS) {
+        const candidate = base.slice(0, -2) + c2 + c1;
+        if (!taken.has(candidate)) return candidate;
+      }
+    }
+  }
+
+  throw new Error(
+    `pickUniquePrefix: exhausted mutations for "${concertName}" (base="${base}")`,
+  );
+}
+
+/**
+ * Query existing concert prefixes via adminDb and return a unique one
+ * for the given name.
+ */
+export async function assignUniquePrefix(
+  db: typeof adminDb,
+  concertName: string,
+): Promise<string> {
+  const { concerts } = await db.query({ concerts: {} });
+  const taken = new Set<string>(
+    (concerts as { orderNumberPrefix?: string }[])
+      .map((c) => c.orderNumberPrefix)
+      .filter((p): p is string => typeof p === "string" && p.length > 0),
+  );
+  return pickUniquePrefix(concertName, taken);
+}
+
 /**
  * Assign a sequential order number to an order within its concert.
  * Uses the atomic lastOrderSeq counter on the concert entity.
@@ -53,10 +102,8 @@ export async function assignOrderNumber(
     return existing.orderNumber as string;
   }
 
-  const prefix = generatePrefix(concertName);
-
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    // Read current lastOrderSeq from concert
+    // Read current lastOrderSeq and stored prefix from concert
     const { concerts } = await db.query({
       concerts: {
         $: { where: { id: concertId } },
@@ -68,6 +115,9 @@ export async function assignOrderNumber(
       throw new Error(`Concert ${concertId} not found`);
     }
 
+    const prefix =
+      (concert as { orderNumberPrefix?: string }).orderNumberPrefix ||
+      generatePrefix(concertName);
     const currentSeq = (concert as { lastOrderSeq?: number }).lastOrderSeq || 0;
     const newSeq = currentSeq + 1;
     const orderNumber = formatOrderNumber(prefix, newSeq);

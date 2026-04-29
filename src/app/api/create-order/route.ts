@@ -217,6 +217,7 @@ export async function POST(req: NextRequest) {
       slug: string;
       status: string;
       lastOrderSeq?: number;
+      orderNumberPrefix?: string;
       coupons: { id: string; code: string; discountType: string; discountValue: number; maxUses?: number; active: boolean }[];
       paymentMethods: { id: string; type?: string; name: string; discountType?: string; discountValue?: number }[];
     };
@@ -360,8 +361,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Generate order numbers using atomic counter with retry
-    const prefix = generatePrefix(concert.name);
+    // Generate order numbers using atomic counter with retry.
+    // Prefer the prefix stored on the concert (assigned at concert creation
+    // and guaranteed unique by schema). Fallback to name-derived prefix only
+    // for legacy concerts that haven't been backfilled yet.
+    const prefix = concert.orderNumberPrefix || generatePrefix(concert.name);
     let currentSeq = 0;
 
     const orderIds: string[] = [];

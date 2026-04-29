@@ -25,12 +25,16 @@ function LiveViewerCount({ concertId }: { concertId: string }) {
 
 export default function AdminConcertsPage() {
   const { email, isSuperAdmin } = useAuthContext();
+  const { user } = db.useAuth();
+  const refreshToken = user?.refresh_token || "";
   const { t } = useLanguage();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [venue, setVenue] = useState("");
   const [description, setDescription] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const { isLoading, data } = db.useQuery({
     concerts: {
@@ -82,25 +86,50 @@ export default function AdminConcertsPage() {
     })
     .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 
-  function handleCreate(e: React.FormEvent) {
+  async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    db.transact(
-      db.tx.concerts[id()].update({
-        name,
-        slug: toSlug(name),
-        date,
-        venue,
-        description,
-        status: "draft",
-        organizerEmail: email,
-        createdAt: Date.now(),
-      }),
-    );
-    setName("");
-    setDate("");
-    setVenue("");
-    setDescription("");
-    setShowForm(false);
+    if (creating) return;
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const res = await fetch("/api/assign-prefix", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${refreshToken}`,
+        },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to assign order number prefix");
+      }
+      const { prefix } = (await res.json()) as { prefix: string };
+
+      await db.transact(
+        db.tx.concerts[id()].update({
+          name,
+          slug: toSlug(name),
+          date,
+          venue,
+          description,
+          status: "draft",
+          organizerEmail: email,
+          orderNumberPrefix: prefix,
+          createdAt: Date.now(),
+        }),
+      );
+      setName("");
+      setDate("");
+      setVenue("");
+      setDescription("");
+      setShowForm(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not create event";
+      setCreateError(msg);
+    } finally {
+      setCreating(false);
+    }
   }
 
   return (
@@ -163,11 +192,15 @@ export default function AdminConcertsPage() {
               placeholder={t("admin.descPlaceholder")}
             />
           </div>
+          {createError && (
+            <p className="text-sm text-red-400">{createError}</p>
+          )}
           <button
             type="submit"
-            className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors shadow-lg shadow-accent/20"
+            disabled={creating}
+            className="px-6 py-2.5 bg-accent hover:bg-accent-dark disabled:bg-accent/40 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors shadow-lg shadow-accent/20"
           >
-            {t("admin.createEvent")}
+            {creating ? t("common.loading") : t("admin.createEvent")}
           </button>
         </form>
       )}
