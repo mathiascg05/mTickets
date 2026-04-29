@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
       queueEntries: {
         $: { where: { id: queueEntryId } },
         ticketType: {
+          concert: {},
           queueEntries: {},
         },
       },
@@ -28,6 +29,17 @@ export async function POST(req: NextRequest) {
     if (!entry) {
       return NextResponse.json(
         { error: "Queue entry not found" },
+        { status: 404 },
+      );
+    }
+
+    const rawConcertHeartbeat = entry.ticketType?.concert as unknown;
+    const concertForHeartbeat = (Array.isArray(rawConcertHeartbeat)
+      ? rawConcertHeartbeat[0]
+      : rawConcertHeartbeat) as { status?: string } | undefined;
+    if (concertForHeartbeat && concertForHeartbeat.status !== "active") {
+      return NextResponse.json(
+        { error: "Event is not available", code: "event_unavailable" },
         { status: 404 },
       );
     }

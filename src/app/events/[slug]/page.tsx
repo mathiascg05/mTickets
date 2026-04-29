@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       concerts: { $: { where: { slug } } },
     });
     const concert = concerts[0];
-    if (!concert) {
+    if (!concert || concert.status !== "active") {
       return { title: "Event Not Found | maTickets" };
     }
 

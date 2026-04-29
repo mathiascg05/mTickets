@@ -117,6 +117,15 @@ const translations: Translations = {
   "event.sendFailed": { es: "Algo salió mal. Intenta de nuevo.", en: "Something went wrong. Please try again." },
   "event.notFound": { es: "Evento no encontrado", en: "Event not found" },
   "event.backToEvent": { es: "← Volver al evento", en: "← Back to event" },
+  "event.unavailableTitle": { es: "Evento no disponible", en: "Event unavailable" },
+  "event.unavailableBody": {
+    es: "Este evento no está aceptando ventas en este momento.",
+    en: "This event is not accepting sales right now.",
+  },
+  "event.draftPreview": {
+    es: "Vista previa — este evento está en borrador y no es público para los compradores.",
+    en: "Preview — this event is in draft and not visible to buyers.",
+  },
 
   // ── Checkout ──
   "checkout.title": { es: "Comprar Entradas", en: "Purchase Tickets" },

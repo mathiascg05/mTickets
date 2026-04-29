@@ -91,7 +91,7 @@ describe("POST /api/join-queue — stress tests", () => {
     mockQuery.mockImplementation((queryObj: Record<string, unknown>) => {
       if ("ticketTypes" in queryObj) {
         return Promise.resolve({
-          ticketTypes: [{ id: VALID_UUID, lastQueuePosition: 0 }],
+          ticketTypes: [{ id: VALID_UUID, lastQueuePosition: 0, concert: { id: "c-1", status: "active" } }],
         });
       }
       // queueEntries queries
@@ -123,7 +123,7 @@ describe("POST /api/join-queue — stress tests", () => {
     mockQuery.mockImplementation((queryObj: Record<string, unknown>) => {
       if ("ticketTypes" in queryObj) {
         return Promise.resolve({
-          ticketTypes: [{ id: VALID_UUID, lastQueuePosition: 0 }],
+          ticketTypes: [{ id: VALID_UUID, lastQueuePosition: 0, concert: { id: "c-1", status: "active" } }],
         });
       }
       const qeQuery = queryObj.queueEntries as Record<string, unknown> | undefined;
@@ -184,7 +184,7 @@ describe("POST /api/join-queue — stress tests", () => {
     mockQuery
       .mockResolvedValueOnce({ queueEntries: [] }) // no existing
       .mockResolvedValueOnce({
-        ticketTypes: [{ id: VALID_UUID, lastQueuePosition: 0 }],
+        ticketTypes: [{ id: VALID_UUID, lastQueuePosition: 0, concert: { id: "c-1", status: "active" } }],
       })
       .mockResolvedValueOnce({
         queueEntries: [{ id: "generated-uuid-1", status: "admitted" }], // admitted by processQueueAdmissions
@@ -204,7 +204,7 @@ describe("POST /api/join-queue — stress tests", () => {
     mockQuery
       .mockResolvedValueOnce({ queueEntries: [] })
       .mockResolvedValueOnce({
-        ticketTypes: [{ id: VALID_UUID, lastQueuePosition: 0 }],
+        ticketTypes: [{ id: VALID_UUID, lastQueuePosition: 0, concert: { id: "c-1", status: "active" } }],
       })
       .mockResolvedValueOnce({
         queueEntries: [{ id: "generated-uuid-1", status: "waiting" }],
@@ -223,7 +223,7 @@ describe("POST /api/join-queue — stress tests", () => {
     mockQuery
       .mockResolvedValueOnce({ queueEntries: [] })
       .mockResolvedValueOnce({
-        ticketTypes: [{ id: VALID_UUID, lastQueuePosition: undefined }],
+        ticketTypes: [{ id: VALID_UUID, lastQueuePosition: undefined, concert: { id: "c-1", status: "active" } }],
       })
       .mockResolvedValueOnce({
         queueEntries: [{ id: "generated-uuid-1", status: "waiting" }],
@@ -243,7 +243,7 @@ describe("POST /api/join-queue — stress tests", () => {
     mockQuery.mockImplementation((queryObj: Record<string, unknown>) => {
       if ("ticketTypes" in queryObj) {
         return Promise.resolve({
-          ticketTypes: [{ id: VALID_UUID, lastQueuePosition: seqPosition++ }],
+          ticketTypes: [{ id: VALID_UUID, lastQueuePosition: seqPosition++, concert: { id: "c-1", status: "active" } }],
         });
       }
       const qeQuery = queryObj.queueEntries as Record<string, unknown> | undefined;

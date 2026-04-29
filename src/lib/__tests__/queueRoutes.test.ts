@@ -292,7 +292,13 @@ describe("POST /api/join-queue", () => {
     mockQuery
       .mockResolvedValueOnce({ queueEntries: [] }) // no existing
       .mockResolvedValueOnce({
-        ticketTypes: [{ id: VALID_UUID, lastQueuePosition: 10 }],
+        ticketTypes: [
+          {
+            id: VALID_UUID,
+            lastQueuePosition: 10,
+            concert: { id: "c-1", status: "active" },
+          },
+        ],
       }) // ticketType found
       .mockResolvedValueOnce({
         queueEntries: [{ id: "generated-uuid", status: "waiting" }],

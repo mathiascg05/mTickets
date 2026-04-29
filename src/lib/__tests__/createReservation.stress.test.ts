@@ -75,6 +75,7 @@ function baseTicketType(overrides: Record<string, unknown> = {}) {
     name: "General",
     price: 50,
     quantity: 100,
+    concert: { id: "concert-1", status: "active" },
     orders: [],
     phases: [],
     reservations: [],

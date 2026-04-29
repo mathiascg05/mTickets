@@ -111,6 +111,7 @@ function baseTicketType(overrides: Record<string, unknown> = {}) {
         date: "2026-06-15",
         venue: "Arena",
         slug: "rock-show",
+        status: "active",
         lastOrderSeq: 0,
         coupons: [],
       },
@@ -387,6 +388,7 @@ describe("POST /api/create-order — coupon validation", () => {
           date: "2026-06-15",
           venue: "Arena",
           slug: "rock-show",
+          status: "active",
           lastOrderSeq: 0,
           coupons: [
             {
@@ -562,6 +564,7 @@ describe("POST /api/create-order — order number sequencing", () => {
                 date: "2026-06-15",
                 venue: "Arena",
                 slug: "rock-show",
+                status: "active",
                 lastOrderSeq: 42,
                 coupons: [],
               },
@@ -643,6 +646,7 @@ describe("POST /api/create-order — order number sequencing", () => {
               date: "2026-06-15",
               venue: "Arena",
               slug: "rock-show",
+              status: "active",
               lastOrderSeq: 10,
               coupons: [],
             },

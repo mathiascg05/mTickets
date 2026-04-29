@@ -51,6 +51,13 @@ export default function QueuePage() {
   const ticketType = ticketData?.ticketTypes?.[0];
   const concert = ticketType?.concert;
 
+  // Block draft events: redirect to event page (perm hides ticketTypes from non-organizers; this also catches organizers)
+  useEffect(() => {
+    if (concert && concert.slug && concert.status && concert.status !== "active") {
+      router.replace(`/events/${concert.slug}`);
+    }
+  }, [concert, router]);
+
   // Join queue on mount
   const joinQueue = useCallback(async () => {
     try {

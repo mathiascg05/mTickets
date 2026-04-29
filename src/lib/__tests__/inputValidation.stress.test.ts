@@ -111,6 +111,7 @@ function baseTicketType() {
         date: "2026-06-15",
         venue: "Arena",
         slug: "rock-show",
+        status: "active",
         lastOrderSeq: 0,
         coupons: [],
       },
@@ -490,7 +491,7 @@ describe("POST /api/join-queue — input validation", () => {
     mockQuery
       .mockResolvedValueOnce({ queueEntries: [] })
       .mockResolvedValueOnce({
-        ticketTypes: [{ id: VALID_UUID, lastQueuePosition: 0 }],
+        ticketTypes: [{ id: VALID_UUID, lastQueuePosition: 0, concert: { id: "c-1", status: "active" } }],
       })
       .mockResolvedValueOnce({
         queueEntries: [{ id: "generated-id", status: "waiting" }],
@@ -510,7 +511,7 @@ describe("POST /api/join-queue — input validation", () => {
     mockQuery
       .mockResolvedValueOnce({ queueEntries: [] })
       .mockResolvedValueOnce({
-        ticketTypes: [{ id: VALID_UUID, lastQueuePosition: 0 }],
+        ticketTypes: [{ id: VALID_UUID, lastQueuePosition: 0, concert: { id: "c-1", status: "active" } }],
       })
       .mockResolvedValueOnce({
         queueEntries: [{ id: "generated-id", status: "waiting" }],

@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
     const { ticketTypes } = await adminDb.query({
       ticketTypes: {
         $: { where: { id: ticketTypeId } },
+        concert: {},
       },
     });
 
@@ -69,6 +70,17 @@ export async function POST(req: NextRequest) {
     if (!ticketType) {
       return NextResponse.json(
         { error: "Ticket type not found" },
+        { status: 404 },
+      );
+    }
+
+    const rawConcertJoin = ticketType.concert as unknown;
+    const concertForJoin = (Array.isArray(rawConcertJoin)
+      ? rawConcertJoin[0]
+      : rawConcertJoin) as { status?: string } | undefined;
+    if (concertForJoin?.status !== "active") {
+      return NextResponse.json(
+        { error: "Event is not available for sale" },
         { status: 404 },
       );
     }

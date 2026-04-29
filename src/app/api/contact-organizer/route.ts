@@ -51,6 +51,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const { concerts } = await adminDb.query({
+      concerts: { $: { where: { id: concertId } } },
+    });
+    const concertForContact = concerts[0];
+    if (!concertForContact || concertForContact.status !== "active") {
+      return NextResponse.json(
+        { error: "Event is not available." },
+        { status: 404 },
+      );
+    }
+
     const messageId = id();
     await adminDb.transact(
       adminDb.tx.messages[messageId]

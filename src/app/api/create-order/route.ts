@@ -215,6 +215,7 @@ export async function POST(req: NextRequest) {
       date: string;
       venue?: string;
       slug: string;
+      status: string;
       lastOrderSeq?: number;
       coupons: { id: string; code: string; discountType: string; discountValue: number; maxUses?: number; active: boolean }[];
       paymentMethods: { id: string; type?: string; name: string; discountType?: string; discountValue?: number }[];
@@ -223,6 +224,13 @@ export async function POST(req: NextRequest) {
     if (!concert) {
       return NextResponse.json(
         { error: "Concert not found for this ticket type" },
+        { status: 404 },
+      );
+    }
+
+    if (concert.status !== "active") {
+      return NextResponse.json(
+        { error: "Event is not available for sale" },
         { status: 404 },
       );
     }

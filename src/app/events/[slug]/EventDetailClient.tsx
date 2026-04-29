@@ -6,6 +6,7 @@ import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import type { Phase } from "@/lib/phases";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
+import { isAuthorizedForConcert } from "@/lib/authHelpers";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState, useCallback } from "react";
@@ -36,9 +37,13 @@ export default function EventDetailClient() {
   const slugParam = params.slug as string;
   const { t } = useLanguage();
 
+  const { user } = db.useAuth();
+  const userEmail = user?.email ?? "";
+
   const { isLoading, error, data } = db.useQuery({
     concerts: {
       $: { where: { slug: slugParam } },
+      collaborators: {},
       ticketTypes: {
         orders: {
           $: { where: { or: [{ status: "approved" }, { status: "pending" }] } },
@@ -77,10 +82,34 @@ export default function EventDetailClient() {
     );
   }
 
+  const isAuthorized = userEmail
+    ? isAuthorizedForConcert(userEmail, {
+        organizerEmail: concert.organizerEmail,
+        collaborators: concert.collaborators,
+      })
+    : false;
+  const isDraft = concert.status !== "active";
+
+  if (isDraft && !isAuthorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
+          <h1 className="text-2xl font-semibold mb-2">{t("event.unavailableTitle")}</h1>
+          <p className="text-muted">{t("event.unavailableBody")}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <EventTheme concert={concert}>
     <EventPresence concertId={concert.id} />
     <div className="min-h-screen">
+      {isDraft && isAuthorized && (
+        <div className="bg-yellow-100 border-b border-yellow-300 text-yellow-900 text-sm px-4 py-2 text-center">
+          {t("event.draftPreview")}
+        </div>
+      )}
       <header className="bg-accent/95 backdrop-blur-sm text-white sticky top-0 z-10 border-b border-white/10">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">

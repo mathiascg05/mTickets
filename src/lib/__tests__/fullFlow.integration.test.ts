@@ -416,7 +416,7 @@ function seedConcert(overrides: Record<string, unknown> = {}) {
     slug: "rock-fest-2026",
     date: "2026-07-15",
     venue: "Arena Central",
-    status: "published",
+    status: "active",
     organizerEmail: "organizer@test.com",
     lastOrderSeq: 0,
     createdAt: Date.now(),

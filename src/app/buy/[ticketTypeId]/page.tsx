@@ -226,6 +226,16 @@ export default function BuyPage() {
     }
   }, [isLoading, ticketTypeForGate, queueIsActive, hasValidQueueToken, ticketTypeId, qty, router]);
 
+  // Block draft events: redirect to event page (which renders "unavailable" for non-organizers)
+  const concertForGate = ticketTypeForGate?.concert;
+  const concertSlugForGate = concertForGate?.slug;
+  const concertStatusForGate = concertForGate?.status;
+  useEffect(() => {
+    if (!isLoading && concertSlugForGate && concertStatusForGate && concertStatusForGate !== "active") {
+      router.replace(`/events/${concertSlugForGate}`);
+    }
+  }, [isLoading, concertSlugForGate, concertStatusForGate, router]);
+
   const selectedPmRecord = data?.ticketTypes?.[0]?.concert?.paymentMethods?.find(
     (pm) => pm.id === selectedPaymentMethod,
   );
