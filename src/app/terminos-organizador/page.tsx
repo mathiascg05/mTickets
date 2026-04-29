@@ -169,6 +169,24 @@ export default function OrganizerTermsPage() {
               legal correspondiente y faculta a maTickets a suspender o dar de
               baja al Organizador sin perjuicio de otras acciones legales.
             </p>
+            <p className="mt-2">
+              <strong>Comisión no reembolsable.</strong> La comisión retribuye
+              el servicio tecnológico efectivamente prestado por la Plataforma
+              respecto de cada orden aprobada (procesamiento de la solicitud,
+              validación de comprobante, emisión de la entrada electrónica,
+              envío al Comprador y soporte técnico de la transacción). En
+              consecuencia, <strong>la comisión es no reembolsable</strong> bajo
+              ninguna circunstancia, incluyendo —sin limitación— la cancelación,
+              suspensión, reprogramación o modificación del evento, los
+              reembolsos que el Organizador efectúe a sus compradores, las
+              disputas entre Organizador y Comprador, o el cierre voluntario de
+              la cuenta del Organizador. El saldo prepaid no consumido podrá, a
+              sola discreción de maTickets, aplicarse a comisiones de eventos
+              futuros del mismo Organizador, pero no genera derecho a devolución
+              en efectivo. Se exceptúan los casos de duplicación de cobro
+              atribuible a un error técnico de la Plataforma, los cuales serán
+              acreditados como saldo.
+            </p>
           </section>
 
           <section>
