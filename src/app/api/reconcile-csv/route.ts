@@ -148,9 +148,20 @@ async function handlePagoMovilReconciliation(
     return cleaned.slice(-4);
   }
 
+  // Group pending orders by full proofReferenceNumber. Multi-ticket purchases
+  // create N orders that share one ref and one bank transfer; reconciling
+  // per-order would never sum to the bank's row amount.
+  const ordersByRef = new Map<string, typeof pendingPmOrders>();
+  for (const o of pendingPmOrders) {
+    const ref = o.proofReferenceNumber!;
+    if (!ordersByRef.has(ref)) ordersByRef.set(ref, []);
+    ordersByRef.get(ref)!.push(o);
+  }
+
+  const TOLERANCE = 0.5;
   const matched: MatchedOrder[] = [];
   const unmatched: UnmatchedRow[] = [];
-  const matchedOrderIds = new Set<string>();
+  const matchedRefs = new Set<string>();
 
   for (const row of rows) {
     const csvLast4 = getCsvLast4(row.reference);
@@ -163,34 +174,45 @@ async function handlePagoMovilReconciliation(
       continue;
     }
 
-    const TOLERANCE = 0.5;
-    const candidates = pendingPmOrders.filter((o) => {
-      if (matchedOrderIds.has(o.id)) return false;
-      const orderLast4 = getOrderLast4(o.proofReferenceNumber!);
-      if (orderLast4 !== csvLast4) return false;
-      const diff = Math.abs((o.purchaseAmountBs as number) - row.amount);
-      return diff <= TOLERANCE;
-    });
+    const candidates: {
+      ref: string;
+      group: (typeof pendingPmOrders)[number][];
+      groupTotal: number;
+    }[] = [];
+    for (const [ref, group] of ordersByRef) {
+      if (matchedRefs.has(ref)) continue;
+      if (getOrderLast4(ref) !== csvLast4) continue;
+      const groupTotal =
+        Math.round(
+          group.reduce((sum, o) => sum + (o.purchaseAmountBs as number), 0) *
+            100,
+        ) / 100;
+      if (Math.abs(groupTotal - row.amount) <= TOLERANCE) {
+        candidates.push({ ref, group, groupTotal });
+      }
+    }
 
     if (candidates.length === 1) {
-      const order = candidates[0];
-      matchedOrderIds.add(order.id);
-      matched.push({
-        orderId: order.id,
-        orderNumber: order.orderNumber || "---",
-        firstName: order.firstName,
-        lastName: order.lastName,
-        orderRef: order.proofReferenceNumber!,
-        orderAmount: order.purchaseAmountBs as number,
-        currency: "BS",
-        csvRef: row.reference,
-        csvAmount: row.amount,
-      });
+      const { ref, group } = candidates[0];
+      matchedRefs.add(ref);
+      for (const order of group) {
+        matched.push({
+          orderId: order.id,
+          orderNumber: order.orderNumber || "---",
+          firstName: order.firstName,
+          lastName: order.lastName,
+          orderRef: ref,
+          orderAmount: order.purchaseAmountBs as number,
+          currency: "BS",
+          csvRef: row.reference,
+          csvAmount: row.amount,
+        });
+      }
     } else if (candidates.length > 1) {
       unmatched.push({
         csvRef: row.reference,
         csvAmount: row.amount,
-        reason: `Multiples coincidencias (${candidates.length} ordenes)`,
+        reason: `Multiples coincidencias (${candidates.length} grupos)`,
       });
     } else {
       unmatched.push({
