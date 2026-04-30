@@ -2283,6 +2283,11 @@ export default function ConcertOrdersPage() {
 
         if (allPmNames.length === 0) return null;
 
+        const ttPhases = tt.phases || [];
+        const totalCapacity = ttPhases.length > 0
+          ? ttPhases.reduce((s: number, p: { quantity: number }) => s + p.quantity, 0)
+          : tt.quantity;
+
         return (
           <div
             key={tt.id}
@@ -2293,7 +2298,7 @@ export default function ConcertOrdersPage() {
                 <h2 className="text-lg font-semibold">{tt.name}</h2>
                 <p className="text-sm text-muted">
                   ${(tt.price + (tt.price * ((tt as { feePercent?: number }).feePercent ?? 0)) / 100 + ((tt as { feeFixed?: number }).feeFixed ?? 0)).toFixed(2)} {t("admin.perTicket")} &middot;{" "}
-                  {t("admin.sold", { sold: statusTotals[0].count + statusTotals[1].count, total: tt.quantity })}
+                  {t("admin.sold", { sold: statusTotals[0].count + statusTotals[1].count, total: totalCapacity })}
                 </p>
               </div>
             </div>
