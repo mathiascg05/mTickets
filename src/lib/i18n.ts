@@ -166,7 +166,7 @@ const translations: Translations = {
   "checkout.fileTypeError": { es: "Solo se permiten imágenes JPEG, PNG, WebP y HEIC.", en: "Only JPEG, PNG, WebP, and HEIC images are allowed." },
   "checkout.refNumber": { es: "Número de Referencia de Pago", en: "Payment Reference Number" },
   "checkout.refLast4": { es: "Últimos 4 dígitos de referencia", en: "Last 4 digits of reference" },
-  "checkout.refLast4Placeholder": { es: "Ej: 1234", en: "e.g., 1234" },
+  "checkout.refLast4Placeholder": { es: "Últimos 4 dígitos o referencia completa", en: "Last 4 digits or full reference" },
   "checkout.refPlaceholder": { es: "Ingresa tu número de referencia", en: "Enter your payment reference number" },
   "checkout.terms": {
     es: "Acepto los {terms} y la {privacy}. Entiendo que mi compra está sujeta a aprobación y que no se emitirán reembolsos una vez aprobada.",

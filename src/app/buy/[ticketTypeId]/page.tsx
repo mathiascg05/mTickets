@@ -1043,12 +1043,11 @@ export default function BuyPage() {
                       value={referenceNumber}
                       onChange={(e) => {
                         const val = (selectedPm as { type?: string }).type === "pago_movil"
-                          ? e.target.value.replace(/\D/g, "").slice(0, 4)
+                          ? e.target.value.replace(/\D/g, "").slice(-4)
                           : e.target.value;
                         setReferenceNumber(val);
                       }}
                       inputMode={(selectedPm as { type?: string }).type === "pago_movil" ? "numeric" : undefined}
-                      maxLength={(selectedPm as { type?: string }).type === "pago_movil" ? 4 : undefined}
                       className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                       placeholder={(selectedPm as { type?: string }).type === "pago_movil"
                         ? t("checkout.refLast4Placeholder")
