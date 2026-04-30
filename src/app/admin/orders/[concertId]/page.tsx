@@ -11,6 +11,26 @@ import { useLanguage } from "@/lib/LanguageContext";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
+function parseLocaleAmount(raw: string): number {
+  const cleaned = raw.replace(/[^0-9.,\-]/g, "");
+  if (!cleaned) return NaN;
+  const lastComma = cleaned.lastIndexOf(",");
+  const lastDot = cleaned.lastIndexOf(".");
+  if (lastComma === -1 && lastDot === -1) return parseFloat(cleaned);
+  if (lastComma > -1 && lastDot > -1) {
+    return lastComma > lastDot
+      ? parseFloat(cleaned.replace(/\./g, "").replace(",", "."))
+      : parseFloat(cleaned.replace(/,/g, ""));
+  }
+  const sep = lastComma > -1 ? "," : ".";
+  const occurrences = cleaned.split(sep).length - 1;
+  const afterLast = cleaned.length - cleaned.lastIndexOf(sep) - 1;
+  if (occurrences > 1 || afterLast === 3) {
+    return parseFloat(cleaned.split(sep).join(""));
+  }
+  return sep === "," ? parseFloat(cleaned.replace(",", ".")) : parseFloat(cleaned);
+}
+
 function StatusBadge({ status }: { status: string }) {
   const { t } = useLanguage();
   const styles: Record<string, string> = {
@@ -324,7 +344,7 @@ function ReconciliationSection({
     const rows = parsedRows
       .map((row) => ({
         reference: (row[refIdx] || "").trim(),
-        amount: parseFloat((row[amountIdx] || "0").replace(/[^0-9.,\-]/g, "").replace(",", ".")),
+        amount: parseLocaleAmount(row[amountIdx] || "0"),
       }))
       .filter((r) => r.reference && !isNaN(r.amount) && r.amount > 0);
 
