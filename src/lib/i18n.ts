@@ -55,16 +55,65 @@ const translations: Translations = {
   "common.select": { es: "Seleccionar...", en: "Select..." },
 
   // ── Home page ──
-  "home.hero": { es: "Tu Evento, Tus Entradas", en: "Your Event, Your Tickets" },
-  "home.heroSub": {
-    es: "Usa el enlace del evento compartido contigo para ver los detalles y comprar tus entradas de forma segura.",
-    en: "Use the event link shared with you to view event details and purchase your tickets securely.",
+  "home.heroTag": {
+    es: "Plataforma profesional de ticketing",
+    en: "Professional ticketing platform",
   },
-  "home.organizerLogin": { es: "¿Organizador? Inicia Sesión", en: "Event Organizer? Log In" },
-  "home.howItWorks": { es: "Cómo Funciona", en: "How It Works" },
+  "home.hero": {
+    es: "Lanza tu evento y empieza a vender en minutos.",
+    en: "Launch your event and start selling in minutes.",
+  },
+  "home.heroSub": {
+    es: "Crea tu evento, define tipos de entrada, recibe pagos y valida QRs en la puerta. Multi-moneda y panel para tu equipo.",
+    en: "Create your event, set ticket types, accept payments and validate QRs at the door. Multi-currency and a dashboard for your team.",
+  },
+  "home.ctaPrimary": { es: "Crear mi evento", en: "Create my event" },
+  "home.organizerLogin": { es: "Ya tengo cuenta", en: "I already have an account" },
+  "home.trustPayments": { es: "Pagos seguros", en: "Secure payments" },
+  "home.trustSetup": { es: "Setup en minutos", en: "Setup in minutes" },
+  "home.trustGA": { es: "Verificación de pagos automática", en: "Automatic payment verification" },
+  "home.mockupSubtitle": { es: "Esta semana", en: "This week" },
+  "home.mockupRateChip": { es: "USD · EUR ⇄ Bs", en: "USD · EUR ⇄ Bs" },
+  "home.mockupActive": { es: "3 eventos activos", en: "3 active events" },
+  "home.mockupSold": { es: "Vendidas", en: "Sold" },
+  "home.mockupRevenue": { es: "Ingresos", en: "Revenue" },
+  "home.mockupPending": { es: "Pendientes", en: "Pending" },
+  "home.mockupTrendLabel": { es: "Tendencia", en: "Trend" },
+  "home.mockupTrend": { es: "+18% vs semana anterior", en: "+18% vs last week" },
+  "home.mockupTicketType": { es: "Access Pass", en: "Access Pass" },
+  "home.mockupApproved": { es: "Aprobado", en: "Approved" },
+  "home.attendeeBannerTitle": {
+    es: "¿Eres asistente y buscas tu entrada?",
+    en: "Are you an attendee looking for your ticket?",
+  },
+  "home.attendeeBannerCta": {
+    es: "Pídele al organizador el enlace del evento que compartió contigo.",
+    en: "Ask the organizer for the event link they shared with you.",
+  },
+  "home.vp1Title": { es: "Pagos locales", en: "Local payments" },
+  "home.vp1Desc": {
+    es: "Zelle, Pago Móvil y efectivo.",
+    en: "Zelle, Pago Móvil and cash.",
+  },
+  "home.vp2Title": { es: "Multi-moneda", en: "Multi-currency" },
+  "home.vp2Desc": {
+    es: "Convierte USD y EUR a Bs con tasa BCV automática.",
+    en: "Convert USD and EUR to Bs with automatic BCV rate.",
+  },
+  "home.vp3Title": { es: "QR en puerta", en: "QR at the door" },
+  "home.vp3Desc": {
+    es: "Escáner integrado, sin filas y control en vivo.",
+    en: "Built-in scanner, no queues and live monitoring.",
+  },
+  "home.vp4Title": { es: "Panel para tu equipo", en: "Dashboard for your team" },
+  "home.vp4Desc": {
+    es: "Invita colaboradores y delega aprobaciones y escaneo.",
+    en: "Invite collaborators and delegate approvals and scanning.",
+  },
+  "home.howItWorks": { es: "¿Cómo funciona?", en: "How does it work?" },
   "home.howItWorksSub": {
-    es: "Un proceso simple y seguro desde la compra hasta la entrada",
-    en: "A simple, secure process from purchase to entry",
+    es: "El recorrido de tus asistentes, en tres pasos simples.",
+    en: "Your attendees' journey, in three simple steps.",
   },
   "home.step1Title": { es: "Obtén Tu Enlace", en: "Get Your Link" },
   "home.step1Desc": {
