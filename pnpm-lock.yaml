@@ -17,6 +17,9 @@ importers:
       '@sentry/nextjs':
         specifier: ^10
         version: 10.48.0(@opentelemetry/context-async-hooks@2.6.1(@opentelemetry/api@1.9.1))(@opentelemetry/core@2.6.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.6.1(@opentelemetry/api@1.9.1))(next@15.4.11(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.58.2)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(webpack@5.106.2)
+      '@zootools/email-spell-checker':
+        specifier: ^1.12.0
+        version: 1.12.0
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -1294,6 +1297,10 @@ packages:
 
   '@xtuc/long@4.2.2':
     resolution: {integrity: sha512-NuHqBY1PB/D8xU6s/thBgOAiAP7HOYDQ32+BFZILJ8ivkUkAHQnWfn6WhL79Owj1qmUnoN/YPhktdIoucipkAQ==}
+
+  '@zootools/email-spell-checker@1.12.0':
+    resolution: {integrity: sha512-yM0lH4yjg+jZG5QubtvpHE+ahSnsHbw9ilnQgKgOF3fk6OBVQLRsEq4NR+/nRvrwG8Vo+29bzKwhXk5y1b/FwA==}
+    engines: {node: '>=12.0'}
 
   acorn-import-attributes@1.9.5:
     resolution: {integrity: sha512-n02Vykv5uA3eHGM/Z2dQrcD56kL8TyDb2p1+0P83PClMnC/nc+anbQRhIOWnSq4Ke/KvDPrY3C9hDtC/A3eHnQ==}
@@ -3451,6 +3458,8 @@ snapshots:
   '@xtuc/ieee754@1.2.0': {}
 
   '@xtuc/long@4.2.2': {}
+
+  '@zootools/email-spell-checker@1.12.0': {}
 
   acorn-import-attributes@1.9.5(acorn@8.16.0):
     dependencies:

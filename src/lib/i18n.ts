@@ -251,6 +251,10 @@ const translations: Translations = {
   "checkout.somethingWrong": { es: "Algo salió mal.", en: "Something went wrong." },
   "checkout.idPlaceholder": { es: "Número de cédula", en: "ID number" },
   "checkout.emailPlaceholder": { es: "correo@ejemplo.com", en: "email@example.com" },
+  "checkout.emailSuggestion": {
+    es: "¿Quisiste decir {suggestion}? Click para corregir.",
+    en: "Did you mean {suggestion}? Click to fix.",
+  },
   "checkout.firstNamePlaceholder": { es: "Nombre", en: "First name" },
   "checkout.lastNamePlaceholder": { es: "Apellido", en: "Last name" },
 

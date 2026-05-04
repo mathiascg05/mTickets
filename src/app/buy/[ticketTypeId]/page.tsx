@@ -9,6 +9,7 @@ import { TERMS_VERSION, PRIVACY_VERSION } from "@/lib/legalVersions";
 import { id } from "@instantdb/react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import emailSpellChecker from "@zootools/email-spell-checker";
 
 const RESERVATION_DURATION = 15 * 60 * 1000; // 15 minutes
 const STORAGE_KEY_PREFIX = "reservation_";
@@ -97,6 +98,7 @@ export default function BuyPage() {
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [timerExpired, setTimerExpired] = useState(false);
+  const [emailSuggestions, setEmailSuggestions] = useState<Record<number, string>>({});
   const reservationCreatedRef = useRef(false);
   const submittingRef = useRef(false);
 
@@ -726,10 +728,43 @@ export default function BuyPage() {
                     type="email"
                     required
                     value={attendee.email}
-                    onChange={(e) => updateAttendee(i, "email", e.target.value)}
+                    onChange={(e) => {
+                      updateAttendee(i, "email", e.target.value);
+                      if (emailSuggestions[i]) {
+                        setEmailSuggestions((prev) => {
+                          const next = { ...prev };
+                          delete next[i];
+                          return next;
+                        });
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!attendee.email || !attendee.email.includes("@")) return;
+                      const result = emailSpellChecker.run({ email: attendee.email });
+                      if (result?.full && result.full !== attendee.email) {
+                        setEmailSuggestions((prev) => ({ ...prev, [i]: result.full }));
+                      }
+                    }}
                     className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                     placeholder={t("checkout.emailPlaceholder")}
                   />
+                  {emailSuggestions[i] && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const suggestion = emailSuggestions[i];
+                        updateAttendee(i, "email", suggestion);
+                        setEmailSuggestions((prev) => {
+                          const next = { ...prev };
+                          delete next[i];
+                          return next;
+                        });
+                      }}
+                      className="mt-1.5 text-xs text-accent hover:underline text-left"
+                    >
+                      {t("checkout.emailSuggestion", { suggestion: emailSuggestions[i] })}
+                    </button>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1.5">

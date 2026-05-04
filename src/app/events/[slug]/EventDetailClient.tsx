@@ -10,6 +10,7 @@ import { isAuthorizedForConcert } from "@/lib/authHelpers";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState, useCallback } from "react";
+import emailSpellChecker from "@zootools/email-spell-checker";
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -337,6 +338,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [resendCooldowns, setResendCooldowns] = useState<Record<string, number>>({});
+  const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
 
   const handleLookup = useCallback(async () => {
     const trimmed = email.trim().toLowerCase();
@@ -403,15 +405,39 @@ function FindMyTickets({ concertId }: { concertId: string }) {
         {t("event.findTicketsSub")}
       </p>
 
-      <div className="flex gap-3">
-        <input
-          type="email"
-          placeholder="your@email.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleLookup()}
-          className="flex-1 px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
-        />
+      <div className="flex gap-3 items-start">
+        <div className="flex-1">
+          <input
+            type="email"
+            placeholder="your@email.com"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (emailSuggestion) setEmailSuggestion(null);
+            }}
+            onBlur={() => {
+              if (!email || !email.includes("@")) return;
+              const result = emailSpellChecker.run({ email });
+              if (result?.full && result.full !== email) {
+                setEmailSuggestion(result.full);
+              }
+            }}
+            onKeyDown={(e) => e.key === "Enter" && handleLookup()}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
+          />
+          {emailSuggestion && (
+            <button
+              type="button"
+              onClick={() => {
+                setEmail(emailSuggestion);
+                setEmailSuggestion(null);
+              }}
+              className="mt-1.5 text-xs text-accent hover:underline text-left"
+            >
+              {t("checkout.emailSuggestion", { suggestion: emailSuggestion })}
+            </button>
+          )}
+        </div>
         <button
           onClick={handleLookup}
           disabled={loading || !email.trim()}
@@ -488,6 +514,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [cooldown, setCooldown] = useState(false);
+  const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
 
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -593,10 +620,32 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
               <input
                 type="email"
                 value={form.email}
-                onChange={(e) => handleChange("email", e.target.value)}
+                onChange={(e) => {
+                  handleChange("email", e.target.value);
+                  if (emailSuggestion) setEmailSuggestion(null);
+                }}
+                onBlur={() => {
+                  if (!form.email || !form.email.includes("@")) return;
+                  const result = emailSpellChecker.run({ email: form.email });
+                  if (result?.full && result.full !== form.email) {
+                    setEmailSuggestion(result.full);
+                  }
+                }}
                 className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
                 placeholder="your@email.com"
               />
+              {emailSuggestion && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleChange("email", emailSuggestion);
+                    setEmailSuggestion(null);
+                  }}
+                  className="mt-1.5 text-xs text-accent hover:underline text-left"
+                >
+                  {t("checkout.emailSuggestion", { suggestion: emailSuggestion })}
+                </button>
+              )}
             </div>
             <div>
               <label className="block text-[11px] font-medium text-muted uppercase tracking-widest mb-1.5">
