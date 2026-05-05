@@ -23,6 +23,18 @@ Sentry.init({
   // Enable sending user PII (Personally Identifiable Information)
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
   sendDefaultPii: true,
+
+  // iOS Safari cierra agresivamente las conexiones IndexedDB cuando el tab va a
+  // background. InstantDB usa IDB internamente para sync/cache y reintenta solo
+  // al volver. Estos errores son ruido conocido y no afectan al usuario.
+  ignoreErrors: [
+    /InvalidStateError.*IDBDatabase.*database connection is closing/i,
+    /InvalidStateError.*IDBDatabase.*transaction/i,
+    // Promise rejections con un DOM Event (no Error) en tabs iOS resumidos tras
+    // suspensión larga — el WebSocket interno de InstantDB intenta reconectar y
+    // emite un `Event` de tipo error. Sin stack útil, sin impacto al usuario.
+    /Event `Event` \(type=error\) captured as promise rejection/,
+  ],
 });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

@@ -31,6 +31,22 @@ function formatTime(totalSeconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+// iOS Safari cierra IDB cuando el tab va a background; el primer intento puede
+// fallar al volver. Damos un segundo intento corto antes de propagar el error.
+async function uploadWithRetry(path: string, file: File) {
+  try {
+    await db.storage.upload(path, file);
+  } catch (err) {
+    const isIdbClosing =
+      err instanceof Error &&
+      err.name === "InvalidStateError" &&
+      err.message.includes("IDBDatabase");
+    if (!isIdbClosing) throw err;
+    await new Promise((r) => setTimeout(r, 500));
+    await db.storage.upload(path, file);
+  }
+}
+
 /** Returns the timestamp of the most recent 9am or 1pm VET (UTC-4) schedule window. */
 function getLastScheduleTime(): number {
   const now = new Date();
@@ -467,7 +483,7 @@ export default function BuyPage() {
       if (file) {
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
         filePath = `payment-proofs/${Date.now()}-${safeName}`;
-        await db.storage.upload(filePath, file);
+        await uploadWithRetry(filePath, file);
       }
 
       const purchaseGroupId = qty > 1 ? id() : undefined;
