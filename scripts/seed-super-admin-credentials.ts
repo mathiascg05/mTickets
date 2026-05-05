@@ -1,5 +1,6 @@
 /**
- * One-time script to seed super admin credentials for password auth.
+ * Seeds (or rotates) super admin credentials for password auth.
+ * Requires SEED_SUPER_ADMIN_PASSWORD env var.
  * Run with: npx tsx --env-file=.env scripts/seed-super-admin-credentials.ts
  */
 import { init, id } from "@instantdb/admin";
@@ -12,8 +13,17 @@ const adminDb = init({
   schema,
 });
 
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`Missing ${name} env var.`);
+    process.exit(1);
+  }
+  return value;
+}
+
 const SUPER_ADMIN_EMAIL = "matickets.ve@gmail.com";
-const SUPER_ADMIN_PASSWORD = "Mathias01";
+const SUPER_ADMIN_PASSWORD = requireEnv("SEED_SUPER_ADMIN_PASSWORD");
 
 async function seed() {
   console.log("Looking up super admin user...");
@@ -44,9 +54,14 @@ async function seed() {
     }
 
     const user = retry[0];
-    const creds = (user as unknown as { credentials: unknown[] }).credentials;
-    if (Array.isArray(creds) && creds.length > 0) {
-      console.log("Super admin already has credentials, skipping.");
+    const creds = (user as unknown as { credentials: { id: string } | null | undefined }).credentials;
+    if (creds?.id) {
+      console.log("Super admin already has credentials, rotating password...");
+      const passwordHash = await bcrypt.hash(SUPER_ADMIN_PASSWORD, 12);
+      await adminDb.transact([
+        adminDb.tx.credentials[creds.id].update({ passwordHash, createdAt: Date.now() }),
+      ]);
+      console.log("Super admin password rotated successfully.");
       process.exit(0);
     }
 
@@ -62,9 +77,14 @@ async function seed() {
   }
 
   const user = $users[0];
-  const creds = (user as unknown as { credentials: unknown[] }).credentials;
-  if (Array.isArray(creds) && creds.length > 0) {
-    console.log("Super admin already has credentials, skipping.");
+  const creds = (user as unknown as { credentials: { id: string } | null | undefined }).credentials;
+  if (creds?.id) {
+    console.log("Super admin already has credentials, rotating password...");
+    const passwordHash = await bcrypt.hash(SUPER_ADMIN_PASSWORD, 12);
+    await adminDb.transact([
+      adminDb.tx.credentials[creds.id].update({ passwordHash, createdAt: Date.now() }),
+    ]);
+    console.log("Super admin password rotated successfully.");
     process.exit(0);
   }
 
