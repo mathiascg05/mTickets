@@ -17,6 +17,34 @@ const RATE_LIMITS: Record<string, { max: number; windowMs: number }> = {
   "/api/reset-password": { max: 3, windowMs: 60_000 },
 };
 
+// Routes that authenticate by request signature or shared secret rather than
+// by browser-issued cookies/tokens. CSRF is not relevant for these and
+// rejecting them on Origin would break legitimate webhook/cron callers.
+const CSRF_EXEMPT_PREFIXES = ["/api/webhooks/", "/api/cron/"];
+
+function isStateChangingMethod(method: string): boolean {
+  return method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE";
+}
+
+function getAllowedOrigins(): string[] {
+  const origins = new Set<string>();
+  if (process.env.NEXT_PUBLIC_APP_URL) origins.add(process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, ""));
+  if (process.env.VERCEL_URL) origins.add(`https://${process.env.VERCEL_URL}`);
+  if (process.env.NODE_ENV !== "production") {
+    origins.add("http://localhost:3000");
+    origins.add("http://127.0.0.1:3000");
+  }
+  return [...origins];
+}
+
+function isAllowedOrigin(originHeader: string | null, refererHeader: string | null): boolean {
+  const allowed = getAllowedOrigins();
+  if (allowed.length === 0) return true;
+  const candidate = originHeader || (refererHeader ? new URL(refererHeader).origin : null);
+  if (!candidate) return false;
+  return allowed.includes(candidate.replace(/\/$/, ""));
+}
+
 function getClientIp(req: NextRequest): string {
   return (
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -51,8 +79,18 @@ function cleanupIfNeeded() {
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const limit = RATE_LIMITS[pathname];
 
+  if (
+    isStateChangingMethod(req.method) &&
+    pathname.startsWith("/api/") &&
+    !CSRF_EXEMPT_PREFIXES.some((p) => pathname.startsWith(p))
+  ) {
+    if (!isAllowedOrigin(req.headers.get("origin"), req.headers.get("referer"))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
+  const limit = RATE_LIMITS[pathname];
   if (!limit) return NextResponse.next();
 
   cleanupIfNeeded();
@@ -71,5 +109,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/create-order", "/api/create-reservation", "/api/verify-ticket-email", "/api/join-queue", "/api/queue-heartbeat", "/api/verify-scanner-pin", "/api/send-ticket-email", "/api/send-confirmation-email", "/api/exchange-rates", "/api/admin-auth", "/api/reset-password"],
+  matcher: ["/api/:path*"],
 };

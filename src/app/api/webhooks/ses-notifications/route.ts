@@ -76,16 +76,19 @@ export async function POST(req: NextRequest) {
     const messageType = req.headers.get("x-amz-sns-message-type");
     console.log(`[ses-webhook] Received ${messageType} message`);
 
-    // Verify SNS signature
+    // Pin the topic ARN so a forged message from any other SNS topic is rejected
+    // even if its signature happens to verify against AWS's cert chain.
+    const expectedTopicArn = process.env.SES_TOPIC_ARN;
+    if (expectedTopicArn && body.TopicArn !== expectedTopicArn) {
+      console.error("[ses-webhook] Unexpected TopicArn:", body.TopicArn);
+      return NextResponse.json({ error: "Unexpected topic" }, { status: 403 });
+    }
+
+    // Verify SNS signature — never bypass, even for SubscriptionConfirmation.
+    // A bypass lets attackers force the server to fetch arbitrary URLs and
+    // replay forged Bounce/Complaint events to mass-suppress real emails.
     const signatureVersion = body.SignatureVersion;
-    // SignatureVersion 2 uses SHA256, version 1 uses SHA1
     if (!(await verifySnsSignature(body))) {
-      // For initial setup, log the failure but still process SubscriptionConfirmation
-      if (messageType === "SubscriptionConfirmation") {
-        console.warn("[ses-webhook] Signature verification failed for SubscriptionConfirmation, confirming anyway for initial setup");
-        await fetch(body.SubscribeURL);
-        return NextResponse.json({ status: "subscribed" });
-      }
       console.error("[ses-webhook] Invalid SNS signature (version:", signatureVersion, ")");
       return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
     }

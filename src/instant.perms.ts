@@ -54,7 +54,7 @@ const rules = {
   },
   paymentMethods: {
     allow: {
-      view: "true",
+      view: "data.ref('concert.status') == ['active'] || isOwner || isSuperAdmin",
       create: "isOwner || isSuperAdmin",
       update: "isOwner || isSuperAdmin",
       delete: "isOwner || isSuperAdmin",

@@ -36,3 +36,40 @@ export function isPrimaryOrganizer(
     lower === concertOrganizerEmail.toLowerCase()
   );
 }
+
+type AuthFailure = { ok: false; status: number; error: string };
+type AuthSuccess = { ok: true };
+
+export async function assertOrganizerCanAccessOrder(
+  userEmail: string | undefined | null,
+  orderId: string,
+): Promise<AuthSuccess | AuthFailure> {
+  if (!userEmail) return { ok: false, status: 401, error: "Unauthorized" };
+
+  const { adminDb } = await import("./adminDb");
+  const { orders } = await adminDb.query({
+    orders: {
+      $: { where: { id: orderId } },
+      ticketType: { concert: { collaborators: {} } },
+    },
+  });
+
+  const order = orders[0];
+  if (!order) return { ok: false, status: 404, error: "Order not found" };
+
+  // Admin SDK returns has-one relations as arrays at runtime despite types
+  const rawTT = order.ticketType as unknown;
+  const ticketType = (Array.isArray(rawTT) ? rawTT[0] : rawTT) as
+    | { concert: unknown }
+    | undefined;
+  const rawConcert = ticketType?.concert as unknown;
+  const concert = (Array.isArray(rawConcert) ? rawConcert[0] : rawConcert) as
+    | ConcertAuthInfo
+    | undefined;
+
+  if (!concert) return { ok: false, status: 404, error: "Concert not found" };
+  if (!isAuthorizedForConcert(userEmail, concert)) {
+    return { ok: false, status: 403, error: "Forbidden" };
+  }
+  return { ok: true };
+}

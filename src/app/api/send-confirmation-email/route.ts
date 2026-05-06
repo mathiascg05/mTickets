@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
+import { assertOrganizerCanAccessOrder } from "@/lib/authHelpers";
+import { isValidUUID } from "@/lib/validation";
 import { transporter, generateMessageId } from "@/lib/mailer";
 import { buildConfirmationEmailHtml, buildConfirmationEmailText } from "@/lib/emailTemplate";
 import { assignOrderNumber } from "@/lib/orderNumber";
@@ -47,8 +49,13 @@ export async function POST(req: NextRequest) {
     }
 
     const { orderId } = await req.json();
-    if (!orderId) {
+    if (!isValidUUID(orderId)) {
       return NextResponse.json({ error: "orderId is required" }, { status: 400 });
+    }
+
+    const authz = await assertOrganizerCanAccessOrder(user.email, orderId);
+    if (!authz.ok) {
+      return NextResponse.json({ error: authz.error }, { status: authz.status });
     }
 
     console.log(`[confirmation-email] Processing order ${orderId}`);
