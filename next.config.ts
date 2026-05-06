@@ -25,6 +25,10 @@ const nextConfig: NextConfig = {
             value: "max-age=31536000; includeSubDomains",
           },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(), interest-cohort=(), payment=(), usb=()",
+          },
           { key: "Content-Security-Policy", value: csp },
         ],
       },

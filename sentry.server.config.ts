@@ -3,6 +3,7 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from "@sentry/nextjs";
+import { scrubSentryEvent } from "@/lib/sentryScrub";
 
 Sentry.init({
   dsn: "https://996d46673bc1493b79ee0f764eba7016@o4511225884573696.ingest.us.sentry.io/4511225943883776",
@@ -16,4 +17,10 @@ Sentry.init({
   // Enable sending user PII (Personally Identifiable Information)
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
   sendDefaultPii: true,
+
+  // Limpia campos sensibles del request body (passwords, tokens, cedulas,
+  // paymentMethodValue, referenceNumber) antes de enviar a Sentry.
+  beforeSend(event) {
+    return scrubSentryEvent(event);
+  },
 });
