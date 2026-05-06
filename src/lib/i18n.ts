@@ -735,6 +735,74 @@ const translations: Translations = {
     es: "La página que buscas no existe o ha sido movida.",
     en: "The page you're looking for doesn't exist or has been moved.",
   },
+
+  // ── Auth (login/signup) ──
+  "auth.login": { es: "Iniciar Sesión", en: "Log In" },
+  "auth.createAccount": { es: "Crear Cuenta", en: "Create Account" },
+  "auth.continue": { es: "Continuar", en: "Continue" },
+  "auth.enterPassword": { es: "Ingresa tu contraseña", en: "Enter password" },
+  "auth.confirmPassword": { es: "Confirma tu contraseña", en: "Confirm password" },
+  "auth.noAccount": { es: "¿No tienes cuenta?", en: "Don't have an account?" },
+  "auth.createOne": { es: "Crear una", en: "Create one" },
+  "auth.haveAccount": { es: "¿Ya tienes cuenta?", en: "Already have an account?" },
+  "auth.passwordMin": { es: "La contraseña debe tener al menos 8 caracteres", en: "Password must be at least 8 characters" },
+  "auth.passwordsDiffer": { es: "Las contraseñas no coinciden", en: "Passwords do not match" },
+  "auth.mustAcceptTerms": {
+    es: "Debes aceptar los Términos y Condiciones, los Términos del Organizador y la Política de Privacidad para crear una cuenta.",
+    en: "You must accept the Terms and Conditions, the Organizer Terms and the Privacy Policy to create an account.",
+  },
+  "auth.authFailed": { es: "Error de autenticación", en: "Authentication failed" },
+  "auth.somethingWrong": { es: "Algo salió mal. Intenta de nuevo.", en: "Something went wrong. Please try again." },
+  "auth.acceptTerms": { es: "Acepto los", en: "I accept the" },
+  "auth.acceptThe": { es: "Acepto la", en: "I accept the" },
+  "auth.termsLink": { es: "Términos y Condiciones", en: "Terms and Conditions" },
+  "auth.organizerTermsLink": { es: "Términos del Organizador", en: "Organizer Terms" },
+  "auth.privacyLink": { es: "Política de Privacidad", en: "Privacy Policy" },
+  "auth.organizerTermsExtra": {
+    es: ", incluida la obligación de pagar la comisión configurada y cumplir con las obligaciones fiscales y regulatorias aplicables a mi actividad.",
+    en: ", including the obligation to pay the configured commission and comply with the tax and regulatory obligations applicable to my activity.",
+  },
+  "auth.email": { es: "Correo", en: "Email" },
+  "auth.password": { es: "Contraseña", en: "Password" },
+  "auth.confirmPasswordLabel": { es: "Confirmar Contraseña", en: "Confirm Password" },
+  "auth.enterPasswordFor": { es: "Ingresa tu contraseña para", en: "Enter password for" },
+  "auth.setPasswordFor": { es: "Define una contraseña para", en: "Set a password for" },
+  "auth.forgot": { es: "¿Olvidaste tu contraseña?", en: "Forgot password?" },
+  "auth.useDifferentEmail": { es: "Usar otro correo", en: "Use different email" },
+  "auth.sending": { es: "Enviando...", en: "Sending..." },
+  "auth.sendResetLink": { es: "Enviar enlace de recuperación", en: "Send Reset Link" },
+  "auth.backToLogin": { es: "Volver al login", en: "Back to login" },
+  "auth.resetSentLine1": {
+    es: "Si existe una cuenta para {email}, te enviamos un enlace para restablecer tu contraseña.",
+    en: "If an account exists for {email}, we've sent a password reset link.",
+  },
+  "auth.resetSentLine2": {
+    es: "Revisa tu bandeja y sigue el enlace para definir una nueva contraseña.",
+    en: "Check your inbox and follow the link to set a new password.",
+  },
+  "auth.willSendResetTo": {
+    es: "Te enviaremos un enlace de recuperación a {email}",
+    en: "We'll send a reset link to {email}",
+  },
+
+  // ── Admin nav extras ──
+  "admin.viewSite": { es: "Ver sitio", en: "View Site" },
+  "admin.signOut": { es: "Cerrar sesión", en: "Sign Out" },
+
+  // ── Queue / scan / generic in-flow errors ──
+  "queue.joinError": { es: "No pudimos unirte a la cola. Intenta de nuevo.", en: "Failed to join queue. Please try again." },
+  "scan.invalidPin": { es: "PIN inválido", en: "Invalid PIN" },
+  "scan.connectionError": { es: "Error de conexión. Intenta de nuevo.", en: "Connection error. Please try again." },
+
+  // ── Admin: misc + reconciliation errors ──
+  "admin.accessDenied": { es: "Acceso denegado. Solo super admin.", en: "Access denied. Super admin only." },
+  "admin.reconcileFileEmpty": { es: "El archivo está vacío o solo tiene headers", en: "The file is empty or only has headers" },
+  "admin.reconcileCsvParseError": { es: "Error al parsear CSV", en: "Failed to parse CSV" },
+  "admin.reconcileExcelParseError": { es: "Error al parsear archivo Excel", en: "Failed to parse Excel file" },
+  "admin.reconcileFormatNotSupported": { es: "Formato no soportado. Usa CSV, XLS o XLSX.", en: "Unsupported format. Use CSV, XLS or XLSX." },
+  "admin.reconcileGenericError": { es: "Error en la conciliación", en: "Reconciliation error" },
+  "admin.connectionError": { es: "Error de conexión", en: "Connection error" },
+  "admin.approveError": { es: "Error al aprobar", en: "Failed to approve" },
 };
 
 export function t(key: string, lang: Lang, params?: Record<string, string | number>): string {
@@ -747,6 +815,17 @@ export function t(key: string, lang: Lang, params?: Record<string, string | numb
     }
   }
   return text;
+}
+
+// BCP-47 locales used for Intl date/number formatting based on the active UI language.
+// Bolívar amounts always use es-VE regardless of UI language because that is how Venezuelans
+// read VES values; only callers that format USD/EUR amounts should use this helper.
+export function dateLocale(lang: Lang): string {
+  return lang === "es" ? "es-ES" : "en-US";
+}
+
+export function numberLocale(lang: Lang): string {
+  return lang === "es" ? "es-ES" : "en-US";
 }
 
 export function getFieldTypeLabel(fieldType: string, lang: Lang): string {

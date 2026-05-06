@@ -8,6 +8,7 @@ import { useState, useCallback, useRef } from "react";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import { sendTicketEmail, sendConfirmationEmail } from "@/lib/sendTicketEmail";
 import { useLanguage } from "@/lib/LanguageContext";
+import { dateLocale } from "@/lib/i18n";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -275,7 +276,7 @@ function ReconciliationSection({
         complete: (result) => {
           const rows = result.data as string[][];
           if (rows.length < 2) {
-            setError("El archivo está vacío o solo tiene headers");
+            setError(t("admin.reconcileFileEmpty"));
             return;
           }
           setParsedHeaders(rows[0]);
@@ -283,7 +284,7 @@ function ReconciliationSection({
           loadSavedMapping(rows[0]);
           setStep("map");
         },
-        error: () => setError("Error al parsear CSV"),
+        error: () => setError(t("admin.reconcileCsvParseError")),
       });
     } else if (ext === "xls" || ext === "xlsx") {
       const reader = new FileReader();
@@ -293,7 +294,7 @@ function ReconciliationSection({
           const ws = wb.Sheets[wb.SheetNames[0]];
           const data = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 });
           if (data.length < 2) {
-            setError("El archivo está vacío o solo tiene headers");
+            setError(t("admin.reconcileFileEmpty"));
             return;
           }
           const headers = data[0].map(String);
@@ -306,12 +307,12 @@ function ReconciliationSection({
           loadSavedMapping(headers);
           setStep("map");
         } catch {
-          setError("Error al parsear archivo Excel");
+          setError(t("admin.reconcileExcelParseError"));
         }
       };
       reader.readAsArrayBuffer(file);
     } else {
-      setError("Formato no soportado. Usa CSV, XLS o XLSX.");
+      setError(t("admin.reconcileFormatNotSupported"));
     }
   }
 
@@ -359,7 +360,7 @@ function ReconciliationSection({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Error en la conciliación");
+        setError(data.error || t("admin.reconcileGenericError"));
         setSearching(false);
         return;
       }
@@ -369,7 +370,7 @@ function ReconciliationSection({
       setSelectedIds(new Set(data.matched.map((m: MatchedOrder) => m.orderId)));
       setStep("results");
     } catch {
-      setError("Error de conexión");
+      setError(t("admin.connectionError"));
     }
     setSearching(false);
   }
@@ -391,14 +392,14 @@ function ReconciliationSection({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Error al aprobar");
+        setError(data.error || t("admin.approveError"));
         setApproving(false);
         return;
       }
       setApproveResult({ approved: data.approved, failed: data.failed });
       setStep("done");
     } catch {
-      setError("Error de conexión");
+      setError(t("admin.connectionError"));
     }
     setApproving(false);
   }
@@ -1687,7 +1688,7 @@ function ImportCsvModal({
 }
 
 export default function ConcertOrdersPage() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const params = useParams();
   const concertId = params.concertId as string;
   const { user } = db.useAuth();
@@ -2646,7 +2647,7 @@ export default function ConcertOrdersPage() {
                     <div className="text-right shrink-0">
                       <p className="text-xs font-medium text-muted">{order.ticketTypeName}</p>
                       <p className="text-xs text-muted">
-                        {new Date(order.createdAt).toLocaleDateString()}
+                        {new Date(order.createdAt).toLocaleDateString(dateLocale(lang))}
                       </p>
                     </div>
                   </div>
@@ -2923,7 +2924,7 @@ export default function ConcertOrdersPage() {
                       ) : null;
                     })()}
                     {" "}&middot;{" "}
-                    {new Date(order.createdAt).toLocaleString()}
+                    {new Date(order.createdAt).toLocaleString(dateLocale(lang))}
                   </p>
                 </div>
 

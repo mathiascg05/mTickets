@@ -15,6 +15,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 function LoginForm() {
+  const { t } = useLanguage();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [step, setStep] = useState<"email" | "password" | "forgot" | "resetSent">("email");
   const [email, setEmail] = useState("");
@@ -38,12 +39,12 @@ function LoginForm() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Something went wrong");
+        setError(data.error || t("auth.somethingWrong"));
       } else {
         setStep("password");
       }
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError(t("auth.somethingWrong"));
     } finally {
       setLoading(false);
     }
@@ -55,17 +56,15 @@ function LoginForm() {
 
     if (mode === "register") {
       if (password.length < 8) {
-        setError("Password must be at least 8 characters");
+        setError(t("auth.passwordMin"));
         return;
       }
       if (password !== confirmPassword) {
-        setError("Passwords do not match");
+        setError(t("auth.passwordsDiffer"));
         return;
       }
       if (!acceptedTerms || !acceptedOrganizerTerms || !acceptedPrivacy) {
-        setError(
-          "Debes aceptar los Términos, los Términos del Organizador y la Política de Privacidad.",
-        );
+        setError(t("auth.mustAcceptTerms"));
         return;
       }
     }
@@ -91,12 +90,12 @@ function LoginForm() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Authentication failed");
+        setError(data.error || t("auth.authFailed"));
       } else {
         db.auth.signInWithToken(data.token);
       }
     } catch {
-      setError("Authentication failed. Please try again.");
+      setError(t("auth.somethingWrong"));
     } finally {
       setLoading(false);
     }
@@ -122,12 +121,12 @@ function LoginForm() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Something went wrong");
+        setError(data.error || t("auth.somethingWrong"));
       } else {
         setStep("resetSent");
       }
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError(t("auth.somethingWrong"));
     } finally {
       setLoading(false);
     }
@@ -139,7 +138,7 @@ function LoginForm() {
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-accent">ma<span className="text-accent/60">Tickets</span></h1>
           <p className="text-sm text-muted mt-1">
-            {mode === "login" ? "Log In" : "Create Account"}
+            {mode === "login" ? t("auth.login") : t("auth.createAccount")}
           </p>
         </div>
 
@@ -147,7 +146,7 @@ function LoginForm() {
           <form onSubmit={handleEmailSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1.5">
-                Email
+                {t("auth.email")}
               </label>
               <input
                 type="email"
@@ -164,21 +163,21 @@ function LoginForm() {
               disabled={loading}
               className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
-              {loading ? "Loading..." : "Continue"}
+              {loading ? t("common.loading") : t("auth.continue")}
             </button>
             <p className="text-center text-sm text-muted">
               {mode === "login" ? (
                 <>
-                  Don&apos;t have an account?{" "}
+                  {t("auth.noAccount")}{" "}
                   <button type="button" onClick={switchMode} className="text-accent-light hover:text-accent font-medium transition-colors">
-                    Create one
+                    {t("auth.createOne")}
                   </button>
                 </>
               ) : (
                 <>
-                  Already have an account?{" "}
+                  {t("auth.haveAccount")}{" "}
                   <button type="button" onClick={switchMode} className="text-accent-light hover:text-accent font-medium transition-colors">
-                    Log in
+                    {t("auth.login")}
                   </button>
                 </>
               )}
@@ -189,12 +188,12 @@ function LoginForm() {
         {step === "password" && (
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <p className="text-sm text-muted">
-              {mode === "login" ? "Enter password for" : "Set a password for"}{" "}
+              {mode === "login" ? t("auth.enterPasswordFor") : t("auth.setPasswordFor")}{" "}
               <strong className="text-foreground">{email.trim()}</strong>
             </p>
             <div>
               <label className="block text-sm font-medium mb-1.5">
-                Password
+                {t("auth.password")}
               </label>
               <input
                 type="password"
@@ -202,14 +201,14 @@ function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
-                placeholder="Enter password"
+                placeholder={t("auth.enterPassword")}
                 minLength={8}
               />
             </div>
             {mode === "register" && (
               <div>
                 <label className="block text-sm font-medium mb-1.5">
-                  Confirm Password
+                  {t("auth.confirmPasswordLabel")}
                 </label>
                 <input
                   type="password"
@@ -217,7 +216,7 @@ function LoginForm() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
-                  placeholder="Confirm password"
+                  placeholder={t("auth.confirmPassword")}
                   minLength={8}
                 />
               </div>
@@ -232,14 +231,14 @@ function LoginForm() {
                     className="mt-0.5 accent-accent-light"
                   />
                   <span>
-                    Acepto los{" "}
+                    {t("auth.acceptTerms")}{" "}
                     <Link
                       href="/terms"
                       target="_blank"
                       rel="noreferrer"
                       className="text-accent-light hover:text-accent underline"
                     >
-                      Términos y Condiciones
+                      {t("auth.termsLink")}
                     </Link>
                     .
                   </span>
@@ -252,16 +251,16 @@ function LoginForm() {
                     className="mt-0.5 accent-accent-light"
                   />
                   <span>
-                    Acepto los{" "}
+                    {t("auth.acceptTerms")}{" "}
                     <Link
                       href="/terminos-organizador"
                       target="_blank"
                       rel="noreferrer"
                       className="text-accent-light hover:text-accent underline"
                     >
-                      Términos del Organizador
+                      {t("auth.organizerTermsLink")}
                     </Link>
-                    , incluida la obligación de pagar la comisión configurada y cumplir con las obligaciones fiscales y regulatorias aplicables a mi actividad.
+                    {t("auth.organizerTermsExtra")}
                   </span>
                 </label>
                 <label className="flex items-start gap-2 text-sm cursor-pointer">
@@ -272,14 +271,14 @@ function LoginForm() {
                     className="mt-0.5 accent-accent-light"
                   />
                   <span>
-                    Acepto la{" "}
+                    {t("auth.acceptThe")}{" "}
                     <Link
                       href="/privacy"
                       target="_blank"
                       rel="noreferrer"
                       className="text-accent-light hover:text-accent underline"
                     >
-                      Política de Privacidad
+                      {t("auth.privacyLink")}
                     </Link>
                     .
                   </span>
@@ -293,10 +292,10 @@ function LoginForm() {
               className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
               {loading
-                ? "Loading..."
+                ? t("common.loading")
                 : mode === "login"
-                  ? "Log In"
-                  : "Create Account"}
+                  ? t("auth.login")
+                  : t("auth.createAccount")}
             </button>
             {mode === "login" && (
               <button
@@ -304,7 +303,7 @@ function LoginForm() {
                 onClick={() => { setStep("forgot"); setError(null); }}
                 className="w-full py-2 text-sm text-accent-light hover:text-accent transition-colors font-medium"
               >
-                Forgot password?
+                {t("auth.forgot")}
               </button>
             )}
             <button
@@ -317,7 +316,7 @@ function LoginForm() {
               }}
               className="w-full py-2 text-sm text-muted hover:text-foreground transition-colors"
             >
-              Use different email
+              {t("auth.useDifferentEmail")}
             </button>
           </form>
         )}
@@ -325,7 +324,7 @@ function LoginForm() {
         {step === "forgot" && (
           <form onSubmit={handleForgotPassword} className="space-y-4">
             <p className="text-sm text-muted">
-              We&apos;ll send a reset link to <strong className="text-foreground">{email.trim()}</strong>
+              {t("auth.willSendResetTo", { email: email.trim() })}
             </p>
             {error && <p className="text-danger text-sm">{error}</p>}
             <button
@@ -333,14 +332,14 @@ function LoginForm() {
               disabled={loading}
               className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
-              {loading ? "Sending..." : "Send Reset Link"}
+              {loading ? t("auth.sending") : t("auth.sendResetLink")}
             </button>
             <button
               type="button"
               onClick={() => { setStep("password"); setError(null); }}
               className="w-full py-2 text-sm text-muted hover:text-foreground transition-colors"
             >
-              Back to login
+              {t("auth.backToLogin")}
             </button>
           </form>
         )}
@@ -348,15 +347,15 @@ function LoginForm() {
         {step === "resetSent" && (
           <div className="space-y-4 text-center">
             <p className="text-sm text-foreground">
-              If an account exists for <strong>{email.trim()}</strong>, we&apos;ve sent a password reset link.
+              {t("auth.resetSentLine1", { email: email.trim() })}
             </p>
-            <p className="text-sm text-muted">Check your inbox and follow the link to set a new password.</p>
+            <p className="text-sm text-muted">{t("auth.resetSentLine2")}</p>
             <button
               type="button"
               onClick={() => { setStep("email"); setError(null); setPassword(""); }}
               className="w-full py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors"
             >
-              Back to login
+              {t("auth.backToLogin")}
             </button>
           </div>
         )}
@@ -456,13 +455,13 @@ export default function AdminLayout({
               href="/"
               className="text-sm text-white/60 hover:text-white transition-colors"
             >
-              View Site
+              {t("admin.viewSite")}
             </Link>
             <button
               onClick={() => db.auth.signOut()}
               className="text-sm text-white/60 hover:text-white transition-colors"
             >
-              Sign Out
+              {t("admin.signOut")}
             </button>
           </div>
         </div>

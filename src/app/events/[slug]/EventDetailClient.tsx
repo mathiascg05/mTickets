@@ -4,6 +4,7 @@ import EventTheme from "@/components/EventTheme";
 import { db } from "@/lib/db";
 import { useStorageUrl } from "@/lib/useStorageUrl";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
+import { dateLocale, type Lang } from "@/lib/i18n";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import type { Phase } from "@/lib/phases";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
@@ -13,9 +14,9 @@ import { useParams } from "next/navigation";
 import { useState, useCallback } from "react";
 import emailSpellChecker from "@zootools/email-spell-checker";
 
-function formatDate(dateStr: string) {
+function formatDate(dateStr: string, lang: Lang) {
   const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", {
+  return d.toLocaleDateString(dateLocale(lang), {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -37,7 +38,7 @@ function EventPresence({ concertId }: { concertId: string }) {
 export default function EventDetailClient() {
   const params = useParams();
   const slugParam = params.slug as string;
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   const { user } = db.useAuth();
   const userEmail = user?.email ?? "";
@@ -166,7 +167,7 @@ export default function EventDetailClient() {
             <div className="flex flex-wrap gap-6 mb-6">
               <div>
                 <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-0.5">{t("common.date")}</p>
-                <p className="text-sm text-foreground">{formatDate(concert.date)}</p>
+                <p className="text-sm text-foreground">{formatDate(concert.date, lang)}</p>
               </div>
               {concert.venue && (
                 <div>

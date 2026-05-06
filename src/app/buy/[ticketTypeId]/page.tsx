@@ -2,6 +2,7 @@
 
 import EventTheme from "@/components/EventTheme";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
+import { dateLocale } from "@/lib/i18n";
 import { db } from "@/lib/db";
 import { useStorageUrl } from "@/lib/useStorageUrl";
 import { getAvailability, getTodayString } from "@/lib/phases";
@@ -82,7 +83,7 @@ export default function BuyPage() {
   const qty = Math.max(1, Math.min(5, Number(searchParams.get("qty")) || 1));
   const queueToken = searchParams.get("queueToken") || undefined;
 
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   const [attendees, setAttendees] = useState<Attendee[]>(() =>
     Array.from({ length: qty }, emptyAttendee),
@@ -1028,7 +1029,7 @@ export default function BuyPage() {
                                   : t("checkout.bcvRate", {
                                       rate: rateValue.toFixed(2),
                                       currency: cachedRate!.currency,
-                                      updated: new Date(cachedRate!.fetchedAt).toLocaleString(),
+                                      updated: new Date(cachedRate!.fetchedAt).toLocaleString(dateLocale(lang)),
                                     })}
                               </p>
                             )}

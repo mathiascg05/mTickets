@@ -4,12 +4,13 @@ import { db } from "@/lib/db";
 import { id } from "@instantdb/react";
 import { useAuthContext } from "@/lib/AuthContext";
 import { useLanguage } from "@/lib/LanguageContext";
+import { dateLocale } from "@/lib/i18n";
 import { useState } from "react";
 import SuperAdminStats from "./SuperAdminStats";
 
 export default function BalancesPage() {
   const { isSuperAdmin } = useAuthContext();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [creditEmail, setCreditEmail] = useState("");
   const [creditAmount, setCreditAmount] = useState("");
   const [creditNote, setCreditNote] = useState("");
@@ -36,7 +37,7 @@ export default function BalancesPage() {
   if (!isSuperAdmin) {
     return (
       <div className="text-center py-20 text-muted">
-        Access denied. Super admin only.
+        {t("admin.accessDenied")}
       </div>
     );
   }
@@ -488,9 +489,9 @@ export default function BalancesPage() {
                                     {Math.abs(txn.amount).toFixed(2)}
                                   </span>
                                   <p className="text-xs text-muted">
-                                    {new Date(txn.createdAt).toLocaleDateString()}{" "}
+                                    {new Date(txn.createdAt).toLocaleDateString(dateLocale(lang))}{" "}
                                     {new Date(txn.createdAt).toLocaleTimeString(
-                                      [],
+                                      dateLocale(lang),
                                       { hour: "2-digit", minute: "2-digit" },
                                     )}
                                   </p>

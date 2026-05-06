@@ -3,6 +3,7 @@
 import EventTheme from "@/components/EventTheme";
 import { db } from "@/lib/db";
 import { useStorageUrl } from "@/lib/useStorageUrl";
+import { useLanguage } from "@/lib/LanguageContext";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -26,6 +27,7 @@ export default function QueuePage() {
   const ticketTypeId = params.ticketTypeId as string;
   const qty = Math.max(1, Math.min(5, Number(searchParams.get("qty")) || 1));
   const phaseId = searchParams.get("phaseId") || undefined;
+  const { t } = useLanguage();
 
   const [queueEntryId, setQueueEntryId] = useState<string | null>(null);
   const [joining, setJoining] = useState(true);
@@ -77,7 +79,7 @@ export default function QueuePage() {
       const result = await res.json();
 
       if (!res.ok) {
-        setError(result.error || "Failed to join queue");
+        setError(result.error || t("queue.joinError"));
         setJoining(false);
         return;
       }
@@ -90,7 +92,7 @@ export default function QueuePage() {
       );
       setJoining(false);
     } catch {
-      setError("Failed to join queue. Please try again.");
+      setError(t("queue.joinError"));
       setJoining(false);
     }
   }, [ticketTypeId, qty]);

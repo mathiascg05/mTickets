@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { useStorageUrl } from "@/lib/useStorageUrl";
+import { dateLocale } from "@/lib/i18n";
 import { getActivePhase, getTodayString } from "@/lib/phases";
 import type { Phase } from "@/lib/phases";
 import { id } from "@instantdb/react";
@@ -2133,7 +2134,7 @@ function CollaboratorsSection({
     invitedByEmail: string;
   }>;
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [emailInput, setEmailInput] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -2176,7 +2177,7 @@ function CollaboratorsSection({
   }
 
   function formatDate(ts: number) {
-    return new Date(ts).toLocaleDateString();
+    return new Date(ts).toLocaleDateString(dateLocale(lang));
   }
 
   return (
