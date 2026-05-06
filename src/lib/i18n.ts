@@ -803,6 +803,10 @@ const translations: Translations = {
   "admin.reconcileGenericError": { es: "Error en la conciliación", en: "Reconciliation error" },
   "admin.connectionError": { es: "Error de conexión", en: "Connection error" },
   "admin.approveError": { es: "Error al aprobar", en: "Failed to approve" },
+  "admin.proofLoadError": {
+    es: "No se pudo cargar el comprobante. Intenta de nuevo.",
+    en: "Could not load the payment proof. Please try again.",
+  },
 };
 
 export function t(key: string, lang: Lang, params?: Record<string, string | number>): string {

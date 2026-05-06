@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { id } from "@instantdb/react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import { sendTicketEmail, sendConfirmationEmail } from "@/lib/sendTicketEmail";
 import { useLanguage } from "@/lib/LanguageContext";
@@ -2005,10 +2005,29 @@ export default function ConcertOrdersPage() {
     );
   }
 
-  async function viewProof(path: string) {
-    const url = await db.storage.getDownloadUrl(path);
-    setPreviewUrl(url);
+  async function viewProof(orderId: string) {
+    try {
+      const res = await fetch(`/api/payment-proof/${orderId}`, {
+        headers: { Authorization: `Bearer ${refreshToken}` },
+      });
+      if (!res.ok) {
+        alert(t("admin.proofLoadError"));
+        return;
+      }
+      const blob = await res.blob();
+      setPreviewUrl(URL.createObjectURL(blob));
+    } catch {
+      alert(t("admin.proofLoadError"));
+    }
   }
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   const filters: { label: string; value: FilterStatus }[] = [
     { label: t("common.all"), value: "all" },
@@ -2935,7 +2954,7 @@ export default function ConcertOrdersPage() {
                     </span>
                   ) : order.paymentProofPath ? (
                     <button
-                      onClick={() => viewProof(order.paymentProofPath!)}
+                      onClick={() => viewProof(order.id)}
                       className="px-3 py-1.5 text-xs border border-border rounded-lg hover:border-accent/50 transition-colors"
                     >
                       {t("admin.proof")}
