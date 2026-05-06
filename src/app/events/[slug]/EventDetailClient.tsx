@@ -2,6 +2,7 @@
 
 import EventTheme from "@/components/EventTheme";
 import { db } from "@/lib/db";
+import { useStorageUrl } from "@/lib/useStorageUrl";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import type { Phase } from "@/lib/phases";
@@ -57,6 +58,9 @@ export default function EventDetailClient() {
       },
     },
   });
+
+  const flyerUrl = useStorageUrl(data?.concerts[0]?.flyerPath);
+  const logoUrl = useStorageUrl(data?.concerts[0]?.logoPath);
 
   if (isLoading) {
     return (
@@ -115,10 +119,10 @@ export default function EventDetailClient() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-xl font-bold tracking-wide">ma<span className="text-white/50">Tickets</span></span>
-            {concert.logoUrl && (
+            {logoUrl && (
               <>
                 <span className="text-white/30">|</span>
-                <img src={concert.logoUrl} alt={concert.name} className="h-10 w-auto object-contain" />
+                <img src={logoUrl} alt={concert.name} className="h-10 w-auto object-contain" />
               </>
             )}
           </div>
@@ -128,21 +132,25 @@ export default function EventDetailClient() {
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
         <div className="bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
-          {concert.flyerUrl ? (
+          {concert.flyerPath ? (
             <div className="relative max-h-[480px] overflow-hidden bg-black/90">
-              {/* Blurred background fill */}
-              <img
-                src={concert.flyerUrl}
-                alt=""
-                aria-hidden="true"
-                className="absolute inset-0 w-full h-full object-cover scale-110 blur-xl opacity-60"
-              />
-              {/* Sharp centered image */}
-              <img
-                src={concert.flyerUrl}
-                alt={concert.name}
-                className="relative w-full max-h-[480px] object-contain"
-              />
+              {flyerUrl && (
+                <>
+                  {/* Blurred background fill */}
+                  <img
+                    src={flyerUrl}
+                    alt=""
+                    aria-hidden="true"
+                    className="absolute inset-0 w-full h-full object-cover scale-110 blur-xl opacity-60"
+                  />
+                  {/* Sharp centered image */}
+                  <img
+                    src={flyerUrl}
+                    alt={concert.name}
+                    className="relative w-full max-h-[480px] object-contain"
+                  />
+                </>
+              )}
             </div>
           ) : (
             <div className="h-48 bg-gradient-to-br from-accent-dark via-accent to-accent-light flex items-center justify-center relative">

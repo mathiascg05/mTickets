@@ -3,6 +3,7 @@
 import EventTheme from "@/components/EventTheme";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { db } from "@/lib/db";
+import { useStorageUrl } from "@/lib/useStorageUrl";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
 import { TERMS_VERSION, PRIVACY_VERSION } from "@/lib/legalVersions";
@@ -141,6 +142,8 @@ export default function BuyPage() {
     },
     exchangeRates: {},
   });
+
+  const logoUrl = useStorageUrl(data?.ticketTypes?.[0]?.concert?.logoPath);
 
   // Create reservation on first data load (server-side)
   useEffect(() => {
@@ -572,11 +575,11 @@ export default function BuyPage() {
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <a href="/" className="text-xl font-bold tracking-wide text-white">ma<span className="text-white/60">Tickets</span></a>
-            {concert?.logoUrl && (
+            {logoUrl && (
               <>
                 <span className="text-white/30">|</span>
-                <a href={`/events/${concert.slug}`}>
-                  <img src={concert.logoUrl} alt={concert.name} className="h-10 w-auto object-contain" />
+                <a href={`/events/${concert?.slug}`}>
+                  <img src={logoUrl} alt={concert?.name} className="h-10 w-auto object-contain" />
                 </a>
               </>
             )}

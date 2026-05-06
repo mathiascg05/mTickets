@@ -2,6 +2,7 @@
 
 import EventTheme from "@/components/EventTheme";
 import { db } from "@/lib/db";
+import { useStorageUrl } from "@/lib/useStorageUrl";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -47,6 +48,8 @@ export default function QueuePage() {
       concert: {},
     },
   });
+
+  const logoUrl = useStorageUrl(ticketData?.ticketTypes?.[0]?.concert?.logoPath);
 
   const ticketType = ticketData?.ticketTypes?.[0];
   const concert = ticketType?.concert;
@@ -196,10 +199,10 @@ export default function QueuePage() {
             <span className="text-xl font-bold tracking-wide">
               ma<span className="text-white/60">Tickets</span>
             </span>
-            {concert?.logoUrl && (
+            {logoUrl && (
               <>
                 <span className="text-white/30">|</span>
-                <img src={concert.logoUrl} alt={concert.name} className="h-10 w-auto object-contain" />
+                <img src={logoUrl} alt={concert?.name} className="h-10 w-auto object-contain" />
               </>
             )}
           </div>

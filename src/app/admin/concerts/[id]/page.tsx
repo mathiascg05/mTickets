@@ -1,6 +1,7 @@
 "use client";
 
 import { db } from "@/lib/db";
+import { useStorageUrl } from "@/lib/useStorageUrl";
 import { getActivePhase, getTodayString } from "@/lib/phases";
 import type { Phase } from "@/lib/phases";
 import { id } from "@instantdb/react";
@@ -88,8 +89,8 @@ export default function AdminConcertEditPage() {
           />
           <BrandingSection
             concertId={concertId}
-            flyerUrl={concert.flyerUrl}
-            logoUrl={concert.logoUrl}
+            flyerPath={concert.flyerPath}
+            logoPath={concert.logoPath}
             primaryColor={concert.primaryColor}
           />
           <PlatformFeeSection
@@ -2271,13 +2272,13 @@ function CollaboratorsSection({
 
 function BrandingSection({
   concertId,
-  flyerUrl,
-  logoUrl,
+  flyerPath,
+  logoPath,
   primaryColor,
 }: {
   concertId: string;
-  flyerUrl?: string;
-  logoUrl?: string;
+  flyerPath?: string;
+  logoPath?: string;
   primaryColor?: string;
 }) {
   const { t } = useLanguage();
@@ -2285,6 +2286,8 @@ function BrandingSection({
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const flyerInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const flyerUrl = useStorageUrl(flyerPath);
+  const logoUrl = useStorageUrl(logoPath);
 
   async function handleFlyerUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -2326,7 +2329,8 @@ function BrandingSection({
 
       await db.transact(
         db.tx.concerts[concertId].update({
-          flyerUrl: uploadedUrl,
+          flyerPath: path,
+          flyerUrl: "",
           ...(color ? { primaryColor: color } : {}),
         }),
       );
@@ -2367,7 +2371,7 @@ function BrandingSection({
       }
 
       await db.transact(
-        db.tx.concerts[concertId].update({ logoUrl: uploadedUrl }),
+        db.tx.concerts[concertId].update({ logoPath: path, logoUrl: "" }),
       );
     } catch (err) {
       console.error("Logo upload failed:", err);
@@ -2390,6 +2394,7 @@ function BrandingSection({
     }
     db.transact(
       db.tx.concerts[concertId].update({
+        flyerPath: "",
         flyerUrl: "",
         primaryColor: "",
       }),
@@ -2409,7 +2414,7 @@ function BrandingSection({
       // Storage cleanup failed — still clear the URL
     }
     db.transact(
-      db.tx.concerts[concertId].update({ logoUrl: "" }),
+      db.tx.concerts[concertId].update({ logoPath: "", logoUrl: "" }),
     );
   }
 
@@ -2420,14 +2425,16 @@ function BrandingSection({
       {/* Flyer */}
       <div className="mb-6">
         <label className="block text-sm font-medium mb-2">{t("admin.flyer")}</label>
-        {flyerUrl ? (
+        {flyerPath ? (
           <div className="space-y-3">
             <div className="relative rounded-xl overflow-hidden border border-border">
-              <img
-                src={flyerUrl}
-                alt={t("admin.flyer")}
-                className="w-full h-48 object-cover"
-              />
+              {flyerUrl && (
+                <img
+                  src={flyerUrl}
+                  alt={t("admin.flyer")}
+                  className="w-full h-48 object-cover"
+                />
+              )}
             </div>
             {primaryColor && (
               <div className="flex items-center gap-2">
@@ -2470,14 +2477,16 @@ function BrandingSection({
       {/* Logo */}
       <div>
         <label className="block text-sm font-medium mb-2">{t("admin.logo")}</label>
-        {logoUrl ? (
+        {logoPath ? (
           <div className="space-y-3">
             <div className="inline-block rounded-xl overflow-hidden border border-border bg-background p-2">
-              <img
-                src={logoUrl}
-                alt={t("admin.logo")}
-                className="h-16 w-auto object-contain"
-              />
+              {logoUrl && (
+                <img
+                  src={logoUrl}
+                  alt={t("admin.logo")}
+                  className="h-16 w-auto object-contain"
+                />
+              )}
             </div>
             <div>
               <button

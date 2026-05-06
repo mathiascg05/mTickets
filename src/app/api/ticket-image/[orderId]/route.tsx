@@ -80,44 +80,51 @@ export async function GET(
 
   const concertId = c.id as string;
 
-  // Try to get logo as data URI (stored URL first, then $files fallback)
-  let logoDataUri: string | null = null;
-  async function fetchLogoDataUri(): Promise<string | null> {
-    // 1. Try stored URL (always points to the latest upload)
-    const logoUrl = c.logoUrl as string | undefined;
-    if (logoUrl) {
+  // Resolve a fresh InstantDB storage URL from a path. Stored URLs are
+  // signed/expiring, so we must query $files at request time.
+  async function freshStorageUrl(opts: {
+    path?: string;
+    pathLike?: string;
+  }): Promise<string | null> {
+    if (opts.path) {
       try {
-        const res = await fetch(logoUrl, { cache: "no-store" });
-        if (res.ok) {
-          const buf = await res.arrayBuffer();
-          const ct = res.headers.get("content-type") || "image/png";
-          return `data:${ct};base64,${Buffer.from(buf).toString("base64")}`;
-        }
+        const { $files } = await adminDb.query({
+          $files: { $: { where: { path: opts.path } } },
+        });
+        const url = $files[0]?.url as string | undefined;
+        if (url) return url;
       } catch { /* fall through */ }
     }
+    if (opts.pathLike) {
+      try {
+        const { $files } = await adminDb.query({
+          $files: { $: { where: { path: { $like: opts.pathLike } } } },
+        });
+        const url = $files[0]?.url as string | undefined;
+        if (url) return url;
+      } catch { /* fall through */ }
+    }
+    return null;
+  }
 
-    // 2. Fallback: query $files by path pattern
-    try {
-      const { $files } = await adminDb.query({
-        $files: {
-          $: { where: { path: { $like: `event-assets/${concertId}/logo%` } } },
-        },
-      });
-      const file = $files[0];
-      const url = file?.url as string | undefined;
-      if (url) {
+  // Try to get logo as data URI
+  let logoDataUri: string | null = null;
+  {
+    const url = await freshStorageUrl({
+      path: c.logoPath as string | undefined,
+      pathLike: `event-assets/${concertId}/logo%`,
+    });
+    if (url) {
+      try {
         const res = await fetch(url, { cache: "no-store" });
         if (res.ok) {
           const buf = await res.arrayBuffer();
           const ct = res.headers.get("content-type") || "image/png";
-          return `data:${ct};base64,${Buffer.from(buf).toString("base64")}`;
+          logoDataUri = `data:${ct};base64,${Buffer.from(buf).toString("base64")}`;
         }
-      }
-    } catch { /* fall through */ }
-
-    return null;
+      } catch { /* leave null */ }
+    }
   }
-  logoDataUri = await fetchLogoDataUri();
 
   // Generate QR code as data URI
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -132,39 +139,21 @@ export async function GET(
   // Try to get flyer, blur it with sharp, and convert to data URI
   let flyerDataUri: string | null = null;
 
-  // Try stored URL first (always current), then $files fallback
-  async function fetchFlyerBuffer(): Promise<Buffer | null> {
-    // 1. Try the stored flyerUrl (always points to the latest upload)
-    const flyerUrl = c.flyerUrl as string | undefined;
-    if (flyerUrl) {
+  let flyerRaw: Buffer | null = null;
+  {
+    const url = await freshStorageUrl({
+      path: c.flyerPath as string | undefined,
+      pathLike: `event-assets/${concertId}/flyer%`,
+    });
+    if (url) {
       try {
-        const res = await fetch(flyerUrl, { cache: "no-store" });
-        if (res.ok) return Buffer.from(await res.arrayBuffer());
+        const res = await fetch(url, { cache: "no-store" });
+        if (res.ok) flyerRaw = Buffer.from(await res.arrayBuffer());
       } catch {
-        // Fall through
+        // leave null
       }
     }
-
-    // 2. Fallback: query $files by path pattern
-    try {
-      const { $files } = await adminDb.query({
-        $files: {
-          $: { where: { path: { $like: `event-assets/${concertId}/flyer%` } } },
-        },
-      });
-      const file = $files[0];
-      if (file?.url) {
-        const res = await fetch(file.url as string, { cache: "no-store" });
-        if (res.ok) return Buffer.from(await res.arrayBuffer());
-      }
-    } catch {
-      // Fall through
-    }
-
-    return null;
   }
-
-  const flyerRaw = await fetchFlyerBuffer();
   if (flyerRaw) {
     try {
       const blurred = await sharp(flyerRaw)
