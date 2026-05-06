@@ -1764,6 +1764,14 @@ export default function ConcertOrdersPage() {
   );
   const organizerBalance = balanceData?.organizerBalances?.[0];
 
+  useEffect(() => {
+    return () => {
+      if (previewUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
   if (isLoading || !data) {
     return <div className="animate-pulse text-muted">{t("common.loading")}</div>;
   }
@@ -2020,14 +2028,6 @@ export default function ConcertOrdersPage() {
       alert(t("admin.proofLoadError"));
     }
   }
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl?.startsWith("blob:")) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
-  }, [previewUrl]);
 
   const filters: { label: string; value: FilterStatus }[] = [
     { label: t("common.all"), value: "all" },
