@@ -676,7 +676,7 @@ const translations: Translations = {
   "admin.feesCollected": { es: "Fees Cobrados", en: "Fees Collected" },
   "admin.grossRevenue": { es: "Ventas Brutas", en: "Gross Revenue" },
   "admin.noStatsData": { es: "No hay datos disponibles", en: "No data available" },
-  "admin.monthlyRevenue": { es: "Revenue Mensual", en: "Monthly Revenue" },
+  "admin.monthlyRevenue": { es: "Créditos Usados", en: "Credits Used" },
   "admin.platformOverview": { es: "Plataforma", en: "Platform" },
   "admin.dateFrom": { es: "Desde", en: "From" },
   "admin.dateTo": { es: "Hasta", en: "To" },
@@ -690,7 +690,6 @@ const translations: Translations = {
   "admin.platformSnapshot": { es: "Estado Actual de la Plataforma", en: "Current Platform State" },
   "admin.platformBalanceTotal": { es: "Saldo en Plataforma", en: "Platform Balance" },
   "admin.postpaidDebt": { es: "Deuda Postpago", en: "Postpaid Debt" },
-  "admin.snapshotHint": { es: "Valores actuales, no afectados por el filtro de fechas", en: "Current values, not affected by date filter" },
   "admin.monthlyDeposits": { es: "Créditos Mensuales", en: "Monthly Deposits" },
   "admin.topOrganizersByDeposits": { es: "Top Organizadores por Créditos", en: "Top Organizers by Credits" },
   "admin.depositsCount": { es: "depósitos", en: "deposits" },
@@ -702,6 +701,7 @@ const translations: Translations = {
   "admin.depositNote": { es: "Nota", en: "Note" },
   "admin.depositAmount": { es: "Monto", en: "Amount" },
   "admin.moreRows": { es: "+ {count} más", en: "+ {count} more" },
+  "admin.plusNMore": { es: "+ {count} más", en: "+ {count} more" },
 
   // ── Reconciliation ──
   "admin.reconcile": { es: "Conciliar Pagos", en: "Reconcile Payments" },

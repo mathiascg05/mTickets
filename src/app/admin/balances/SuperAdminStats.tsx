@@ -205,6 +205,64 @@ export default function SuperAdminStats({
     return m;
   }, [realConcerts]);
 
+  // ── Per-org fee transactions sorted asc, used to attribute a deposit to
+  //    the events whose fees were charged after it ──
+  const feesByOrg = useMemo(() => {
+    const map = new Map<string, Transaction[]>();
+    for (const bal of organizerBalances) {
+      if (demoOnlyOrgEmails.has(bal.email.toLowerCase())) continue;
+      const fees = (bal.transactions || [])
+        .filter((t) => t.type === "fee")
+        .filter((t) => !(t.concertId && demoConcertIds.has(t.concertId)))
+        .slice()
+        .sort((a, b) => a.createdAt - b.createdAt);
+      map.set(bal.email.toLowerCase(), fees);
+    }
+    return map;
+  }, [organizerBalances, demoConcertIds, demoOnlyOrgEmails]);
+
+  // ── Per-org deposits sorted asc, used to find the "next deposit" boundary ──
+  const depositsByOrg = useMemo(() => {
+    const map = new Map<string, typeof allDeposits>();
+    for (const d of allDeposits) {
+      const key = d.organizerEmail.toLowerCase();
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(d);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => a.createdAt - b.createdAt);
+    }
+    return map;
+  }, [allDeposits]);
+
+  // Resolve the event name(s) a deposit funded. Explicit `concertId` wins;
+  // otherwise infer via the org's fees in [deposit.createdAt, nextDeposit.createdAt).
+  function eventNamesForDeposit(
+    d: (typeof allDeposits)[number],
+  ): string[] {
+    if (d.concertId) {
+      const name = concertNameMap.get(d.concertId);
+      return name ? [name] : [];
+    }
+    const orgKey = d.organizerEmail.toLowerCase();
+    const orgDeposits = depositsByOrg.get(orgKey) || [];
+    const idx = orgDeposits.findIndex((x) => x.id === d.id);
+    const upperBound =
+      idx >= 0 && orgDeposits[idx + 1]
+        ? orgDeposits[idx + 1].createdAt
+        : Number.POSITIVE_INFINITY;
+    const fees = feesByOrg.get(orgKey) || [];
+    const ids = new Set<string>();
+    for (const f of fees) {
+      if (f.createdAt < d.createdAt) continue;
+      if (f.createdAt >= upperBound) break;
+      if (f.concertId) ids.add(f.concertId);
+    }
+    return [...ids]
+      .map((id) => concertNameMap.get(id))
+      .filter((n): n is string => Boolean(n));
+  }
+
   // ── Snapshot metrics (unfiltered, current state) ──
   const snapshot = useMemo(() => {
     // Sum of organizer balances, skipping orgs whose only events are demo.
@@ -553,14 +611,9 @@ export default function SuperAdminStats({
 
       {/* ── Section 4: Platform Snapshot (current state, unfiltered) ── */}
       <div className="bg-surface border border-border rounded-xl px-6 py-4">
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-          <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">
-            {t("admin.platformSnapshot")}
-          </h2>
-          <p className="text-[10px] text-muted italic">
-            {t("admin.snapshotHint")}
-          </p>
-        </div>
+        <h2 className="text-sm font-semibold text-muted uppercase tracking-wide mb-3">
+          {t("admin.platformSnapshot")}
+        </h2>
         <div className="flex flex-wrap gap-8">
           <div>
             <p className="text-2xl font-bold text-accent-light">
@@ -734,9 +787,12 @@ export default function SuperAdminStats({
                           {d.organizerEmail}
                         </td>
                         <td className="px-4 py-2.5 truncate max-w-[180px] text-muted">
-                          {d.concertId
-                            ? concertNameMap.get(d.concertId) || "—"
-                            : "—"}
+                          {(() => {
+                            const names = eventNamesForDeposit(d);
+                            if (names.length === 0) return "—";
+                            if (names.length <= 2) return names.join(", ");
+                            return `${names.slice(0, 2).join(", ")} ${t("admin.plusNMore", { count: names.length - 2 })}`;
+                          })()}
                         </td>
                         <td className="px-4 py-2.5 truncate max-w-[240px] text-muted">
                           {d.description || "—"}
