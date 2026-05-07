@@ -104,6 +104,19 @@ export default function SuperAdminStats({
     () => new Set(concerts.filter((c) => c.isDemo).map((c) => c.id)),
     [concerts],
   );
+  // Organizers whose ONLY events are demo. Their balances and unlinked
+  // deposits/fees should also be excluded from stats.
+  const demoOnlyOrgEmails = useMemo(() => {
+    const realEmails = new Set(
+      realConcerts.map((c) => c.organizerEmail.toLowerCase()),
+    );
+    const demoOnly = new Set<string>();
+    for (const c of concerts) {
+      const email = c.organizerEmail.toLowerCase();
+      if (!realEmails.has(email)) demoOnly.add(email);
+    }
+    return demoOnly;
+  }, [concerts, realConcerts]);
 
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -161,6 +174,7 @@ export default function SuperAdminStats({
   const allFeeTransactions = useMemo(() => {
     const txns: Transaction[] = [];
     for (const bal of organizerBalances) {
+      if (demoOnlyOrgEmails.has(bal.email.toLowerCase())) continue;
       for (const txn of bal.transactions || []) {
         if (txn.type !== "fee") continue;
         if (txn.concertId && demoConcertIds.has(txn.concertId)) continue;
@@ -168,12 +182,13 @@ export default function SuperAdminStats({
       }
     }
     return txns;
-  }, [organizerBalances, demoConcertIds]);
+  }, [organizerBalances, demoConcertIds, demoOnlyOrgEmails]);
 
   // ── All deposit transactions with the originating organizer email ──
   const allDeposits = useMemo(() => {
     const list: (Transaction & { organizerEmail: string })[] = [];
     for (const bal of organizerBalances) {
+      if (demoOnlyOrgEmails.has(bal.email.toLowerCase())) continue;
       for (const txn of bal.transactions || []) {
         if (txn.type !== "deposit") continue;
         if (txn.concertId && demoConcertIds.has(txn.concertId)) continue;
@@ -181,7 +196,7 @@ export default function SuperAdminStats({
       }
     }
     return list;
-  }, [organizerBalances, demoConcertIds]);
+  }, [organizerBalances, demoConcertIds, demoOnlyOrgEmails]);
 
   // ── Concert id → name map (for displaying linked event in deposit history) ──
   const concertNameMap = useMemo(() => {
@@ -192,20 +207,11 @@ export default function SuperAdminStats({
 
   // ── Snapshot metrics (unfiltered, current state) ──
   const snapshot = useMemo(() => {
-    // Sum of organizer balances that aren't tied to demo-only orgs.
-    // We count the balance for any organizer that has at least one real concert,
-    // plus any organizer with balance but no concerts (rare but possible).
-    const realOrgEmails = new Set(
-      realConcerts.map((c) => c.organizerEmail.toLowerCase()),
-    );
+    // Sum of organizer balances, skipping orgs whose only events are demo.
+    // Orgs with no concerts at all (rare, defensive) are still counted.
     let totalPlatformBalance = 0;
     for (const bal of organizerBalances) {
-      const hasRealConcert = realOrgEmails.has(bal.email.toLowerCase());
-      const hasAnyConcert = concerts.some(
-        (c) => c.organizerEmail.toLowerCase() === bal.email.toLowerCase(),
-      );
-      // Skip only if all of this org's concerts are demo
-      if (hasAnyConcert && !hasRealConcert) continue;
+      if (demoOnlyOrgEmails.has(bal.email.toLowerCase())) continue;
       totalPlatformBalance += bal.balance;
     }
     totalPlatformBalance = Math.round(totalPlatformBalance * 100) / 100;
@@ -232,7 +238,7 @@ export default function SuperAdminStats({
     postpaidDebt = Math.round(postpaidDebt * 100) / 100;
 
     return { totalPlatformBalance, postpaidDebt };
-  }, [organizerBalances, realConcerts, concerts]);
+  }, [organizerBalances, realConcerts, demoOnlyOrgEmails]);
 
   // ── Period KPIs (filtered) ──
   const periodStats = useMemo(() => {
