@@ -1956,6 +1956,42 @@ export default function ConcertOrdersPage() {
   const pendingCount = allOrders.filter((o) => o.status === "pending").length;
   const approvedCount = allOrders.filter((o) => o.status === "approved").length;
   const rejectedCount = allOrders.filter((o) => o.status === "rejected").length;
+  const cancelledCount = allOrders.filter((o) => o.status === "cancelled").length;
+  const otherCount = Math.max(
+    0,
+    totalOrders - approvedCount - pendingCount - rejectedCount - cancelledCount,
+  );
+
+  // Largest-remainder rounding so the displayed percentages always add up to
+  // exactly 100 — otherwise integer rounding can leave the bar reading "98%"
+  // even when every order is accounted for.
+  const orderStatusPercents = (() => {
+    const buckets = [
+      { key: "approved", count: approvedCount },
+      { key: "pending", count: pendingCount },
+      { key: "rejected", count: rejectedCount },
+      { key: "cancelled", count: cancelledCount },
+      { key: "other", count: otherCount },
+    ];
+    const result: Record<string, number> = {
+      approved: 0, pending: 0, rejected: 0, cancelled: 0, other: 0,
+    };
+    if (totalOrders === 0) return result;
+    const raw = buckets.map((b) => ({ key: b.key, exact: (b.count / totalOrders) * 100 }));
+    const floored = raw.map((r) => ({ ...r, floor: Math.floor(r.exact), rem: r.exact - Math.floor(r.exact) }));
+    let remaining = 100 - floored.reduce((s, r) => s + r.floor, 0);
+    floored
+      .slice()
+      .sort((a, b) => b.rem - a.rem)
+      .forEach((r) => {
+        if (remaining > 0) {
+          r.floor += 1;
+          remaining -= 1;
+        }
+      });
+    floored.forEach((r) => { result[r.key] = r.floor; });
+    return result;
+  })();
 
   const totalRevenue = concert.ticketTypes.reduce((sum, tt) => {
     return sum + tt.orders
@@ -2172,11 +2208,17 @@ export default function ConcertOrdersPage() {
           <div className="space-y-3">
             {/* Order status breakdown */}
             <div>
-              <div className="flex items-center gap-3 text-xs mb-1.5">
+              <div className="flex items-center gap-3 text-xs mb-1.5 flex-wrap">
                 <span className="text-muted">{t("admin.orderStatus")}</span>
-                <span className="text-success font-medium">{t("common.approved")} {totalOrders > 0 ? Math.round((approvedCount / totalOrders) * 100) : 0}%</span>
-                <span className="text-warning font-medium">{t("common.pending")} {totalOrders > 0 ? Math.round((pendingCount / totalOrders) * 100) : 0}%</span>
-                <span className="text-danger font-medium">{t("common.rejected")} {totalOrders > 0 ? Math.round((rejectedCount / totalOrders) * 100) : 0}%</span>
+                <span className="text-success font-medium">{t("common.approved")} {orderStatusPercents.approved}%</span>
+                <span className="text-warning font-medium">{t("common.pending")} {orderStatusPercents.pending}%</span>
+                <span className="text-danger font-medium">{t("common.rejected")} {orderStatusPercents.rejected}%</span>
+                {cancelledCount > 0 && (
+                  <span className="text-muted font-medium">{t("common.cancelled")} {orderStatusPercents.cancelled}%</span>
+                )}
+                {otherCount > 0 && (
+                  <span className="text-muted font-medium">{t("common.other")} {orderStatusPercents.other}%</span>
+                )}
               </div>
               <div className="w-full bg-border rounded-full h-2.5 flex overflow-hidden">
                 {approvedCount > 0 && (
@@ -2187,6 +2229,12 @@ export default function ConcertOrdersPage() {
                 )}
                 {rejectedCount > 0 && (
                   <div className="bg-danger h-2.5 transition-all" style={{ width: `${(rejectedCount / totalOrders) * 100}%` }} />
+                )}
+                {cancelledCount > 0 && (
+                  <div className="bg-foreground/30 h-2.5 transition-all" style={{ width: `${(cancelledCount / totalOrders) * 100}%` }} />
+                )}
+                {otherCount > 0 && (
+                  <div className="bg-foreground/20 h-2.5 transition-all" style={{ width: `${(otherCount / totalOrders) * 100}%` }} />
                 )}
               </div>
             </div>

@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useLanguage } from "@/lib/LanguageContext";
-import { getOrderTotal } from "@/lib/order-pricing";
+import { dateLocale } from "@/lib/i18n";
+import { getOrderTotal, getPlatformFeeForOrder } from "@/lib/order-pricing";
 
 type Transaction = {
   id: string;
   type: string;
   amount: number;
+  description?: string;
   concertId?: string;
   createdAt: number;
 };
@@ -30,6 +32,7 @@ type ConcertOrder = {
   feePercentSnapshot?: number;
   feeFixedSnapshot?: number;
   feeAmountSnapshot?: number;
+  platformFeeAmountSnapshot?: number;
   totalSnapshot?: number;
 };
 
@@ -167,6 +170,70 @@ export default function SuperAdminStats({
     return txns;
   }, [organizerBalances, demoConcertIds]);
 
+  // ── All deposit transactions with the originating organizer email ──
+  const allDeposits = useMemo(() => {
+    const list: (Transaction & { organizerEmail: string })[] = [];
+    for (const bal of organizerBalances) {
+      for (const txn of bal.transactions || []) {
+        if (txn.type !== "deposit") continue;
+        if (txn.concertId && demoConcertIds.has(txn.concertId)) continue;
+        list.push({ ...txn, organizerEmail: bal.email });
+      }
+    }
+    return list;
+  }, [organizerBalances, demoConcertIds]);
+
+  // ── Concert id → name map (for displaying linked event in deposit history) ──
+  const concertNameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of realConcerts) m.set(c.id, c.name);
+    return m;
+  }, [realConcerts]);
+
+  // ── Snapshot metrics (unfiltered, current state) ──
+  const snapshot = useMemo(() => {
+    // Sum of organizer balances that aren't tied to demo-only orgs.
+    // We count the balance for any organizer that has at least one real concert,
+    // plus any organizer with balance but no concerts (rare but possible).
+    const realOrgEmails = new Set(
+      realConcerts.map((c) => c.organizerEmail.toLowerCase()),
+    );
+    let totalPlatformBalance = 0;
+    for (const bal of organizerBalances) {
+      const hasRealConcert = realOrgEmails.has(bal.email.toLowerCase());
+      const hasAnyConcert = concerts.some(
+        (c) => c.organizerEmail.toLowerCase() === bal.email.toLowerCase(),
+      );
+      // Skip only if all of this org's concerts are demo
+      if (hasAnyConcert && !hasRealConcert) continue;
+      totalPlatformBalance += bal.balance;
+    }
+    totalPlatformBalance = Math.round(totalPlatformBalance * 100) / 100;
+
+    let postpaidDebt = 0;
+    for (const concert of realConcerts) {
+      const fc = concert.platformFeeConfig as unknown;
+      const cfg = (Array.isArray(fc) ? fc[0] : fc) as
+        | { billingMode?: string; feePercent?: number; feeFixed?: number }
+        | null
+        | undefined;
+      if (cfg?.billingMode !== "postpaid") continue;
+      const liveCfg = {
+        feePercent: cfg.feePercent || 0,
+        feeFixed: cfg.feeFixed || 0,
+      };
+      for (const tt of concert.ticketTypes) {
+        for (const order of tt.orders) {
+          if (order.status !== "pending") continue;
+          postpaidDebt += getPlatformFeeForOrder(order, tt, liveCfg);
+        }
+      }
+    }
+    postpaidDebt = Math.round(postpaidDebt * 100) / 100;
+
+    return { totalPlatformBalance, postpaidDebt };
+  }, [organizerBalances, realConcerts, concerts]);
+
   // ── Period KPIs (filtered) ──
   const periodStats = useMemo(() => {
     const filteredFees = allFeeTransactions.filter((txn) =>
@@ -234,14 +301,54 @@ export default function SuperAdminStats({
       .filter((ev) => ev.ticketsSold > 0 || ev.feesCollected > 0)
       .sort((a, b) => b.feesCollected - a.feesCollected);
 
+    // ── Deposits in the period ──
+    const filteredDeposits = allDeposits.filter((d) => inPeriod(d.createdAt));
+    const totalDeposits =
+      Math.round(
+        filteredDeposits.reduce((s, d) => s + d.amount, 0) * 100,
+      ) / 100;
+
+    const utilizationRate =
+      totalDeposits > 0
+        ? Math.round((totalRevenue / totalDeposits) * 100)
+        : 0;
+
+    // Top 5 organizers by total deposited in the period
+    const depositsByOrg = new Map<string, { total: number; count: number }>();
+    for (const d of filteredDeposits) {
+      const entry = depositsByOrg.get(d.organizerEmail) || { total: 0, count: 0 };
+      entry.total += d.amount;
+      entry.count += 1;
+      depositsByOrg.set(d.organizerEmail, entry);
+    }
+    const topOrganizersByDeposits = [...depositsByOrg.entries()]
+      .map(([email, v]) => ({
+        email,
+        total: Math.round(v.total * 100) / 100,
+        count: v.count,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+
     return {
       totalRevenue,
       totalTicketsSold,
       totalGrossRevenue,
       eventBreakdown,
+      totalDeposits,
+      utilizationRate,
+      topOrganizersByDeposits,
+      filteredDeposits,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [realConcerts, organizerBalances, allFeeTransactions, dateFrom, dateTo]);
+  }, [
+    realConcerts,
+    organizerBalances,
+    allFeeTransactions,
+    allDeposits,
+    dateFrom,
+    dateTo,
+  ]);
 
   // ── Monthly revenue chart (always global) ──
   const monthlyChartData = useMemo(() => {
@@ -269,6 +376,44 @@ export default function SuperAdminStats({
   const maxMonthlyRevenue = Math.max(
     ...monthlyChartData.map((d) => d.amount),
     1,
+  );
+
+  // ── Monthly deposits chart (always global) ──
+  const monthlyDepositsChartData = useMemo(() => {
+    const byMonth = new Map<string, number>();
+    for (const txn of allDeposits) {
+      const d = new Date(txn.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, "0")}`;
+      byMonth.set(key, (byMonth.get(key) || 0) + txn.amount);
+    }
+    if (byMonth.size === 0) return [];
+    const sorted = [...byMonth.entries()].sort((a, b) =>
+      a[0].localeCompare(b[0]),
+    );
+    return sorted.map(([key, amount]) => {
+      const [yearStr, monthStr] = key.split("-");
+      const monthIdx = parseInt(monthStr, 10);
+      return {
+        key,
+        label: `${monthNames[monthIdx]} ${yearStr}`,
+        amount,
+      };
+    });
+  }, [allDeposits, monthNames]);
+
+  const maxMonthlyDeposits = Math.max(
+    ...monthlyDepositsChartData.map((d) => d.amount),
+    1,
+  );
+
+  const dateFmt = useMemo(
+    () =>
+      new Intl.DateTimeFormat(dateLocale(lang), {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }),
+    [lang],
   );
 
   const presetBtnClass = (id: string) =>
@@ -364,7 +509,7 @@ export default function SuperAdminStats({
       </div>
 
       {/* ── Section 3: Period KPIs ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-surface border border-border rounded-xl p-5">
           <p className="text-muted text-sm">{t("admin.totalRevenue")}</p>
           <p className="text-3xl font-bold mt-1 text-success">
@@ -383,47 +528,233 @@ export default function SuperAdminStats({
             ${periodStats.totalGrossRevenue.toFixed(2)}
           </p>
         </div>
+        <div className="bg-surface border border-border rounded-xl p-5">
+          <p className="text-muted text-sm">{t("admin.creditsReceived")}</p>
+          <p className="text-3xl font-bold mt-1 text-accent-light">
+            ${periodStats.totalDeposits.toFixed(2)}
+          </p>
+        </div>
+        <div className="bg-surface border border-border rounded-xl p-5">
+          <p className="text-muted text-sm">{t("admin.utilizationRate")}</p>
+          <p className="text-3xl font-bold mt-1">
+            {periodStats.utilizationRate}%
+          </p>
+          <p className="text-[10px] text-muted mt-0.5">
+            {t("admin.utilizationSubLabel")}
+          </p>
+        </div>
       </div>
 
-      {/* ── Section 4: Monthly Revenue Chart ── */}
-      {monthlyChartData.length > 1 && (
+      {/* ── Section 4: Platform Snapshot (current state, unfiltered) ── */}
+      <div className="bg-surface border border-border rounded-xl px-6 py-4">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">
+            {t("admin.platformSnapshot")}
+          </h2>
+          <p className="text-[10px] text-muted italic">
+            {t("admin.snapshotHint")}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-8">
+          <div>
+            <p className="text-2xl font-bold text-accent-light">
+              ${snapshot.totalPlatformBalance.toFixed(2)}
+            </p>
+            <p className="text-xs text-muted">{t("admin.platformBalanceTotal")}</p>
+          </div>
+          <div className="border-l border-border pl-8">
+            <p className="text-2xl font-bold text-warning">
+              ${snapshot.postpaidDebt.toFixed(2)}
+            </p>
+            <p className="text-xs text-muted">{t("admin.postpaidDebt")}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section 5: Monthly Charts (Revenue + Deposits) ── */}
+      {(monthlyChartData.length > 1 || monthlyDepositsChartData.length > 1) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {monthlyChartData.length > 1 && (
+            <div>
+              <h2 className="text-xl font-semibold mb-4">
+                {t("admin.monthlyRevenue")}
+              </h2>
+              <div className="bg-surface border border-border rounded-xl p-5">
+                <div className="flex items-end gap-2 h-48 overflow-x-auto">
+                  {monthlyChartData.map((d) => {
+                    const pct = (d.amount / maxMonthlyRevenue) * 100;
+                    return (
+                      <div
+                        key={d.key}
+                        className="flex flex-col items-center flex-1 min-w-[48px] gap-1"
+                      >
+                        <span className="text-xs font-medium text-success">
+                          ${d.amount.toFixed(0)}
+                        </span>
+                        <div
+                          className="w-full flex items-end"
+                          style={{ height: "140px" }}
+                        >
+                          <div
+                            className="w-full bg-accent/70 rounded-t-md transition-all hover:bg-accent"
+                            style={{ height: `${Math.max(pct, 2)}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-muted whitespace-nowrap">
+                          {d.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {monthlyDepositsChartData.length > 1 && (
+            <div>
+              <h2 className="text-xl font-semibold mb-4">
+                {t("admin.monthlyDeposits")}
+              </h2>
+              <div className="bg-surface border border-border rounded-xl p-5">
+                <div className="flex items-end gap-2 h-48 overflow-x-auto">
+                  {monthlyDepositsChartData.map((d) => {
+                    const pct = (d.amount / maxMonthlyDeposits) * 100;
+                    return (
+                      <div
+                        key={d.key}
+                        className="flex flex-col items-center flex-1 min-w-[48px] gap-1"
+                      >
+                        <span className="text-xs font-medium text-accent-light">
+                          ${d.amount.toFixed(0)}
+                        </span>
+                        <div
+                          className="w-full flex items-end"
+                          style={{ height: "140px" }}
+                        >
+                          <div
+                            className="w-full bg-accent-light/70 rounded-t-md transition-all hover:bg-accent-light"
+                            style={{ height: `${Math.max(pct, 2)}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-muted whitespace-nowrap">
+                          {d.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Section 6: Top Organizers by Deposits ── */}
+      {periodStats.topOrganizersByDeposits.length > 0 && (
         <div>
           <h2 className="text-xl font-semibold mb-4">
-            {t("admin.monthlyRevenue")}
+            {t("admin.topOrganizersByDeposits")}
           </h2>
-          <div className="bg-surface border border-border rounded-xl p-5">
-            <div className="flex items-end gap-2 h-48 overflow-x-auto">
-              {monthlyChartData.map((d) => {
-                const pct = (d.amount / maxMonthlyRevenue) * 100;
-                return (
-                  <div
-                    key={d.key}
-                    className="flex flex-col items-center flex-1 min-w-[48px] gap-1"
-                  >
-                    <span className="text-xs font-medium text-success">
-                      ${d.amount.toFixed(0)}
-                    </span>
-                    <div
-                      className="w-full flex items-end"
-                      style={{ height: "140px" }}
-                    >
-                      <div
-                        className="w-full bg-accent/70 rounded-t-md transition-all hover:bg-accent"
-                        style={{ height: `${Math.max(pct, 2)}%` }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-muted whitespace-nowrap">
-                      {d.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="bg-surface border border-border rounded-xl divide-y divide-border">
+            {periodStats.topOrganizersByDeposits.map((o, idx) => (
+              <div
+                key={o.email}
+                className="flex items-center justify-between px-5 py-3"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-xs text-muted w-5 shrink-0">
+                    #{idx + 1}
+                  </span>
+                  <span className="font-medium truncate">{o.email}</span>
+                </div>
+                <div className="flex items-center gap-4 shrink-0 text-sm">
+                  <span className="text-muted text-xs">
+                    {o.count} {t("admin.depositsCount")}
+                  </span>
+                  <span className="font-bold text-success">
+                    ${o.total.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* ── Section 5: Profitability by Event ── */}
+      {/* ── Section 7: Credit History Table ── */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">
+          {t("admin.creditHistory")}
+        </h2>
+        {periodStats.filteredDeposits.length === 0 ? (
+          <p className="text-muted text-center py-10">
+            {t("admin.noDepositsInPeriod")}
+          </p>
+        ) : (
+          <div className="bg-surface border border-border rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-muted uppercase tracking-wide bg-background">
+                    <th className="px-4 py-3 font-medium">
+                      {t("admin.depositDate")}
+                    </th>
+                    <th className="px-4 py-3 font-medium">
+                      {t("admin.depositOrganizer")}
+                    </th>
+                    <th className="px-4 py-3 font-medium">
+                      {t("admin.depositEvent")}
+                    </th>
+                    <th className="px-4 py-3 font-medium">
+                      {t("admin.depositNote")}
+                    </th>
+                    <th className="px-4 py-3 font-medium text-right">
+                      {t("admin.depositAmount")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {periodStats.filteredDeposits
+                    .slice()
+                    .sort((a, b) => b.createdAt - a.createdAt)
+                    .slice(0, 50)
+                    .map((d) => (
+                      <tr key={d.id}>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-muted">
+                          {dateFmt.format(d.createdAt)}
+                        </td>
+                        <td className="px-4 py-2.5 truncate max-w-[200px]">
+                          {d.organizerEmail}
+                        </td>
+                        <td className="px-4 py-2.5 truncate max-w-[180px] text-muted">
+                          {d.concertId
+                            ? concertNameMap.get(d.concertId) || "—"
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-2.5 truncate max-w-[240px] text-muted">
+                          {d.description || "—"}
+                        </td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-right font-bold text-success">
+                          ${d.amount.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+            {periodStats.filteredDeposits.length > 50 && (
+              <div className="px-4 py-2 text-xs text-muted bg-background text-center">
+                {t("admin.moreRows", {
+                  count: periodStats.filteredDeposits.length - 50,
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Section 8: Profitability by Event ── */}
       <div>
         <h2 className="text-xl font-semibold mb-4">
           {t("admin.profitByEvent")}
