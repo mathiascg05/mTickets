@@ -30,7 +30,7 @@ export default function BalancesPage() {
     concerts: {
       $: { order: { createdAt: "desc" } },
       platformFeeConfig: {},
-      ticketTypes: { orders: {} },
+      ticketTypes: { orders: {}, phases: {} },
     },
   });
 

@@ -17,6 +17,7 @@ import {
   isValidName,
   validateAttendee,
 } from "@/lib/validation";
+import { computeOrderTotalAtPurchase } from "@/lib/order-pricing";
 
 type CreateOrderBody = {
   ticketTypeId: string;
@@ -377,6 +378,20 @@ export async function POST(req: NextRequest) {
       cedula: a.cedula.trim(),
     }));
 
+    const feePercentSnapshot = ticketType.feePercent ?? 0;
+    const feeFixedSnapshot = ticketType.feeFixed ?? 0;
+    const perOrderCouponDiscount =
+      (validatedCouponCode ? discountAmount : 0) / qty;
+    const perOrderPmDiscount = paymentMethodDiscount / qty;
+    const { feeAmount: feeAmountSnapshot, total: totalSnapshot } =
+      computeOrderTotalAtPurchase({
+        basePrice: effectivePrice,
+        feePercent: feePercentSnapshot,
+        feeFixed: feeFixedSnapshot,
+        couponDiscount: perOrderCouponDiscount,
+        paymentMethodDiscount: perOrderPmDiscount,
+      });
+
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       // Always read fresh lastOrderSeq to avoid collisions
       const { concerts: freshConcerts } = await adminDb.query({
@@ -405,6 +420,11 @@ export async function POST(req: NextRequest) {
             visited: false,
             createdAt: Date.now(),
             orderNumber,
+            priceSnapshot: effectivePrice,
+            feePercentSnapshot,
+            feeFixedSnapshot,
+            feeAmountSnapshot,
+            totalSnapshot,
             ...(paymentProofPath ? { paymentProofPath } : {}),
             ...(referenceNumber ? { proofReferenceNumber: referenceNumber } : {}),
             ...(promoter ? { promoter } : {}),
@@ -548,13 +568,6 @@ export async function POST(req: NextRequest) {
         const orderId = orderIds[idx];
         const attendee = trimmedAttendees[idx];
         const orderNumber = orderNumbers[idx];
-        const phase = activePhase
-          ? phases.find((p) => p.id === activePhase.id)
-          : null;
-        const basePrice = phase ? phase.price : ticketType.price;
-        const perOrderCouponDiscount = (validatedCouponCode ? discountAmount : 0) / qty;
-        const perOrderPmDiscount = paymentMethodDiscount / qty;
-        const finalPrice = basePrice - perOrderCouponDiscount - perOrderPmDiscount;
         const orderUrl = `${appUrl}/ticket/${orderId}`;
 
         const emailParams = {
@@ -564,7 +577,7 @@ export async function POST(req: NextRequest) {
           eventDate: concert.date,
           venue: concert.venue || "",
           ticketTypeName: ticketType.name,
-          price: `$${finalPrice.toFixed(2)}`,
+          price: `$${totalSnapshot.toFixed(2)}`,
           orderUrl,
           orderNumber,
         };

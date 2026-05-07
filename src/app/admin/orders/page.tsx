@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { useAuthContext } from "@/lib/AuthContext";
+import { getEventRevenue } from "@/lib/order-pricing";
 import Link from "next/link";
 
 export default function AdminOrdersPage() {
@@ -13,7 +14,7 @@ export default function AdminOrdersPage() {
         ...(isSuperAdmin ? {} : { where: { organizerEmail: email } }),
         order: { createdAt: "desc" as const },
       },
-      ticketTypes: { orders: {} },
+      ticketTypes: { orders: {}, phases: {} },
     },
   });
 
@@ -24,7 +25,7 @@ export default function AdminOrdersPage() {
       : {
           eventCollaborators: {
             $: { where: { email } },
-            concert: { ticketTypes: { orders: {} } },
+            concert: { ticketTypes: { orders: {}, phases: {} } },
           },
         },
   );
@@ -60,11 +61,7 @@ export default function AdminOrdersPage() {
             const approved = allOrders.filter((o) => o.status === "approved").length;
             const rejected = allOrders.filter((o) => o.status === "rejected").length;
             const total = allOrders.length;
-            const revenue = concert.ticketTypes.reduce((sum, tt) => {
-              const approvedCount = tt.orders.filter((o) => o.status === "approved").length;
-              const fee = (tt.price * ((tt as { feePercent?: number }).feePercent ?? 0)) / 100 + ((tt as { feeFixed?: number }).feeFixed ?? 0);
-              return sum + approvedCount * (tt.price + fee);
-            }, 0);
+            const revenue = getEventRevenue(concert);
 
             return (
               <Link

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useLanguage } from "@/lib/LanguageContext";
+import { getOrderTotal } from "@/lib/order-pricing";
 
 type Transaction = {
   id: string;
@@ -18,6 +19,20 @@ type OrgBalance = {
   transactions: Transaction[];
 };
 
+type ConcertOrder = {
+  id: string;
+  status: string;
+  createdAt: number;
+  phaseId?: string;
+  discountAmount?: number;
+  paymentMethodDiscount?: number;
+  priceSnapshot?: number;
+  feePercentSnapshot?: number;
+  feeFixedSnapshot?: number;
+  feeAmountSnapshot?: number;
+  totalSnapshot?: number;
+};
+
 type Concert = {
   id: string;
   name: string;
@@ -30,7 +45,10 @@ type Concert = {
     id: string;
     name: string;
     price: number;
-    orders: { id: string; status: string; createdAt: number }[];
+    feePercent?: number;
+    feeFixed?: number;
+    phases?: { id: string; price: number }[];
+    orders: ConcertOrder[];
   }[];
 };
 
@@ -180,7 +198,7 @@ export default function SuperAdminStats({
           (o) => o.status === "approved" && inPeriod(o.createdAt),
         );
         sold += approved.length;
-        gross += approved.length * tt.price;
+        gross += approved.reduce((s, o) => s + getOrderTotal(o, tt), 0);
       }
       ticketsByEvent.set(concert.id, sold);
       grossByEvent.set(concert.id, gross);
