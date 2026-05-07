@@ -98,6 +98,7 @@ export default function AdminConcertEditPage() {
             concertId={concertId}
             feeConfig={concert.platformFeeConfig}
             isSuperAdmin={isSuperAdmin}
+            isDemo={!!concert.isDemo}
           />
         </div>
         <div className="space-y-6">
@@ -2524,10 +2525,12 @@ function PlatformFeeSection({
   concertId,
   feeConfig,
   isSuperAdmin,
+  isDemo,
 }: {
   concertId: string;
   feeConfig: { id: string; feePercent: number; feeFixed: number; billingMode: string } | undefined;
   isSuperAdmin: boolean;
+  isDemo: boolean;
 }) {
   const { t } = useLanguage();
   const [feePercent, setFeePercent] = useState(feeConfig?.feePercent?.toString() || "5");
@@ -2603,9 +2606,27 @@ function PlatformFeeSection({
   }
 
   // Editable view for super admin
+  function toggleDemo() {
+    db.transact(db.tx.concerts[concertId].update({ isDemo: !isDemo }));
+  }
+
   return (
     <div className="bg-surface border border-border rounded-xl p-6">
       <h2 className="text-lg font-bold mb-4">{t("admin.platformFeeConfig")}</h2>
+      <div className={`mb-4 p-3 rounded-lg border ${isDemo ? "bg-accent/5 border-accent/30" : "bg-background border-border"}`}>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isDemo}
+            onChange={toggleDemo}
+            className="mt-1 accent-accent"
+          />
+          <div>
+            <p className="font-medium text-sm">{t("admin.demoEvent")}</p>
+            <p className="text-xs text-muted mt-0.5">{t("admin.demoEventDesc")}</p>
+          </div>
+        </label>
+      </div>
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
           <label className="block text-sm font-medium mb-1.5">

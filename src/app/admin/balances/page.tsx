@@ -174,8 +174,12 @@ export default function BalancesPage() {
     }
   }
 
-  // Build postpaid report data
+  // Build postpaid report data — demo events are excluded from billing entirely.
+  const demoConcertIds = new Set(
+    concerts.filter((c) => c.isDemo).map((c) => c.id),
+  );
   const postpaidConcerts = concerts.filter((c) => {
+    if (c.isDemo) return false;
     const fc = c.platformFeeConfig as unknown;
     const config = Array.isArray(fc) ? fc[0] : fc;
     return (config as { billingMode?: string } | null)?.billingMode === "postpaid";
@@ -191,6 +195,7 @@ export default function BalancesPage() {
     const entry = { totalFees: 0, totalDeposits: 0, concerts: new Map<string, number>() };
     for (const txn of bal.transactions || []) {
       if (txn.type === "fee") {
+        if (txn.concertId && demoConcertIds.has(txn.concertId)) continue;
         entry.totalFees += Math.abs(txn.amount);
         if (txn.concertId) {
           entry.concerts.set(txn.concertId, (entry.concerts.get(txn.concertId) || 0) + Math.abs(txn.amount));

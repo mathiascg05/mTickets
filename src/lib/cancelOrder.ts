@@ -41,6 +41,22 @@ export async function cancelOrderInternal(
     return { success: true, feeReversed: false };
   }
 
+  // Demo events never charge fees, so there is nothing to reverse.
+  const rawTicketTypeForDemo = order.ticketType as unknown;
+  const ticketTypeForDemo = (
+    Array.isArray(rawTicketTypeForDemo) ? rawTicketTypeForDemo[0] : rawTicketTypeForDemo
+  ) as { concert: unknown } | undefined;
+  const rawConcertForDemo = ticketTypeForDemo?.concert as unknown;
+  const concertForDemo = (
+    Array.isArray(rawConcertForDemo) ? rawConcertForDemo[0] : rawConcertForDemo
+  ) as { isDemo?: boolean } | undefined;
+  if (concertForDemo?.isDemo) {
+    await adminDb.transact([
+      adminDb.tx.orders[orderId].update({ status: "cancelled" }),
+    ]);
+    return { success: true, feeReversed: false };
+  }
+
   const { balanceTransactions: feeTxns } = await adminDb.query({
     balanceTransactions: {
       $: { where: { orderId, type: "fee" } },

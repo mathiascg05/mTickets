@@ -68,6 +68,7 @@ export async function approveOrderInternal(
     id: string;
     organizerEmail: string;
     platformFeeConfig: unknown;
+    isDemo?: boolean;
   };
   if (!concert) {
     return {
@@ -75,6 +76,21 @@ export async function approveOrderInternal(
       error: "Concert not found",
       errorCode: "NOT_FOUND",
     };
+  }
+
+  // Demo events: approve without touching fees, balance, or transactions.
+  if (concert.isDemo) {
+    await adminDb.transact([
+      adminDb.tx.orders[orderId].update({ status: "approved" }),
+    ]);
+    if (!options?.skipEmail) {
+      try {
+        await sendTicketEmailForOrder(orderId);
+      } catch (err) {
+        console.error("[approveOrder] Email failed:", err);
+      }
+    }
+    return { success: true, platformFee: 0 };
   }
 
   // Get platform fee config for this concert

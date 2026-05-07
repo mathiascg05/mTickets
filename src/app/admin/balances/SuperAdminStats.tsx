@@ -24,6 +24,7 @@ type Concert = {
   date: string;
   status: string;
   organizerEmail: string;
+  isDemo?: boolean;
   platformFeeConfig: unknown;
   ticketTypes: {
     id: string;
@@ -73,6 +74,16 @@ export default function SuperAdminStats({
   const { t, lang } = useLanguage();
   const monthNames = lang === "es" ? MONTH_NAMES_ES : MONTH_NAMES_EN;
 
+  // Demo events are excluded from every aggregate.
+  const realConcerts = useMemo(
+    () => concerts.filter((c) => !c.isDemo),
+    [concerts],
+  );
+  const demoConcertIds = useMemo(
+    () => new Set(concerts.filter((c) => c.isDemo).map((c) => c.id)),
+    [concerts],
+  );
+
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [activePreset, setActivePreset] = useState<string>("all");
@@ -114,27 +125,29 @@ export default function SuperAdminStats({
 
   // ── Platform overview (unfiltered) ──
   const platform = useMemo(() => {
-    const activeConcerts = concerts.filter((c) => c.status === "active");
+    const activeConcerts = realConcerts.filter((c) => c.status === "active");
     const uniqueOrganizers = new Set(
-      concerts.map((c) => c.organizerEmail.toLowerCase()),
+      realConcerts.map((c) => c.organizerEmail.toLowerCase()),
     );
     return {
-      totalEvents: concerts.length,
+      totalEvents: realConcerts.length,
       activeEvents: activeConcerts.length,
       organizers: uniqueOrganizers.size,
     };
-  }, [concerts]);
+  }, [realConcerts]);
 
   // ── All fee transactions (unfiltered, for chart) ──
   const allFeeTransactions = useMemo(() => {
     const txns: Transaction[] = [];
     for (const bal of organizerBalances) {
       for (const txn of bal.transactions || []) {
-        if (txn.type === "fee") txns.push(txn);
+        if (txn.type !== "fee") continue;
+        if (txn.concertId && demoConcertIds.has(txn.concertId)) continue;
+        txns.push(txn);
       }
     }
     return txns;
-  }, [organizerBalances]);
+  }, [organizerBalances, demoConcertIds]);
 
   // ── Period KPIs (filtered) ──
   const periodStats = useMemo(() => {
@@ -159,7 +172,7 @@ export default function SuperAdminStats({
 
     const ticketsByEvent = new Map<string, number>();
     const grossByEvent = new Map<string, number>();
-    for (const concert of concerts) {
+    for (const concert of realConcerts) {
       let sold = 0;
       let gross = 0;
       for (const tt of concert.ticketTypes) {
@@ -182,7 +195,7 @@ export default function SuperAdminStats({
       0,
     );
 
-    const eventBreakdown = concerts
+    const eventBreakdown = realConcerts
       .map((c) => {
         const fc = c.platformFeeConfig as unknown;
         const config = Array.isArray(fc) ? fc[0] : fc;
@@ -210,7 +223,7 @@ export default function SuperAdminStats({
       eventBreakdown,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [concerts, organizerBalances, allFeeTransactions, dateFrom, dateTo]);
+  }, [realConcerts, organizerBalances, allFeeTransactions, dateFrom, dateTo]);
 
   // ── Monthly revenue chart (always global) ──
   const monthlyChartData = useMemo(() => {

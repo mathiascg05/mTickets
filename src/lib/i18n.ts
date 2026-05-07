@@ -807,6 +807,14 @@ const translations: Translations = {
     es: "No se pudo cargar el comprobante. Intenta de nuevo.",
     en: "Could not load the payment proof. Please try again.",
   },
+  "admin.demoEvent": {
+    es: "Evento demo",
+    en: "Demo event",
+  },
+  "admin.demoEventDesc": {
+    es: "No cobra comisión y se excluye de balances, reportes y estadísticas.",
+    en: "Charges no platform fees and is excluded from balances, reports, and statistics.",
+  },
 };
 
 export function t(key: string, lang: Lang, params?: Record<string, string | number>): string {
