@@ -10,6 +10,7 @@ import {
   getOrderTotal,
   getOrderBaseDisplayPrice,
   computePlatformFeeAtPurchase,
+  getPlatformFeeForOrder,
 } from "@/lib/order-pricing";
 import { sendTicketEmail, sendConfirmationEmail } from "@/lib/sendTicketEmail";
 import { useLanguage } from "@/lib/LanguageContext";
@@ -2221,18 +2222,20 @@ export default function ConcertOrdersPage() {
 
       {/* Platform Balance & Fee Info */}
       {platformFeeConfig && (() => {
-        // Calculate fees needed to approve all pending orders
-        const feePercent = platformFeeConfig.feePercent || 0;
-        const feeFixed = platformFeeConfig.feeFixed || 0;
+        // Project the fees that *will* be charged to approve all pending
+        // orders. Uses each order's snapshot when present so the projection
+        // matches what approveOrder will actually deduct.
+        const liveCfg = {
+          feePercent: platformFeeConfig.feePercent || 0,
+          feeFixed: platformFeeConfig.feeFixed || 0,
+        };
         const pendingFeesByPm = new Map<string, { count: number; fee: number }>();
         let totalPendingFees = 0;
 
         for (const tt of concert.ticketTypes) {
           for (const order of tt.orders) {
             if (order.status !== "pending") continue;
-            const phase = (tt.phases || []).find((p: { id: string }) => p.id === order.phaseId);
-            const basePrice = phase ? (phase as { price: number }).price : tt.price;
-            const fee = Math.round((basePrice * (feePercent / 100) + feeFixed) * 100) / 100;
+            const fee = getPlatformFeeForOrder(order, tt, liveCfg);
             totalPendingFees += fee;
             const pm = order.paymentMethod || "N/A";
             const entry = pendingFeesByPm.get(pm) || { count: 0, fee: 0 };
