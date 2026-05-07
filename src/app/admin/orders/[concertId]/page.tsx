@@ -9,6 +9,7 @@ import { getAvailability, getTodayString } from "@/lib/phases";
 import {
   getOrderTotal,
   getOrderBaseDisplayPrice,
+  computePlatformFeeAtPurchase,
 } from "@/lib/order-pricing";
 import { sendTicketEmail, sendConfirmationEmail } from "@/lib/sendTicketEmail";
 import { useLanguage } from "@/lib/LanguageContext";
@@ -888,6 +889,7 @@ function CreateOrderModal({
   pmCurrencyMap,
   pmCustomRateMap,
   rateMap,
+  platformFeeConfig,
 }: {
   refreshToken: string;
   concert: {
@@ -906,6 +908,7 @@ function CreateOrderModal({
   pmCurrencyMap: Record<string, string>;
   pmCustomRateMap: Record<string, number>;
   rateMap: Record<string, number>;
+  platformFeeConfig?: { feePercent?: number; feeFixed?: number } | null;
 }) {
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState(
     concert.ticketTypes[0]?.id || "",
@@ -971,6 +974,13 @@ function CreateOrderModal({
           0,
           selectedOption.basePrice + selectedOption.feeAmount - couponDiscountForOrder,
         );
+        const platformFeePercentSnapshot = platformFeeConfig?.feePercent ?? 0;
+        const platformFeeFixedSnapshot = platformFeeConfig?.feeFixed ?? 0;
+        const platformFeeAmountSnapshot = computePlatformFeeAtPurchase({
+          basePrice: selectedOption.basePrice,
+          feePercent: platformFeePercentSnapshot,
+          feeFixed: platformFeeFixedSnapshot,
+        });
         return db.tx.orders[orderId]
           .update({
             firstName,
@@ -987,6 +997,9 @@ function CreateOrderModal({
             feeFixedSnapshot: selectedOption.feeFixed,
             feeAmountSnapshot: selectedOption.feeAmount,
             totalSnapshot: totalForOrder,
+            platformFeePercentSnapshot,
+            platformFeeFixedSnapshot,
+            platformFeeAmountSnapshot,
             ...(selectedOption.activePhase
               ? { phaseId: selectedOption.activePhase.id }
               : {}),
@@ -1362,6 +1375,7 @@ function ImportCsvModal({
   concert,
   onClose,
   refreshToken,
+  platformFeeConfig,
 }: {
   concert: {
     name: string;
@@ -1370,6 +1384,8 @@ function ImportCsvModal({
       name: string;
       price: number;
       quantity: number;
+      feePercent?: number;
+      feeFixed?: number;
       orders: { id: string; status: string; phaseId?: string }[];
       phases: { id: string; name: string; price: number; quantity: number; endDate?: string; sortOrder: number }[];
     }[];
@@ -1378,6 +1394,7 @@ function ImportCsvModal({
   };
   onClose: () => void;
   refreshToken: string;
+  platformFeeConfig?: { feePercent?: number; feeFixed?: number } | null;
 }) {
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState(concert.ticketTypes[0]?.id || "");
   const [paymentMethod, setPaymentMethod] = useState("Cortesia");
@@ -1469,6 +1486,20 @@ function ImportCsvModal({
 
     try {
       const orderIds: string[] = [];
+      const basePrice = avail?.price ?? selectedTt.price;
+      const feePercentSnapshot = selectedTt.feePercent ?? 0;
+      const feeFixedSnapshot = selectedTt.feeFixed ?? 0;
+      const feeAmountSnapshot =
+        Math.round(((basePrice * feePercentSnapshot) / 100 + feeFixedSnapshot) * 100) / 100;
+      const totalSnapshot = Math.max(0, basePrice + feeAmountSnapshot);
+      const platformFeePercentSnapshot = platformFeeConfig?.feePercent ?? 0;
+      const platformFeeFixedSnapshot = platformFeeConfig?.feeFixed ?? 0;
+      const platformFeeAmountSnapshot = computePlatformFeeAtPurchase({
+        basePrice,
+        feePercent: platformFeePercentSnapshot,
+        feeFixed: platformFeeFixedSnapshot,
+      });
+
       const txns = validRows.map((row) => {
         const orderId = id();
         orderIds.push(orderId);
@@ -1486,6 +1517,14 @@ function ImportCsvModal({
             paymentProofPath: "csv-import",
             visited: false,
             createdAt: Date.now(),
+            priceSnapshot: basePrice,
+            feePercentSnapshot,
+            feeFixedSnapshot,
+            feeAmountSnapshot,
+            totalSnapshot,
+            platformFeePercentSnapshot,
+            platformFeeFixedSnapshot,
+            platformFeeAmountSnapshot,
             ...(avail?.activePhase ? { phaseId: avail.activePhase.id } : {}),
             ...(cfJson ? { customFieldValues: cfJson } : {}),
           })
@@ -3134,6 +3173,7 @@ export default function ConcertOrdersPage() {
           pmCurrencyMap={pmCurrencyMap}
           pmCustomRateMap={pmCustomRateMap}
           rateMap={rateMap}
+          platformFeeConfig={platformFeeConfig}
         />
       )}
 
@@ -3143,6 +3183,7 @@ export default function ConcertOrdersPage() {
           concert={concert}
           onClose={() => setShowImportModal(false)}
           refreshToken={refreshToken}
+          platformFeeConfig={platformFeeConfig}
         />
       )}
 

@@ -17,7 +17,10 @@ import {
   isValidName,
   validateAttendee,
 } from "@/lib/validation";
-import { computeOrderTotalAtPurchase } from "@/lib/order-pricing";
+import {
+  computeOrderTotalAtPurchase,
+  computePlatformFeeAtPurchase,
+} from "@/lib/order-pricing";
 
 type CreateOrderBody = {
   ticketTypeId: string;
@@ -190,6 +193,7 @@ export async function POST(req: NextRequest) {
             $: { where: { active: true } },
           },
           paymentMethods: {},
+          platformFeeConfig: {},
         },
         orders: {},
         phases: {
@@ -221,6 +225,7 @@ export async function POST(req: NextRequest) {
       orderNumberPrefix?: string;
       coupons: { id: string; code: string; discountType: string; discountValue: number; maxUses?: number; active: boolean }[];
       paymentMethods: { id: string; type?: string; name: string; discountType?: string; discountValue?: number }[];
+      platformFeeConfig?: { feePercent: number; feeFixed: number; billingMode?: string } | { feePercent: number; feeFixed: number; billingMode?: string }[];
     };
 
     if (!concert) {
@@ -392,6 +397,20 @@ export async function POST(req: NextRequest) {
         paymentMethodDiscount: perOrderPmDiscount,
       });
 
+    const rawPlatformFeeConfig = concert.platformFeeConfig;
+    const platformFeeConfig = (
+      Array.isArray(rawPlatformFeeConfig)
+        ? rawPlatformFeeConfig[0]
+        : rawPlatformFeeConfig
+    ) as { feePercent: number; feeFixed: number } | undefined;
+    const platformFeePercentSnapshot = platformFeeConfig?.feePercent ?? 0;
+    const platformFeeFixedSnapshot = platformFeeConfig?.feeFixed ?? 0;
+    const platformFeeAmountSnapshot = computePlatformFeeAtPurchase({
+      basePrice: effectivePrice,
+      feePercent: platformFeePercentSnapshot,
+      feeFixed: platformFeeFixedSnapshot,
+    });
+
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       // Always read fresh lastOrderSeq to avoid collisions
       const { concerts: freshConcerts } = await adminDb.query({
@@ -425,6 +444,9 @@ export async function POST(req: NextRequest) {
             feeFixedSnapshot,
             feeAmountSnapshot,
             totalSnapshot,
+            platformFeePercentSnapshot,
+            platformFeeFixedSnapshot,
+            platformFeeAmountSnapshot,
             ...(paymentProofPath ? { paymentProofPath } : {}),
             ...(referenceNumber ? { proofReferenceNumber: referenceNumber } : {}),
             ...(promoter ? { promoter } : {}),

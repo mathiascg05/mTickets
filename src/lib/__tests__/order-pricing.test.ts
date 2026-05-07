@@ -4,6 +4,8 @@ import {
   getOrderBaseDisplayPrice,
   getEventRevenue,
   computeOrderTotalAtPurchase,
+  computePlatformFeeAtPurchase,
+  getPlatformFeeForOrder,
 } from "../order-pricing";
 
 describe("getOrderTotal", () => {
@@ -195,5 +197,64 @@ describe("immutability against organizer edits", () => {
     expect(getOrderTotal(order, ttAfter)).toBe(27);
     expect(getOrderBaseDisplayPrice(order, ttBefore)).toBe(27);
     expect(getOrderBaseDisplayPrice(order, ttAfter)).toBe(27);
+  });
+});
+
+describe("computePlatformFeeAtPurchase", () => {
+  it("computes percent + fixed and rounds to cents", () => {
+    expect(
+      computePlatformFeeAtPurchase({ basePrice: 25, feePercent: 5, feeFixed: 0 }),
+    ).toBe(1.25);
+    expect(
+      computePlatformFeeAtPurchase({ basePrice: 30.33, feePercent: 7, feeFixed: 0.5 }),
+    ).toBe(2.62);
+  });
+
+  it("returns 0 when both percent and fixed are 0", () => {
+    expect(
+      computePlatformFeeAtPurchase({ basePrice: 100, feePercent: 0, feeFixed: 0 }),
+    ).toBe(0);
+  });
+});
+
+describe("getPlatformFeeForOrder", () => {
+  const tt = { price: 25, feePercent: 0, feeFixed: 0, phases: [] };
+  const cfg = { feePercent: 5, feeFixed: 0 };
+
+  it("returns the snapshot when present, ignoring current config", () => {
+    const order = { platformFeeAmountSnapshot: 1.25, priceSnapshot: 25 };
+    const mutatedCfg = { feePercent: 99, feeFixed: 100 };
+    expect(getPlatformFeeForOrder(order, tt, mutatedCfg)).toBe(1.25);
+  });
+
+  it("falls back to current config + priceSnapshot when amount snapshot missing", () => {
+    const order = { priceSnapshot: 25 };
+    expect(getPlatformFeeForOrder(order, tt, cfg)).toBe(1.25);
+  });
+
+  it("falls back to current ticketType price when no priceSnapshot", () => {
+    const order = {};
+    expect(getPlatformFeeForOrder(order, tt, cfg)).toBe(1.25);
+  });
+
+  it("uses phase price when order points to a phase", () => {
+    const ttWithPhases = {
+      price: 999,
+      phases: [{ id: "p1", price: 20 }],
+    };
+    const order = { phaseId: "p1" };
+    expect(getPlatformFeeForOrder(order, ttWithPhases, cfg)).toBe(1.0);
+  });
+
+  it("returns 0 if no config and no snapshot", () => {
+    const order = { priceSnapshot: 25 };
+    expect(getPlatformFeeForOrder(order, tt, null)).toBe(0);
+  });
+
+  it("survives platformFeeConfig mutation when snapshot is set", () => {
+    const order = { platformFeeAmountSnapshot: 1.25, priceSnapshot: 25 };
+    expect(getPlatformFeeForOrder(order, tt, { feePercent: 5, feeFixed: 0 })).toBe(1.25);
+    expect(getPlatformFeeForOrder(order, tt, { feePercent: 50, feeFixed: 10 })).toBe(1.25);
+    expect(getPlatformFeeForOrder(order, tt, null)).toBe(1.25);
   });
 });

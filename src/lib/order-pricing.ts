@@ -72,6 +72,43 @@ export function computeOrderTotalAtPurchase(args: {
   return { feeAmount, total };
 }
 
+export function computePlatformFeeAtPurchase(args: {
+  basePrice: number;
+  feePercent: number;
+  feeFixed: number;
+}): number {
+  const fee = (args.basePrice * args.feePercent) / 100 + args.feeFixed;
+  return Math.round(fee * 100) / 100;
+}
+
+export type PlatformFeeOrderShape = {
+  platformFeeAmountSnapshot?: number;
+  priceSnapshot?: number;
+  phaseId?: string;
+};
+
+export function getPlatformFeeForOrder(
+  order: PlatformFeeOrderShape,
+  ticketType: TicketTypePricing | null | undefined,
+  config: { feePercent: number; feeFixed: number } | null | undefined,
+): number {
+  if (typeof order.platformFeeAmountSnapshot === "number") {
+    return Math.round(order.platformFeeAmountSnapshot * 100) / 100;
+  }
+  if (!config) return 0;
+  let basePrice = order.priceSnapshot;
+  if (basePrice === undefined) {
+    if (!ticketType) return 0;
+    const phase = (ticketType.phases || []).find((p) => p.id === order.phaseId);
+    basePrice = phase ? phase.price : ticketType.price;
+  }
+  return computePlatformFeeAtPurchase({
+    basePrice,
+    feePercent: config.feePercent,
+    feeFixed: config.feeFixed,
+  });
+}
+
 export function getEventRevenue(
   concert: {
     ticketTypes: (TicketTypePricing & { orders: OrderPricing[] })[];

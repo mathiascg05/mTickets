@@ -1,6 +1,7 @@
 import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { sendTicketEmailForOrder } from "@/lib/ticketEmailSender";
+import { getPlatformFeeForOrder } from "@/lib/order-pricing";
 
 type ApproveResult = {
   success: boolean;
@@ -105,19 +106,14 @@ export async function approveOrderInternal(
 
   const billingMode = feeConfig?.billingMode || "prepaid";
 
-  // Calculate platform fee
-  const effectivePrice = order.phaseId
-    ? (ticketType.phases || []).find(
-        (p: { id: string }) => p.id === order.phaseId,
-      )?.price ?? ticketType.price
-    : ticketType.price;
-
-  let platformFee = 0;
-  if (feeConfig) {
-    const percentFee = effectivePrice * (feeConfig.feePercent / 100);
-    platformFee = percentFee + feeConfig.feeFixed;
-    platformFee = Math.round(platformFee * 100) / 100;
-  }
+  // Prefer the snapshot captured at order creation so a later edit to
+  // platformFeeConfig or ticketType.price does not change what gets deducted
+  // from the organizer's balance for an already-sold ticket.
+  const platformFee = getPlatformFeeForOrder(
+    order as { platformFeeAmountSnapshot?: number; priceSnapshot?: number; phaseId?: string },
+    ticketType,
+    feeConfig ? { feePercent: feeConfig.feePercent, feeFixed: feeConfig.feeFixed } : null,
+  );
 
   if (platformFee > 0) {
     const { organizerBalances } = await adminDb.query({
