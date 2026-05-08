@@ -17,8 +17,8 @@ Sentry.init({
   // Enable logs to be sent to Sentry
   enableLogs: true,
 
-  // Replay 10% of sessions normally, but always capture sessions with errors
-  replaysSessionSampleRate: 0.1,
+  // Replay 2% of sessions normally, but always capture sessions with errors
+  replaysSessionSampleRate: 0.02,
   replaysOnErrorSampleRate: 1.0,
 
   // Enable sending user PII (Personally Identifiable Information)
