@@ -184,6 +184,12 @@ export default function PrivacyPage() {
               pueden adquirir entradas con la intervención y bajo la
               responsabilidad de sus padres o representantes legales.
             </p>
+            <p className="mt-2">
+              El uso indebido por parte de ellos será considerado fraudulento.
+              Ni la Plataforma ni el Organizador serán responsables de dichos
+              actos ejecutados por los menores o por terceros que sustraigan
+              la identidad de mayores de edad para obtener un beneficio.
+            </p>
           </section>
 
           <section>
@@ -193,6 +199,10 @@ export default function PrivacyPage() {
               necesarias para el funcionamiento del servicio (autenticación, cola
               de compra, preferencias de idioma). No empleamos cookies de
               seguimiento publicitario de terceros.
+            </p>
+            <p className="mt-2">
+              El usuario deberá reportar de forma inmediata la recepción de
+              anuncios publicitarios que sean producto de estas cookies.
             </p>
           </section>
 

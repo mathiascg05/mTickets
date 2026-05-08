@@ -50,7 +50,8 @@ export default function OrganizerTermsPage() {
               el responsable único de la producción, ejecución y atención al
               comprador de su evento. maTickets provee exclusivamente la
               infraestructura tecnológica para publicar el evento, recibir solicitudes
-              de compra, validar comprobantes y emitir entradas electrónicas.
+              de compra, validar comprobantes y retransmitir las emisiones de
+              entradas electrónicas del Organizador.
               maTickets no es agencia, mandatario, comisionista ni socio del
               Organizador y no percibe el dinero pagado por los compradores.
             </p>
@@ -146,46 +147,132 @@ export default function OrganizerTermsPage() {
               <em>(feePercent)</em> y/o un monto fijo por orden{" "}
               <em>(feeFixed)</em>. Las tasas aplicables para cada evento se
               muestran al Organizador en el panel administrativo antes de su
-              activación.
+              activación. Existen dos modalidades de cobro, según se defina para
+              cada evento: <strong>Prepaid</strong> y <strong>Postpaid</strong>,
+              regidas por las cláusulas siguientes.
+            </p>
+
+            <h3 className="text-lg font-semibold mt-4 mb-2 text-foreground">
+              3.1 Modalidad Prepaid
+            </h3>
+            <p>
+              La prestación de los servicios de comercialización por parte de
+              maTickets queda sujeta al pago anticipado de las tarifas
+              acordadas. Es responsabilidad exclusiva del Organizador mantener
+              en todo momento un saldo positivo y solvente en su cuenta de
+              gestión. El sistema solo habilitará la generación y entrega de
+              códigos de accesibilidad de las entradas y/o tickets si la cuenta
+              del Organizador presenta fondos suficientes para cubrir el costo
+              del servicio prestado por maTickets.
             </p>
             <p className="mt-2">
-              Existen dos modalidades de cobro, según se defina para cada evento:
+              En caso de que el saldo sea insuficiente o inexistente, acarreará
+              las siguientes consecuencias:
             </p>
             <ul className="list-disc list-inside space-y-1 mt-1">
               <li>
-                <strong>Prepaid:</strong> el Organizador carga saldo en su cuenta
-                de la Plataforma por adelantado, contra el cual se descuentan las
-                comisiones de cada orden aprobada.
+                No se generarán, activarán ni enviarán códigos de acceso bajo
+                ninguna circunstancia.
               </li>
               <li>
-                <strong>Postpaid:</strong> las comisiones se acumulan como deuda
-                del Organizador con maTickets y deben ser liquidadas en los plazos
-                que se comuniquen al efecto.
+                La plataforma de comercialización podrá quedar suspendida de
+                forma automática hasta que se verifique el abono
+                correspondiente.
+              </li>
+              <li>
+                maTickets queda exenta de cualquier responsabilidad por
+                reclamos de terceros o del público general ante la
+                imposibilidad de acceder al evento por falta del pago del
+                servicio por parte del Organizador.
               </li>
             </ul>
-            <p className="mt-2">
-              La comisión se devenga al momento de la aprobación de cada orden.
-              La no liquidación oportuna genera intereses moratorios a la tasa
-              legal correspondiente y faculta a maTickets a suspender o dar de
-              baja al Organizador sin perjuicio de otras acciones legales.
+
+            <h3 className="text-lg font-semibold mt-4 mb-2 text-foreground">
+              3.2 Modalidad Postpaid
+            </h3>
+            <p>
+              Las partes podrán pactar de mutuo acuerdo la modalidad de pago
+              posterior a la comercialización de entradas. El acceso a esta
+              modalidad es excepcional y queda sujeto a la firma de un{" "}
+              <strong>Contrato de Exclusividad</strong> y a la entrega previa
+              de las garantías financieras aquí descritas.
             </p>
             <p className="mt-2">
-              <strong>Comisión no reembolsable.</strong> La comisión retribuye
-              el servicio tecnológico efectivamente prestado por la Plataforma
-              respecto de cada orden aprobada (procesamiento de la solicitud,
-              validación de comprobante, emisión de la entrada electrónica,
-              envío al Comprador y soporte técnico de la transacción). En
-              consecuencia, <strong>la comisión es no reembolsable</strong> bajo
-              ninguna circunstancia, incluyendo —sin limitación— la cancelación,
+              Para garantizar el pago de los servicios de esta modalidad
+              postpaid, el Organizador se obliga a constituir y entregar a
+              maTickets, con carácter obligatorio y previo al inicio de
+              cualquier gestión, una <strong>Fianza Bancaria</strong> o{" "}
+              <strong>Fianza de Fiel Cumplimiento</strong> otorgada por una
+              empresa aseguradora de reconocida solvencia. Dicho instrumento
+              deberá ser irrevocable, incondicional y de ejecución inmediata al
+              primer requerimiento.
+            </p>
+            <p className="mt-2">
+              La fianza deberá emitirse por un monto total que cubra, sin
+              limitación alguna, los siguientes rubros:
+            </p>
+            <ol className="list-[upper-alpha] list-inside space-y-1 mt-1">
+              <li>
+                El cien por ciento (100%) del servicio derivado de la
+                comercialización de la totalidad de las entradas previstas para
+                el evento.
+              </li>
+              <li>
+                El monto proyectado por concepto de intereses calculado a la
+                tasa del uno por ciento (1%) calculados sobre el total
+                establecido por el servicio, por un periodo de demora de hasta
+                doce (12) meses.
+              </li>
+              <li>
+                Una cantidad estimada para la cobertura de los gastos de
+                cobranza, que debe ser del diez por ciento (10%) del monto
+                total del contrato.
+              </li>
+              <li>
+                Una cantidad adicional del veinte por ciento (20%) del monto
+                total del contrato, destinada exclusivamente a cubrir los
+                honorarios profesionales de los abogados.
+              </li>
+            </ol>
+            <p className="mt-2">
+              El Organizador acepta y reconoce que la generación, activación y
+              entrega de los códigos de accesibilidad de las entradas y/o
+              tickets, está supeditada a la vigencia y validez de esta
+              garantía. Si la fianza o póliza no es entregada en los términos
+              aquí exigidos, o si la entidad emisora pierde su calificación de
+              solvencia, maTickets no generará los códigos de acceso, quedando
+              facultado para suspender el servicio de inmediato sin que esto
+              genere derecho a indemnización alguna a favor del Organizador.
+            </p>
+            <p className="mt-2">
+              La garantía deberá mantenerse vigente hasta noventa (90) días
+              hábiles después de concluido el evento. En caso de impago total o
+              parcial al vencimiento de las obligaciones, maTickets procederá a
+              la ejecución de la fianza por el total de los conceptos
+              adeudados, incluyendo el veinte por ciento (20%) de honorarios
+              legales preestablecido.
+            </p>
+
+            <h3 className="text-lg font-semibold mt-4 mb-2 text-foreground">
+              3.3 Comisión no reembolsable
+            </h3>
+            <p>
+              La comisión retribuye el servicio tecnológico efectivamente
+              prestado por la Plataforma respecto de cada orden aprobada
+              (procesamiento de la solicitud, validación de comprobante,
+              reenvío de la entrada electrónica al Comprador y soporte técnico
+              de la transacción). En consecuencia,{" "}
+              <strong>la comisión es no reembolsable</strong> bajo ninguna
+              circunstancia, incluyendo —sin limitación— la cancelación,
               suspensión, reprogramación o modificación del evento, los
               reembolsos que el Organizador efectúe a sus compradores, las
               disputas entre Organizador y Comprador, o el cierre voluntario de
               la cuenta del Organizador. El saldo prepaid no consumido podrá, a
               sola discreción de maTickets, aplicarse a comisiones de eventos
-              futuros del mismo Organizador, pero no genera derecho a devolución
-              en efectivo. Se exceptúan los casos de duplicación de cobro
-              atribuible a un error técnico de la Plataforma, los cuales serán
-              acreditados como saldo.
+              futuros del mismo Organizador, pero no genera derecho a
+              devolución en efectivo. Se exceptúan los casos de duplicación de
+              cobro atribuible a un error técnico de la Plataforma, los cuales
+              serán acreditados como saldo.
             </p>
           </section>
 
@@ -211,8 +298,9 @@ export default function OrganizerTermsPage() {
               resultados comerciales. La responsabilidad total acumulada de
               maTickets frente al Organizador, por cualquier causa, queda
               limitada al monto de comisiones efectivamente cobradas al
-              Organizador en los seis (6) meses anteriores al hecho que origine
-              el reclamo.
+              Organizador con motivo de las entradas comercializadas por ese
+              usuario, y las acciones caducarán a los seis (6) meses
+              anteriores al hecho que origine el reclamo.
             </p>
           </section>
 
@@ -226,6 +314,14 @@ export default function OrganizerTermsPage() {
               publicitar y vender las entradas. maTickets es titular del software,
               diseño, código y marca &quot;maTickets&quot;, y no concede al Organizador
               derecho alguno sobre estos.
+            </p>
+            <p className="mt-2">
+              Siendo esta autorización de uso de fotos, marcas o nombres no
+              solo del Organizador, sino también de los eventos, artistas o
+              cualquier otro derecho que pueda tener la promoción de las
+              entradas entregadas para su comercialización, teniéndose la
+              presunción de que el Organizador ya cuenta con las autorizaciones
+              respectivas de los terceros ajenos a esta relación.
             </p>
           </section>
 

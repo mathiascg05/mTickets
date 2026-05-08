@@ -32,7 +32,7 @@ export default function TermsPage() {
             <p>
               Los presentes Términos y Condiciones rigen el uso de la plataforma
               <strong> maTickets</strong> (en adelante, &quot;la Plataforma&quot;) por parte de los
-              usuarios compradores de entradas. Al utilizar la Plataforma, adquirir
+              usuarios compradores de entradas. Al utilizar la Plataforma, comprar
               una entrada o marcar la casilla de aceptación durante el proceso de
               compra, el usuario declara haber leído, comprendido y aceptado
               íntegramente estos términos.
@@ -45,16 +45,18 @@ export default function TermsPage() {
               <li>
                 <strong>maTickets:</strong> plataforma tecnológica que facilita la venta
                 y gestión de entradas electrónicas para eventos, actuando
-                exclusivamente como <em>intermediario tecnológico</em>. maTickets no es
-                el vendedor ni el organizador del evento.
+                exclusivamente como <em>intermediario tecnológico</em>. maTickets es el
+                comercializador de los boletos o entradas; la plataforma es solo un
+                espacio para la promoción y publicidad del evento. maTickets no es el
+                organizador ni el productor del evento.
               </li>
               <li>
-                <strong>Organizador:</strong> persona natural o jurídica responsable de
-                la producción, promoción y realización del evento y emisor final de
-                la entrada al comprador.
+                <strong>Organizador:</strong> persona natural o jurídica única
+                responsable de la producción, promoción, y realización del evento y
+                emisor final de la entrada al comprador.
               </li>
               <li>
-                <strong>Comprador:</strong> persona natural que adquiere una o varias
+                <strong>Comprador:</strong> persona natural que compra una o varias
                 entradas a través de la Plataforma.
               </li>
               <li>
@@ -67,19 +69,29 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold mb-2 text-foreground">2. Naturaleza del servicio</h2>
             <p>
+              <strong>
+                maTickets solo ofrecerá las entradas que el Organizador le
+                proporcione y están limitadas a su disposición y asignación por
+                parte de este último. maTickets no tiene ninguna injerencia de
+                la emisión y asignación de las mismas.
+              </strong>
+            </p>
+            <p className="mt-2">
               maTickets provee la infraestructura tecnológica para que el Organizador
-              ofrezca sus entradas y para que el Comprador pueda adquirirlas. <strong>El
+              ofrezca sus entradas y para que el Comprador pueda comprarlas. <strong>El
               contrato de venta de la entrada se perfecciona entre el Comprador y el
               Organizador</strong>; maTickets no es parte de esa relación comercial y no
               percibe el dinero del Comprador. Los pagos se realizan directamente al
-              Organizador a través de los métodos que este habilite (Zelle, Pago
-              Móvil, efectivo u otros).
+              Organizador a través de los métodos que este último habilite, por
+              cualquiera de los siguientes: Zelle, Pago Móvil, efectivo u otros.
             </p>
             <p className="mt-2">
-              maTickets <strong>no emite facturas ni comprobantes fiscales</strong>{" "}
-              por las entradas. La emisión de la documentación fiscal que
-              corresponda al Comprador, cuando aplique, es responsabilidad
-              exclusiva del Organizador.
+              maTickets solo se limita a la publicidad y comercialización de la
+              entrada, por tales motivos <strong>no emite ni facturas ni
+              comprobantes fiscales</strong>. El Organizador será el único
+              responsable de la emisión de dichos documentos fiscales y el
+              Comprador está en la obligación de solicitarlo formal y
+              directamente al Organizador.
             </p>
           </section>
 
@@ -87,11 +99,12 @@ export default function TermsPage() {
             <h2 className="text-xl font-semibold mb-2 text-foreground">3. Proceso de compra</h2>
             <ol className="list-decimal list-inside space-y-1">
               <li>El Comprador selecciona el evento y la cantidad de entradas.</li>
-              <li>Se le asigna una reserva temporal de hasta quince (15) minutos para completar la compra.</li>
+              <li>El Comprador tendrá un tiempo perentorio de quince (15) minutos para completar la compra.</li>
               <li>
                 El Comprador paga directamente al Organizador mediante el método
-                habilitado y carga el comprobante o número de referencia que
-                corresponda.
+                habilitado en la Plataforma, debiendo colocar el número de
+                referencia y cualquier otro dato solicitado a los fines de su
+                verificación.
               </li>
               <li>
                 El Organizador revisa y aprueba, rechaza o cancela la orden según
@@ -101,10 +114,20 @@ export default function TermsPage() {
                 Aprobada la orden, el Comprador recibe la entrada electrónica al
                 correo registrado.
               </li>
+              <li>
+                Recibida la entrada por correo electrónico, el Comprador está en
+                la obligación de verificar todos los datos de la entrada,
+                especialmente si corresponden al evento seleccionado, la fecha
+                del mismo, el nombre y apellido del usuario y su identificación.
+                El Comprador será el único responsable de la verificación de los
+                mismos y deberá formular el reclamo por escrito hasta
+                veinticuatro (24) horas antes del inicio del evento.
+              </li>
             </ol>
             <p className="mt-2">
               El envío de la solicitud no garantiza la adjudicación de la entrada
-              hasta la aprobación del Organizador.
+              hasta la aprobación del Organizador, quien es el único responsable
+              de la emisión de la entrada.
             </p>
           </section>
 
@@ -119,12 +142,12 @@ export default function TermsPage() {
                 responsabilidad para maTickets ni para el Organizador.
               </li>
               <li>
-                Las entradas son <strong>nominativas y no transferibles</strong>, salvo
+                Las entradas son <strong>nominativas, personales y no transferibles</strong>, salvo
                 autorización expresa del Organizador. El nombre y cédula indicados
                 en el registro deben coincidir con los del asistente.
               </li>
               <li>
-                Las entradas duplicadas, adulteradas o adquiridas de forma
+                Las entradas duplicadas, adulteradas o obtenidas de forma
                 fraudulenta serán anuladas sin derecho a reembolso.
               </li>
             </ul>
@@ -158,32 +181,53 @@ export default function TermsPage() {
               Lo anterior sin perjuicio de los derechos del Comprador previstos en
               la legislación venezolana de protección al consumidor y usuario.
             </p>
+            <p className="mt-2">
+              maTickets, por ser una plataforma para la publicidad y
+              comercialización de entradas de un tercero, no es responsable de
+              dichos reembolsos o devoluciones. El Comprador se obliga a realizar
+              las solicitudes o reclamos directamente con el Organizador del
+              evento.
+            </p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold mb-2 text-foreground">6. Conducta del usuario y usos prohibidos</h2>
-            <p>El Comprador se obliga a:</p>
-            <ul className="list-disc list-inside space-y-1 mt-2">
-              <li>Proveer información veraz, completa y actualizada (nombre, cédula, correo).</li>
+            <p>
+              El Comprador reconoce, se obliga y acepta que el acceso a la
+              Plataforma se concede únicamente para la adquisición final y
+              personal de entradas. En consecuencia, queda terminantemente
+              prohibido:
+            </p>
+            <ul className="list-none space-y-2 mt-2">
               <li>
-                No utilizar la Plataforma para actividades fraudulentas, reventa no
-                autorizada, lavado de activos, suplantación de identidad o
-                cualquier conducta tipificada en la <strong>Ley Especial contra los
-                Delitos Informáticos</strong> venezolana.
+                <strong>a)</strong> La reventa de las entradas, entendiéndose
+                por esto la reventa de boletos con fines de lucro, especulación
+                o &ldquo;bachaqueo&rdquo; digital, actividad sancionada bajo el
+                ordenamiento jurídico venezolano vigente.
               </li>
               <li>
-                No cargar comprobantes de pago falsos, adulterados o pertenecientes
-                a terceros.
+                <strong>b)</strong> El fraude o delitos informáticos, el uso
+                de identidades falsas, tarjetas de crédito/débito sin
+                autorización de su titular, o cualquier maniobra tecnológica
+                destinada a vulnerar la seguridad del sitio. maTickets o el
+                Organizador no serán responsables de dichas actividades y, en
+                caso de que se percaten de dichas conductas, serán reportadas
+                de inmediato a las autoridades competentes, todo ello conforme
+                a la <strong>Ley Especial contra los Delitos Informáticos</strong>.
               </li>
               <li>
-                No intentar vulnerar los sistemas, realizar ingeniería inversa o
-                acceder a datos ajenos.
+                <strong>c)</strong> El uso de la Plataforma para legitimación
+                de capitales, financiamiento al terrorismo o cualquier otra
+                actividad contraria a la ley, la moral o las buenas costumbres.
               </li>
             </ul>
             <p className="mt-2">
-              El incumplimiento de estas obligaciones podrá derivar en la
-              cancelación de órdenes, bloqueo del acceso a la Plataforma y las
-              acciones legales que correspondan.
+              El incumplimiento de cualquiera de estas prohibiciones facultará
+              a maTickets o al Organizador para la anulación inmediata de las
+              entradas adquiridas, el bloqueo permanente del perfil del usuario
+              y el ejercicio de las acciones civiles y penales correspondientes.
+              La Plataforma no se hace responsable por daños y perjuicios
+              derivados de actividades ilícitas ejecutadas por terceros.
             </p>
           </section>
 
@@ -197,12 +241,18 @@ export default function TermsPage() {
               , la cual forma parte integrante de estos Términos. Al aceptar estos
               Términos, el Comprador acepta también dicha Política.
             </p>
+            <p className="mt-2">
+              Según la legislación venezolana, los datos personales solo serán
+              revelados a petición de alguna solicitud judicial formulada
+              directamente a la Plataforma.
+            </p>
           </section>
 
           <section>
             <h2 className="text-xl font-semibold mb-2 text-foreground">8. Limitación de responsabilidad</h2>
             <p>
-              maTickets provee únicamente la infraestructura tecnológica y no es
+              maTickets provee únicamente la infraestructura tecnológica para
+              la publicidad y comercialización de las entradas y no es
               responsable por:
             </p>
             <ul className="list-disc list-inside space-y-1 mt-2">
@@ -232,6 +282,12 @@ export default function TermsPage() {
               El uso de la Plataforma está permitido a personas mayores de 18 años
               o a menores debidamente representados por sus padres o representantes
               legales, quienes asumen la responsabilidad por el uso.
+            </p>
+            <p className="mt-2">
+              El uso indebido por parte de ellos será considerado fraudulento.
+              Ni la Plataforma ni el Organizador serán responsables de dichos
+              actos ejecutados por los menores o por terceros que sustraigan
+              la identidad de mayores de edad para obtener un beneficio.
             </p>
           </section>
 
