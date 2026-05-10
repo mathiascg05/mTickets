@@ -17,6 +17,7 @@ import { useLanguage } from "@/lib/LanguageContext";
 import { dateLocale } from "@/lib/i18n";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import { toast } from "sonner";
 
 function parseLocaleAmount(raw: string): number {
   const cleaned = raw.replace(/[^0-9.,\-]/g, "");
@@ -1051,7 +1052,7 @@ function CreateOrderModal({
       onClose();
     } catch (err) {
       console.error("Failed to create order:", err);
-      alert(t("admin.errorCreatingOrder"));
+      toast.error(t("admin.errorCreatingOrder"));
     } finally {
       setSubmitting(false);
     }
@@ -1480,7 +1481,7 @@ function ImportCsvModal({
   async function handleImport() {
     if (!selectedTt || validRows.length === 0 || importing) return;
     if (avail && validRows.length > avail.available) {
-      alert(t("admin.notAvailable", { available: avail.available, count: validRows.length }));
+      toast.error(t("admin.notAvailable", { available: avail.available, count: validRows.length }));
       return;
     }
     setImporting(true);
@@ -1553,7 +1554,7 @@ function ImportCsvModal({
       setImportResult({ created: validRows.length });
     } catch (err) {
       console.error("Import failed:", err);
-      alert(t("admin.errorImport"));
+      toast.error(t("admin.errorImport"));
     } finally {
       setImporting(false);
     }
@@ -1940,13 +1941,13 @@ export default function ConcertOrdersPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        alert(t("admin.reconcileResult", { approved: data.approved, failed: data.failed }));
+        toast.success(t("admin.reconcileResult", { approved: data.approved, failed: data.failed }));
         setBulkSelectedIds(new Set());
       } else {
-        alert(data.error || "Error");
+        toast.error(data.error || "Error");
       }
     } catch {
-      alert("Error de conexión");
+      toast.error("Error de conexión");
     }
     setBulkApproving(false);
   }
@@ -2037,21 +2038,21 @@ export default function ConcertOrdersPage() {
       const data = await res.json();
       if (!res.ok) {
         if (data.error === "NO_BALANCE" || data.error === "INSUFFICIENT_BALANCE") {
-          alert(t("admin.insufficientBalance", {
+          toast.error(t("admin.insufficientBalance", {
             required: `$${data.requiredFee?.toFixed(2) || "?"}`,
             current: data.currentBalance != null ? `$${data.currentBalance.toFixed(2)}` : "$0.00",
           }));
         } else {
-          alert(data.message || data.error || t("admin.errorUpdatingOrder"));
+          toast.error(data.message || data.error || t("admin.errorUpdatingOrder"));
         }
         return;
       }
       if (action === "approve" && !res.ok) {
-        alert(t("admin.approveEmailFail"));
+        toast.error(t("admin.approveEmailFail"));
       }
     } catch (err) {
       console.error(`Failed to ${action} order:`, err);
-      alert(t("admin.errorUpdatingOrder"));
+      toast.error(t("admin.errorUpdatingOrder"));
     }
   }
 
@@ -2133,13 +2134,13 @@ export default function ConcertOrdersPage() {
         headers: { Authorization: `Bearer ${refreshToken}` },
       });
       if (!res.ok) {
-        alert(t("admin.proofLoadError"));
+        toast.error(t("admin.proofLoadError"));
         return;
       }
       const blob = await res.blob();
       setPreviewUrl(URL.createObjectURL(blob));
     } catch {
-      alert(t("admin.proofLoadError"));
+      toast.error(t("admin.proofLoadError"));
     }
   }
 
@@ -3180,13 +3181,13 @@ export default function ConcertOrdersPage() {
                                     ? await sendTicketEmail(order.id, refreshToken)
                                     : await sendConfirmationEmail(order.id, refreshToken);
                                   if (res.success) {
-                                    alert(t("admin.emailSent"));
+                                    toast.success(t("admin.emailSent"));
                                   } else {
-                                    alert(t("admin.emailSentFail", { error: res.error || "Unknown error" }));
+                                    toast.error(t("admin.emailSentFail", { error: res.error || "Unknown error" }));
                                   }
                                 } catch (err) {
                                   console.error("Resend failed:", err);
-                                  alert(t("admin.emailSendError"));
+                                  toast.error(t("admin.emailSendError"));
                                 } finally {
                                   setResendingOrderId(null);
                                 }

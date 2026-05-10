@@ -136,7 +136,12 @@ export async function POST(req: NextRequest) {
             ? 404
             : 400;
       return NextResponse.json(
-        { error: result.errorCode, message: result.error },
+        {
+          error: result.errorCode,
+          message: result.error,
+          requiredFee: result.requiredFee,
+          currentBalance: result.currentBalance,
+        },
         { status: statusCode },
       );
     }

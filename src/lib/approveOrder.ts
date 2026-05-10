@@ -8,6 +8,8 @@ type ApproveResult = {
   platformFee?: number;
   error?: string;
   errorCode?: string;
+  requiredFee?: number;
+  currentBalance?: number;
 };
 
 type ApproveOptions = {
@@ -138,6 +140,8 @@ export async function approveOrderInternal(
           success: false,
           error: "Insufficient balance to approve this order.",
           errorCode: "INSUFFICIENT_BALANCE",
+          requiredFee: platformFee,
+          currentBalance: balance.balance,
         };
       }
 

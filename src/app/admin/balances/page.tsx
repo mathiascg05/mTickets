@@ -7,6 +7,7 @@ import { useLanguage } from "@/lib/LanguageContext";
 import { dateLocale } from "@/lib/i18n";
 import { useState } from "react";
 import SuperAdminStats from "./SuperAdminStats";
+import { toast } from "sonner";
 
 export default function BalancesPage() {
   const { isSuperAdmin } = useAuthContext();
@@ -70,7 +71,7 @@ export default function BalancesPage() {
     try {
       const amount = parseFloat(creditAmount);
       if (isNaN(amount) || amount <= 0) {
-        alert("Invalid amount");
+        toast.error("Invalid amount");
         return;
       }
 
@@ -130,7 +131,7 @@ export default function BalancesPage() {
       setCreditConcertId("");
     } catch (err) {
       console.error("Failed to credit account:", err);
-      alert("Error crediting account");
+      toast.error("Error crediting account");
     } finally {
       setCrediting(false);
     }
@@ -168,7 +169,7 @@ export default function BalancesPage() {
       ]);
     } catch (err) {
       console.error("Failed to void transaction:", err);
-      alert("Error voiding transaction");
+      toast.error("Error voiding transaction");
     } finally {
       setVoidingTxnId(null);
     }

@@ -12,6 +12,7 @@ import { useRef, useState } from "react";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { getFieldTypeLabel } from "@/lib/i18n";
 import { useAuthContext } from "@/lib/AuthContext";
+import { toast } from "sonner";
 
 export default function AdminConcertEditPage() {
   const params = useParams();
@@ -728,7 +729,7 @@ function PaymentMethodsSection({
       setRateRefreshed(true);
       setTimeout(() => setRateRefreshed(false), 2000);
     } catch {
-      alert(t("admin.refreshFailed"));
+      toast.error(t("admin.refreshFailed"));
     } finally {
       setRefreshingRate(false);
     }
@@ -2567,7 +2568,7 @@ function PlatformFeeSection({
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       console.error("Failed to save fee config:", err);
-      alert("Error saving fee config");
+      toast.error("Error saving fee config");
     } finally {
       setSaving(false);
     }
