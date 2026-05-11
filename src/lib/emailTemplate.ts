@@ -425,3 +425,101 @@ ${originalMessage}
 maTickets - Digital ticketing system
 `;
 }
+
+export function buildBroadcastEmailHtml(params: {
+  firstName: string;
+  eventName: string;
+  subject: string;
+  body: string;
+  organizerEmail: string;
+}) {
+  const firstName = escapeHtml(params.firstName || "");
+  const eventName = escapeHtml(params.eventName);
+  const subject = escapeHtml(params.subject);
+  const body = escapeHtml(params.body).replace(/\n/g, "<br />");
+  const organizerEmail = escapeHtml(params.organizerEmail);
+  const greeting = firstName ? `Hola ${firstName},` : "Hola,";
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+<body style="margin:0;padding:0;background-color:#f5f7fa;font-family:system-ui,-apple-system,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(26,43,74,0.08);">
+        <!-- Header -->
+        <tr>
+          <td style="background-color:#1a2b4a;padding:24px 32px;text-align:center;">
+            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">ma<span style="color:rgba(255,255,255,0.6);">Tickets</span></h1>
+          </td>
+        </tr>
+        <!-- Greeting -->
+        <tr>
+          <td style="padding:32px 32px 8px;">
+            <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">${greeting}</p>
+            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">El organizador de <strong style="color:#1a2b4a;">${eventName}</strong> te ha enviado un mensaje.</p>
+          </td>
+        </tr>
+        <!-- Subject + Body -->
+        <tr>
+          <td style="padding:8px 32px 16px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;border-radius:12px;padding:20px;">
+              <tr>
+                <td style="padding:6px 20px;">
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Asunto</p>
+                  <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${subject}</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:6px 20px;">
+                  <p style="margin:0 0 8px;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Mensaje</p>
+                  <p style="margin:0;font-size:14px;color:#1a2b4a;line-height:1.6;">${body}</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="padding:20px 32px;border-top:1px solid #d8dde6;text-align:center;">
+            <p style="margin:0 0 4px;font-size:12px;color:#7a8599;">Este mensaje fue enviado por el organizador de <strong>${eventName}</strong>.</p>
+            <p style="margin:0;font-size:12px;color:#7a8599;">Para responder al organizador, escribe a <a href="mailto:${organizerEmail}" style="color:#1a2b4a;text-decoration:underline;">${organizerEmail}</a>.</p>
+            <p style="margin:12px 0 0;font-size:12px;color:#7a8599;">maTickets &mdash; Digital ticketing system</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function buildBroadcastEmailText(params: {
+  firstName: string;
+  eventName: string;
+  subject: string;
+  body: string;
+  organizerEmail: string;
+}) {
+  const { firstName, eventName, subject, body, organizerEmail } = params;
+  const greeting = firstName ? `Hola ${firstName},` : "Hola,";
+
+  return `maTickets
+========
+
+${greeting}
+
+El organizador de ${eventName} te ha enviado un mensaje.
+
+--- ${subject} ---
+
+${body}
+
+---
+
+Este mensaje fue enviado por el organizador de ${eventName}.
+Para responder, escribe a ${organizerEmail}.
+
+maTickets - Digital ticketing system
+`;
+}

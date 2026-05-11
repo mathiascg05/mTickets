@@ -194,6 +194,19 @@ const _schema = i.schema({
       invitedAt: i.number().indexed(),
       invitedByEmail: i.string(),
     }),
+    broadcasts: i.entity({
+      subject: i.string(),
+      body: i.string(),
+      filtersJson: i.string(),
+      recipientCount: i.number().indexed(),
+      sentCount: i.number(),
+      failedCount: i.number(),
+      suppressedCount: i.number(),
+      status: i.string().indexed(),
+      createdByEmail: i.string().indexed(),
+      createdAt: i.number().indexed(),
+      completedAt: i.number().optional().indexed(),
+    }),
   },
   links: {
     concertTicketTypes: {
@@ -362,6 +375,19 @@ const _schema = i.schema({
         on: "concerts",
         has: "many",
         label: "collaborators",
+      },
+    },
+    concertBroadcasts: {
+      forward: {
+        on: "broadcasts",
+        has: "one",
+        label: "concert",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "concerts",
+        has: "many",
+        label: "broadcasts",
       },
     },
   },
