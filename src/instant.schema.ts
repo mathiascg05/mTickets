@@ -62,6 +62,7 @@ const _schema = i.schema({
       paymentProofPath: i.string().optional(),
       proofReferenceNumber: i.string().optional(),
       visited: i.boolean().indexed(),
+      visitedAt: i.number().optional().indexed(),
       couponCode: i.string().optional(),
       discountAmount: i.number().optional(),
       paymentMethodDiscount: i.number().optional(),

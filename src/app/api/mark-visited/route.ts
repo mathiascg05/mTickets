@@ -51,9 +51,12 @@ export async function POST(req: NextRequest) {
     const order = orders[0] as
       | {
           id: string;
+          firstName?: string;
+          lastName?: string;
           visited?: boolean;
           status?: string;
           ticketType?: {
+            name?: string;
             concert?: {
               id: string;
               organizerEmail?: string;
@@ -96,11 +99,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Ticket not approved" }, { status: 403 });
     }
 
+    const visitedAt = Date.now();
     await adminDb.transact(
-      adminDb.tx.orders[orderId].update({ visited: true }),
+      adminDb.tx.orders[orderId].update({ visited: true, visitedAt }),
     );
 
-    return NextResponse.json({ success: true });
+    // Admin SDK returns has-one relations as arrays at runtime despite types
+    const rawTT = order.ticketType as unknown;
+    const ticketType = (Array.isArray(rawTT) ? rawTT[0] : rawTT) as
+      | { name?: string }
+      | undefined;
+
+    return NextResponse.json({
+      success: true,
+      visitedAt,
+      attendee: {
+        firstName: order.firstName ?? "",
+        lastName: order.lastName ?? "",
+        ticketTypeName: ticketType?.name ?? "",
+      },
+    });
   } catch (err) {
     console.error("[mark-visited] Error:", err);
     return NextResponse.json(

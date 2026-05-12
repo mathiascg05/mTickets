@@ -1,7 +1,10 @@
 "use client";
 
 import { db } from "@/lib/db";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+
+const STORAGE_TOKEN_KEY = "scannerToken";
+const STORAGE_CONCERT_KEY = "scannerConcert";
 
 function extractOrderId(text: string): string | null {
   const urlMatch = text.match(/\/ticket\/([a-zA-Z0-9-]+)/);
@@ -11,6 +14,56 @@ function extractOrderId(text: string): string | null {
   );
   if (uuidMatch) return uuidMatch[0];
   return null;
+}
+
+function decodeTokenExp(token: string): number | null {
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+  try {
+    const b64 = parts[0].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded));
+    if (typeof payload.exp === "number") return payload.exp;
+  } catch {}
+  return null;
+}
+
+// Distinct haptic + audio feedback for scanner outcomes.
+// Vibration is Android-only; WebAudio works on iOS Safari.
+function playFeedback(kind: "success" | "error") {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    navigator.vibrate(kind === "success" ? [80] : [80, 60, 80, 60, 80]);
+  }
+  if (typeof window === "undefined") return;
+  try {
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = kind === "success" ? 880 : 220;
+    osc.type = "sine";
+    osc.connect(gain).connect(ctx.destination);
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.25);
+    // Second tone for error (descending pattern)
+    if (kind === "error") {
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.frequency.value = 165;
+      osc2.type = "sine";
+      osc2.connect(gain2).connect(ctx.destination);
+      gain2.gain.setValueAtTime(0.001, ctx.currentTime + 0.18);
+      gain2.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.2);
+      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+      osc2.start(ctx.currentTime + 0.18);
+      osc2.stop(ctx.currentTime + 0.45);
+    }
+  } catch {}
 }
 
 type ConcertInfo = {
@@ -112,8 +165,8 @@ function PinEntry({
       }
 
       const data = await res.json();
-      sessionStorage.setItem("scannerToken", data.token);
-      sessionStorage.setItem("scannerConcert", JSON.stringify(data.concert));
+      localStorage.setItem(STORAGE_TOKEN_KEY, data.token);
+      localStorage.setItem(STORAGE_CONCERT_KEY, JSON.stringify(data.concert));
       onAuthenticated(data.token, data.concert);
     } catch {
       setError("Connection error. Please try again.");
@@ -181,13 +234,14 @@ function ScannerView({ onScan }: { onScan: (orderId: string) => void }) {
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrCodeRef = useRef<import("html5-qrcode").Html5Qrcode | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [scanning, setScanning] = useState(false);
+  const [starting, setStarting] = useState(false);
   const onScanRef = useRef(onScan);
   onScanRef.current = onScan;
 
   const startScanner = useCallback(async () => {
     if (html5QrCodeRef.current || !scannerRef.current) return;
-
+    setStarting(true);
+    setError(null);
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
       const scanner = new Html5Qrcode("qr-reader");
@@ -201,29 +255,34 @@ function ScannerView({ onScan }: { onScan: (orderId: string) => void }) {
           if (orderId) {
             scanner.stop().catch(() => {});
             html5QrCodeRef.current = null;
-            setScanning(false);
             onScanRef.current(orderId);
           }
         },
         () => {},
       );
-      setScanning(true);
-      setError(null);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to start camera",
+        err instanceof Error
+          ? err.message
+          : "Failed to start camera. Check camera permissions.",
       );
+      html5QrCodeRef.current = null;
+    } finally {
+      setStarting(false);
     }
   }, []);
 
+  // Auto-start scanner on mount
   useEffect(() => {
+    startScanner();
     return () => {
-      if (html5QrCodeRef.current) {
-        html5QrCodeRef.current.stop().catch(() => {});
-        html5QrCodeRef.current = null;
+      const scanner = html5QrCodeRef.current;
+      html5QrCodeRef.current = null;
+      if (scanner) {
+        scanner.stop().catch(() => {});
       }
     };
-  }, []);
+  }, [startScanner]);
 
   return (
     <div className="space-y-4">
@@ -231,22 +290,22 @@ function ScannerView({ onScan }: { onScan: (orderId: string) => void }) {
         id="qr-reader"
         ref={scannerRef}
         className="w-full max-w-sm mx-auto rounded-xl overflow-hidden bg-black/20"
-        style={{ minHeight: scanning ? undefined : "100px" }}
+        style={{ minHeight: "260px" }}
       />
 
       {error && (
-        <div className="text-danger text-sm bg-danger/10 border border-danger/30 rounded-lg p-3 text-center">
-          {error}
+        <div className="space-y-3">
+          <div className="text-danger text-sm bg-danger/10 border border-danger/30 rounded-lg p-3 text-center">
+            {error}
+          </div>
+          <button
+            onClick={startScanner}
+            disabled={starting}
+            className="w-full py-3 bg-accent hover:bg-accent-dark text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+          >
+            {starting ? "Starting..." : "Retry Camera"}
+          </button>
         </div>
-      )}
-
-      {!scanning && (
-        <button
-          onClick={startScanner}
-          className="w-full py-3 bg-accent hover:bg-accent-dark text-white rounded-lg font-semibold transition-colors shadow-lg shadow-accent/20"
-        >
-          Start Scanner
-        </button>
       )}
     </div>
   );
@@ -266,6 +325,8 @@ function TicketInfo({
   scopedConcertId: string;
 }) {
   const [marking, setMarking] = useState(false);
+  const [markError, setMarkError] = useState<string | null>(null);
+  const [markSuccess, setMarkSuccess] = useState(false);
   const { isLoading, data } = db.useQuery({
     orders: {
       $: { where: { id: orderId } },
@@ -304,14 +365,28 @@ function TicketInfo({
 
   async function markVisited() {
     setMarking(true);
+    setMarkError(null);
     try {
-      await fetch("/api/mark-visited", {
+      const res = await fetch("/api/mark-visited", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId, scannerToken }),
       });
-    } catch (err) {
-      console.error("Failed to mark visited:", err);
+      if (!res.ok) {
+        let msg = "Error al marcar entrada";
+        try {
+          const data = await res.json();
+          msg = data.error || msg;
+        } catch {}
+        setMarkError(msg);
+        playFeedback("error");
+        return;
+      }
+      setMarkSuccess(true);
+      playFeedback("success");
+    } catch {
+      setMarkError("Sin conexión. Intenta de nuevo.");
+      playFeedback("error");
     } finally {
       setMarking(false);
     }
@@ -344,7 +419,7 @@ function TicketInfo({
         </div>
       )}
 
-      {isVisited && (
+      {isVisited && !markSuccess && (
         <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 text-center">
           <p className="text-warning font-semibold">
             Already Scanned
@@ -355,9 +430,26 @@ function TicketInfo({
         </div>
       )}
 
+      {markError && (
+        <div className="bg-danger/10 border border-danger/30 rounded-xl p-4 text-center">
+          <p className="text-danger font-semibold text-sm">{markError}</p>
+        </div>
+      )}
+
+      {markSuccess && (
+        <div className="bg-success/10 border border-success/30 rounded-xl p-4 text-center">
+          <p className="text-success font-semibold">
+            ¡Entrada registrada!
+          </p>
+          <p className="text-sm text-muted mt-1">
+            {order.firstName} {order.lastName} · {ticketType?.name || "Ticket"}
+          </p>
+        </div>
+      )}
+
       <div className="bg-surface border border-border rounded-xl p-6">
         <div className="text-center mb-4">
-          {isApproved && !isVisited && !isWrongEvent ? (
+          {(isApproved && !isVisited && !isWrongEvent) || markSuccess ? (
             <div className="text-5xl mb-2 text-success">{"✓"}</div>
           ) : null}
           {order.orderNumber && (
@@ -392,28 +484,194 @@ function TicketInfo({
           </div>
           <div>
             <p className="text-muted">Visited</p>
-            <p className="font-medium">{isVisited ? "Yes" : "No"}</p>
+            <p className="font-medium">{(isVisited || markSuccess) ? "Yes" : "No"}</p>
           </div>
         </div>
       </div>
 
-      <div className="flex gap-3">
-        {isApproved && !isVisited && !isWrongEvent && (
-          <button
-            onClick={markVisited}
-            disabled={marking}
-            className="flex-1 py-3 bg-success hover:bg-success/80 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
-          >
-            {marking ? "Marking..." : "Mark as Visited"}
-          </button>
-        )}
+      {(() => {
+        const showMarkButton = isApproved && !isVisited && !isWrongEvent && !markSuccess;
+        const scanAgainPrimary = !showMarkButton;
+        return (
+          <div className="flex gap-3">
+            {showMarkButton && (
+              <button
+                onClick={markVisited}
+                disabled={marking}
+                className="flex-1 py-3 bg-success hover:bg-success/80 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+              >
+                {marking ? "Marking..." : "Mark as Visited"}
+              </button>
+            )}
+            <button
+              onClick={onReset}
+              className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+                scanAgainPrimary
+                  ? "bg-accent hover:bg-accent-dark text-white"
+                  : "border border-border hover:bg-surface-hover"
+              }`}
+            >
+              Scan Again
+            </button>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ── Manual Search ───────────────────────────────────────────────────────────
+
+type SearchableOrder = {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  cedula?: string;
+  orderNumber?: string;
+  status?: string;
+  visited?: boolean;
+  ticketTypeName?: string;
+};
+
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+}
+
+function ManualSearch({
+  concertId,
+  onSelect,
+}: {
+  concertId: string;
+  onSelect: (orderId: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+
+  const { data } = db.useQuery({
+    concerts: {
+      $: { where: { id: concertId } },
+      ticketTypes: {
+        orders: {},
+      },
+    },
+  });
+
+  const allOrders: SearchableOrder[] = useMemo(() => {
+    const concert = data?.concerts?.[0];
+    if (!concert) return [];
+    return concert.ticketTypes.flatMap((tt) =>
+      tt.orders.map((o) => ({
+        id: o.id,
+        firstName: o.firstName,
+        lastName: o.lastName,
+        cedula: o.cedula,
+        orderNumber: o.orderNumber ?? undefined,
+        status: o.status,
+        visited: o.visited,
+        ticketTypeName: tt.name,
+      })),
+    );
+  }, [data]);
+
+  const trimmed = query.trim();
+  const results: SearchableOrder[] = useMemo(() => {
+    if (!trimmed) return [];
+    // First, allow direct UUID/URL lookup as before
+    const direct = extractOrderId(trimmed);
+    if (direct) {
+      const hit = allOrders.find((o) => o.id === direct);
+      if (hit) return [hit];
+    }
+    const q = normalize(trimmed);
+    return allOrders
+      .filter((o) => {
+        const name = normalize(`${o.firstName ?? ""} ${o.lastName ?? ""}`);
+        const cedula = normalize(o.cedula ?? "");
+        const orderNum = normalize(o.orderNumber ?? "");
+        return name.includes(q) || cedula.includes(q) || orderNum.includes(q);
+      })
+      .slice(0, 10);
+  }, [allOrders, trimmed]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (results.length === 1) {
+      onSelect(results[0].id);
+      setQuery("");
+      return;
+    }
+    // If query is a raw UUID/URL but not in list, still let it through
+    const direct = extractOrderId(trimmed) || (/^[a-f0-9-]{6,}$/i.test(trimmed) ? trimmed : null);
+    if (direct && results.length === 0) {
+      onSelect(direct);
+      setQuery("");
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="flex-1 px-4 py-2.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+          placeholder="Nombre, cédula, # de orden o ID"
+        />
         <button
-          onClick={onReset}
-          className="flex-1 py-3 border border-border rounded-lg font-semibold hover:bg-surface-hover transition-colors"
+          type="submit"
+          disabled={!trimmed}
+          className="px-4 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
         >
-          Scan Again
+          Buscar
         </button>
-      </div>
+      </form>
+
+      {trimmed && results.length === 0 && (
+        <p className="text-sm text-muted text-center py-2">
+          Sin resultados para &ldquo;{trimmed}&rdquo;.
+        </p>
+      )}
+
+      {results.length > 0 && (
+        <div className="space-y-2">
+          {results.map((o) => (
+            <button
+              key={o.id}
+              onClick={() => {
+                onSelect(o.id);
+                setQuery("");
+              }}
+              className="w-full text-left bg-surface border border-border rounded-lg p-3 hover:border-accent/50 transition-colors"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm truncate">
+                    {o.firstName} {o.lastName}
+                  </p>
+                  <p className="text-xs text-muted truncate">
+                    {o.cedula} · {o.ticketTypeName}
+                    {o.orderNumber ? ` · ${o.orderNumber}` : ""}
+                  </p>
+                </div>
+                <div className="shrink-0 flex flex-col items-end gap-1">
+                  {o.visited && (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-warning/15 text-warning">
+                      VISITED
+                    </span>
+                  )}
+                  {o.status && o.status !== "approved" && (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-danger/15 text-danger uppercase">
+                      {o.status}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -430,30 +688,47 @@ function AuthenticatedScanner({
   onSwitchEvent: () => void;
 }) {
   const [scannedOrderId, setScannedOrderId] = useState<string | null>(null);
-  const [manualId, setManualId] = useState("");
 
-  function handleManualLookup(e: React.FormEvent) {
-    e.preventDefault();
-    const orderId = extractOrderId(manualId) || manualId.trim();
-    if (orderId) {
-      setScannedOrderId(orderId);
-      setManualId("");
-    }
-  }
+  // Real-time counter: approved tickets / scanned
+  const { data: countData } = db.useQuery({
+    orders: {
+      $: { where: { "ticketType.concert.id": concert.id } },
+    },
+  });
+  const counts = useMemo(() => {
+    const orders = countData?.orders ?? [];
+    const approved = orders.filter((o) => o.status === "approved");
+    const scanned = approved.filter((o) => o.visited);
+    return { scanned: scanned.length, total: approved.length };
+  }, [countData]);
 
   return (
     <div>
       <div className="bg-surface/50 border-b border-border px-4 py-3 flex items-center justify-between mb-6">
-        <div>
-          <p className="font-semibold text-sm">{concert.name}</p>
-          <p className="text-xs text-muted">{concert.date}{concert.venue ? ` · ${concert.venue}` : ""}</p>
+        <div className="min-w-0">
+          <p className="font-semibold text-sm truncate">{concert.name}</p>
+          <p className="text-xs text-muted truncate">
+            {concert.date}
+            {concert.venue ? ` · ${concert.venue}` : ""}
+          </p>
         </div>
-        <button
-          onClick={onSwitchEvent}
-          className="text-xs text-accent-light hover:underline"
-        >
-          Switch Event
-        </button>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="text-right">
+            <p className="text-base font-bold leading-none tabular-nums">
+              {counts.scanned}
+              <span className="text-muted font-normal">/{counts.total}</span>
+            </p>
+            <p className="text-[10px] uppercase tracking-widest text-muted mt-0.5">
+              Entrados
+            </p>
+          </div>
+          <button
+            onClick={onSwitchEvent}
+            className="text-xs text-accent-light hover:underline"
+          >
+            Switch
+          </button>
+        </div>
       </div>
 
       <h1 className="text-2xl font-bold text-center mb-6">
@@ -477,25 +752,12 @@ function AuthenticatedScanner({
             </div>
             <div className="relative flex justify-center text-sm">
               <span className="px-2 bg-background text-muted">
-                or enter manually
+                o busca manualmente
               </span>
             </div>
           </div>
 
-          <form onSubmit={handleManualLookup} className="flex gap-2">
-            <input
-              value={manualId}
-              onChange={(e) => setManualId(e.target.value)}
-              className="flex-1 px-4 py-2.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-              placeholder="Order ID or ticket URL"
-            />
-            <button
-              type="submit"
-              className="px-4 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors text-sm"
-            >
-              Look Up
-            </button>
-          </form>
+          <ManualSearch concertId={concert.id} onSelect={setScannedOrderId} />
         </div>
       )}
     </div>
@@ -509,19 +771,26 @@ export default function ScanPage() {
   const [scannerToken, setScannerToken] = useState<string | null>(null);
   const [authenticatedConcert, setAuthenticatedConcert] = useState<ConcertInfo | null>(null);
 
-  // Restore session on mount
+  // Restore session on mount (localStorage + TTL validation)
   useEffect(() => {
-    const token = sessionStorage.getItem("scannerToken");
-    const concertStr = sessionStorage.getItem("scannerConcert");
-    if (token && concertStr) {
-      try {
-        const concert = JSON.parse(concertStr) as ConcertInfo;
-        setScannerToken(token);
-        setAuthenticatedConcert(concert);
-      } catch {
-        sessionStorage.removeItem("scannerToken");
-        sessionStorage.removeItem("scannerConcert");
-      }
+    const token = localStorage.getItem(STORAGE_TOKEN_KEY);
+    const concertStr = localStorage.getItem(STORAGE_CONCERT_KEY);
+    if (!token || !concertStr) return;
+
+    const exp = decodeTokenExp(token);
+    if (!exp || exp < Date.now()) {
+      localStorage.removeItem(STORAGE_TOKEN_KEY);
+      localStorage.removeItem(STORAGE_CONCERT_KEY);
+      return;
+    }
+
+    try {
+      const concert = JSON.parse(concertStr) as ConcertInfo;
+      setScannerToken(token);
+      setAuthenticatedConcert(concert);
+    } catch {
+      localStorage.removeItem(STORAGE_TOKEN_KEY);
+      localStorage.removeItem(STORAGE_CONCERT_KEY);
     }
   }, []);
 
@@ -531,14 +800,13 @@ export default function ScanPage() {
   }
 
   function handleSwitchEvent() {
-    sessionStorage.removeItem("scannerToken");
-    sessionStorage.removeItem("scannerConcert");
+    localStorage.removeItem(STORAGE_TOKEN_KEY);
+    localStorage.removeItem(STORAGE_CONCERT_KEY);
     setScannerToken(null);
     setAuthenticatedConcert(null);
     setSelectedConcert(null);
   }
 
-  // Determine which state to show
   const isAuthenticated = scannerToken && authenticatedConcert;
 
   return (
