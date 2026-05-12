@@ -20,6 +20,7 @@
     "bcryptjs": "^3.0.3",
     "html5-qrcode": "^2.3.8",
     "next": "15.4.11",
+    "next-intl": "^4.11.2",
     "nodemailer": "^8.0.1",
     "papaparse": "^5.5.3",
     "qrcode": "^1.5.4",

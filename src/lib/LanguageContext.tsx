@@ -1,62 +1,68 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import { t as translate, type Lang } from "./i18n";
+import { type ReactNode } from "react";
+import { useTranslations, useLocale } from "next-intl";
+import { useRouter, usePathname } from "@/i18n/navigation";
+import { useTransition } from "react";
+import type { Lang } from "./i18n";
 
-type LanguageContextType = {
-  lang: Lang;
-  setLang: (lang: Lang) => void;
-  t: (key: string, params?: Record<string, string | number>) => string;
-};
-
-const LanguageContext = createContext<LanguageContextType>({
-  lang: "es",
-  setLang: () => {},
-  t: (key) => key,
-});
-
-export function LanguageProvider({ children, initialLang }: { children: ReactNode; initialLang?: Lang }) {
-  const [lang, setLangState] = useState<Lang>(() => {
-    if (initialLang) return initialLang;
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("matickets-lang") as Lang | null;
-      if (stored === "es" || stored === "en") return stored;
-    }
-    return "es";
-  });
-
-  const setLang = useCallback((newLang: Lang) => {
-    setLangState(newLang);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("matickets-lang", newLang);
-    }
-  }, []);
-
-  const t = useCallback(
-    (key: string, params?: Record<string, string | number>) => translate(key, lang, params),
-    [lang],
-  );
-
-  return (
-    <LanguageContext.Provider value={{ lang, setLang, t }}>
-      {children}
-    </LanguageContext.Provider>
-  );
+// Compat layer over next-intl. The real provider (NextIntlClientProvider)
+// lives in src/app/[locale]/layout.tsx; this component now passes through
+// so the ~60 places already importing LanguageProvider keep working.
+export function LanguageProvider({
+  children,
+}: {
+  children: ReactNode;
+  initialLang?: Lang;
+}) {
+  return <>{children}</>;
 }
 
 export function useLanguage() {
-  return useContext(LanguageContext);
+  const t = useTranslations();
+  const locale = useLocale() as Lang;
+  const router = useRouter();
+  const pathname = usePathname();
+
+  function setLang(newLang: Lang) {
+    if (newLang === locale) return;
+    router.replace(pathname, { locale: newLang });
+  }
+
+  // Adapt next-intl's `t(key, values?)` to match the existing
+  // `t(key, params?: Record<string, string | number>)` signature.
+  function tt(key: string, params?: Record<string, string | number>): string {
+    try {
+      return t(key as Parameters<typeof t>[0], params);
+    } catch {
+      return key;
+    }
+  }
+
+  return { lang: locale, setLang, t: tt };
 }
 
 export function LanguageToggle({ className }: { className?: string }) {
-  const { lang, setLang } = useLanguage();
+  const locale = useLocale() as Lang;
+  const router = useRouter();
+  const pathname = usePathname();
+  const [pending, startTransition] = useTransition();
+
+  function toggle() {
+    const next: Lang = locale === "es" ? "en" : "es";
+    startTransition(() => {
+      router.replace(pathname, { locale: next });
+    });
+  }
+
   return (
     <button
-      onClick={() => setLang(lang === "es" ? "en" : "es")}
-      className={`px-2 py-1 rounded-md text-xs font-semibold border transition-colors ${className || "border-border text-muted hover:text-foreground"}`}
-      title={lang === "es" ? "Switch to English" : "Cambiar a Español"}
+      onClick={toggle}
+      disabled={pending}
+      className={`px-2 py-1 rounded-md text-xs font-semibold border transition-colors disabled:opacity-50 ${className || "border-border text-muted hover:text-foreground"}`}
+      title={locale === "es" ? "Switch to English" : "Cambiar a Español"}
     >
-      {lang === "es" ? "EN" : "ES"}
+      {locale === "es" ? "EN" : "ES"}
     </button>
   );
 }

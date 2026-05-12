@@ -1,48 +1,10 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { LanguageProvider } from "@/lib/LanguageContext";
-import { Toaster } from "sonner";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export const metadata: Metadata = {
-  title: "maTickets - Event Ticketing",
-  description: "Professional event ticketing and management platform",
-  openGraph: {
-    title: "maTickets",
-    description: "Professional event ticketing and management platform",
-    type: "website",
-    siteName: "maTickets",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "maTickets",
-    description: "Professional event ticketing and management platform",
-  },
-};
-
+// The actual <html> and <body> live in src/app/[locale]/layout.tsx so the
+// `lang` attribute matches the active locale. This root layout exists only
+// because Next.js requires an app/layout.tsx; it just passes through.
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <LanguageProvider>{children}</LanguageProvider>
-        <Toaster position="top-right" richColors closeButton />
-      </body>
-    </html>
-  );
+  return children;
 }

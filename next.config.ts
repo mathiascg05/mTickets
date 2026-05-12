@@ -1,5 +1,8 @@
 import { withSentryConfig } from "@sentry/nextjs";
+import createNextIntlPlugin from "next-intl/plugin";
 import type { NextConfig } from "next";
+
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const csp = [
   "default-src 'self'",
@@ -13,6 +16,16 @@ const csp = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      // Spanish-language vanity URLs from before i18n was structured.
+      // Permanent redirects to the unified routes (locale prefix "as-needed"
+      // means the Spanish URL has no prefix).
+      { source: "/terminos", destination: "/terms", permanent: true },
+      { source: "/privacidad", destination: "/privacy", permanent: true },
+      { source: "/terminos-organizador", destination: "/terms-organizer", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {
@@ -37,7 +50,7 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
+export default withSentryConfig(withNextIntl(nextConfig), {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 

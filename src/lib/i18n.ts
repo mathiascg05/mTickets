@@ -2,7 +2,7 @@ export type Lang = "es" | "en";
 
 type Translations = Record<string, Record<Lang, string>>;
 
-const translations: Translations = {
+export const translations: Translations = {
   // ── Common ──
   "common.loading": { es: "Cargando...", en: "Loading..." },
   "common.save": { es: "Guardar", en: "Save" },

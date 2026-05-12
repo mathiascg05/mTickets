@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import createIntlMiddleware from "next-intl/middleware";
+import { routing } from "./i18n/routing";
+
+const intlMiddleware = createIntlMiddleware(routing);
 
 // Simple in-memory rate limiter (resets on cold start — acceptable for Vercel serverless)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -80,34 +84,38 @@ function cleanupIfNeeded() {
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (
-    isStateChangingMethod(req.method) &&
-    pathname.startsWith("/api/") &&
-    !CSRF_EXEMPT_PREFIXES.some((p) => pathname.startsWith(p))
-  ) {
-    if (!isAllowedOrigin(req.headers.get("origin"), req.headers.get("referer"))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // ── API requests: keep existing CSRF + rate limiting logic ──
+  if (pathname.startsWith("/api/")) {
+    if (
+      isStateChangingMethod(req.method) &&
+      !CSRF_EXEMPT_PREFIXES.some((p) => pathname.startsWith(p))
+    ) {
+      if (!isAllowedOrigin(req.headers.get("origin"), req.headers.get("referer"))) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
+
+    const limit = RATE_LIMITS[pathname];
+    if (limit) {
+      cleanupIfNeeded();
+      const ip = getClientIp(req);
+      const key = `${ip}:${pathname}`;
+      if (isRateLimited(key, limit.max, limit.windowMs)) {
+        return NextResponse.json(
+          { error: "Too many requests. Please try again later." },
+          { status: 429 },
+        );
+      }
+    }
+    return NextResponse.next();
   }
 
-  const limit = RATE_LIMITS[pathname];
-  if (!limit) return NextResponse.next();
-
-  cleanupIfNeeded();
-
-  const ip = getClientIp(req);
-  const key = `${ip}:${pathname}`;
-
-  if (isRateLimited(key, limit.max, limit.windowMs)) {
-    return NextResponse.json(
-      { error: "Too many requests. Please try again later." },
-      { status: 429 },
-    );
-  }
-
-  return NextResponse.next();
+  // ── Page requests: delegate to next-intl for locale detection + routing ──
+  return intlMiddleware(req);
 }
 
 export const config = {
-  matcher: ["/api/:path*"],
+  // Apply middleware to API routes and all pages except _next, static files,
+  // and favicon. next-intl needs to see page requests to detect/inject locale.
+  matcher: ["/((?!_next|.*\\..*).*)"],
 };
