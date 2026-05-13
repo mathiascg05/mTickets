@@ -1865,7 +1865,7 @@ function CustomFieldCard({
               value={field.label}
               onChange={(e) => updateField({ label: e.target.value })}
               className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-              placeholder="e.g., Promotor"
+              placeholder={t("admin.promoterPlaceholder")}
             />
           </div>
           <div>

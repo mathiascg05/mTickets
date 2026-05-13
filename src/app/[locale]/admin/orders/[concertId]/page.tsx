@@ -1944,10 +1944,10 @@ export default function ConcertOrdersPage() {
         toast.success(t("admin.reconcileResult", { approved: data.approved, failed: data.failed }));
         setBulkSelectedIds(new Set());
       } else {
-        toast.error(data.error || "Error");
+        toast.error(data.error || t("apiErrors.INTERNAL_ERROR"));
       }
     } catch {
-      toast.error("Error de conexión");
+      toast.error(t("scan.connectionError"));
     }
     setBulkApproving(false);
   }

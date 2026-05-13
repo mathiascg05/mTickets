@@ -105,6 +105,11 @@
     "sent": "Sent!",
     "contactOrganizer": "Contact Organizer",
     "contactSub": "Have a question about this event? Send a message to the organizer.",
+    "emailPlaceholder": "your@email.com",
+    "firstNamePlaceholder": "Your first name",
+    "lastNamePlaceholder": "Your last name",
+    "subjectPlaceholder": "What is your question about?",
+    "messagePlaceholder": "Type your message here...",
     "messageSent": "Your message has been sent! The organizer will reply to your email.",
     "subject": "Subject",
     "message": "Message",
@@ -683,7 +688,9 @@
     },
     "ordersTooltips": {
       "clickToEditEmail": "Click to edit email"
-    }
+    },
+    "promoterPlaceholder": "e.g., Promoter",
+    "depositNotePlaceholder": "e.g. Zelle deposit"
   },
   "seo": {
     "root": {

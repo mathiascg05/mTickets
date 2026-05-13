@@ -418,7 +418,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
         <div className="flex-1">
           <input
             type="email"
-            placeholder="your@email.com"
+            placeholder={t("event.emailPlaceholder")}
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);
@@ -606,7 +606,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
                   value={form.firstName}
                   onChange={(e) => handleChange("firstName", e.target.value)}
                   className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  placeholder="Your first name"
+                  placeholder={t("event.firstNamePlaceholder")}
                 />
               </div>
               <div>
@@ -618,7 +618,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
                   value={form.lastName}
                   onChange={(e) => handleChange("lastName", e.target.value)}
                   className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  placeholder="Your last name"
+                  placeholder={t("event.lastNamePlaceholder")}
                 />
               </div>
             </div>
@@ -641,7 +641,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
                   }
                 }}
                 className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
-                placeholder="your@email.com"
+                placeholder={t("event.emailPlaceholder")}
               />
               {emailSuggestion && (
                 <button
@@ -666,7 +666,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
                 onChange={(e) => handleChange("subject", e.target.value)}
                 maxLength={200}
                 className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
-                placeholder="What is your question about?"
+                placeholder={t("event.subjectPlaceholder")}
               />
             </div>
             <div>
@@ -679,7 +679,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
                 maxLength={2000}
                 rows={4}
                 className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm resize-none"
-                placeholder="Type your message here..."
+                placeholder={t("event.messagePlaceholder")}
               />
               <p className="text-right text-xs text-muted mt-1">{form.body.length}/2000</p>
             </div>

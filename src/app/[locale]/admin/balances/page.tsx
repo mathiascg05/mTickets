@@ -390,7 +390,7 @@ export default function BalancesPage() {
               value={creditNote}
               onChange={(e) => setCreditNote(e.target.value)}
               className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30"
-              placeholder="e.g. Zelle deposit"
+              placeholder={t("admin.depositNotePlaceholder")}
             />
           </div>
           <button
