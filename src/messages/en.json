@@ -685,6 +685,34 @@
       "clickToEditEmail": "Click to edit email"
     }
   },
+  "seo": {
+    "root": {
+      "title": "maTickets — Event ticketing platform",
+      "description": "Professional event ticketing and management platform. Local payments, multi-currency, and QR at the door.",
+      "ogTitle": "maTickets",
+      "ogDescription": "Professional event ticketing and management platform."
+    },
+    "event": {
+      "titleSuffix": "| maTickets",
+      "description": "Get tickets for {name}. {date}",
+      "descriptionVenue": "Get tickets for {name}. {date} at {venue}",
+      "notFound": "Event not found | maTickets"
+    },
+    "legal": {
+      "terms": {
+        "title": "Terms and Conditions | maTickets",
+        "description": "Terms and conditions of use for maTickets buyers."
+      },
+      "privacy": {
+        "title": "Privacy Policy | maTickets",
+        "description": "maTickets privacy policy and data protection."
+      },
+      "termsOrganizer": {
+        "title": "Organizer Terms | maTickets",
+        "description": "Terms and obligations for event organizers on maTickets."
+      }
+    }
+  },
   "error": {
     "title": "Something went wrong",
     "message": "An unexpected error occurred. Please try again.",
@@ -737,11 +765,85 @@
     "willSendResetTo": "We'll send a reset link to {email}"
   },
   "queue": {
-    "joinError": "Failed to join queue. Please try again."
+    "joinError": "Failed to join queue. Please try again.",
+    "joining": "Joining queue...",
+    "tryAgain": "Try again",
+    "rejoinQueue": "Rejoin queue",
+    "yourTurn": "It's your turn!",
+    "redirectingToBuy": "Redirecting you to the buy page...",
+    "spotExpired": "Your spot expired",
+    "spotExpiredDesc": "Your place in the queue has expired. You can rejoin to get a new spot.",
+    "youreInLine": "You're in line",
+    "youreNext": "You're next! Hang tight...",
+    "peopleAhead": "{count, plural, one {# person ahead of you} other {# people ahead of you}}",
+    "peopleInQueue": "{count, plural, one {# person in queue} other {# people in queue}}",
+    "ticketsReserved": "{count, plural, one {# ticket reserved} other {# tickets reserved}}",
+    "connectionIssues": "Connection issues — your queue position may be lost.",
+    "positionLabel": "Position",
+    "waitEstLabel": "Est. wait",
+    "waitMinutes": "~{n}m",
+    "keepTabOpen": "Keep this tab open. You'll be redirected automatically when it's your turn."
+  },
+  "legalGate": {
+    "title": "Legal terms update",
+    "intro": "We've updated our legal documents. To continue using maTickets as an organizer we need your explicit acceptance.",
+    "reviewIntro": "Please review the 3 documents (they open in a new tab) and check each box to confirm your acceptance:",
+    "acceptTermsCheckbox": "I have read and accept the Terms and Conditions (version {version}).",
+    "acceptOrganizerTermsCheckbox": "I have read and accept the Organizer Terms (version {version}), including the obligations to pay the configured commission and to comply with the fiscal and regulatory obligations applicable to my activity.",
+    "acceptPrivacyCheckbox": "I have read and accept the Privacy Policy (version {version}).",
+    "saveError": "Could not save the acceptance. Please try again.",
+    "signOut": "Sign out",
+    "saving": "Saving...",
+    "acceptAndContinue": "Accept and continue"
   },
   "scan": {
     "invalidPin": "Invalid PIN",
-    "connectionError": "Connection error. Please try again."
+    "connectionError": "Connection error. Please try again.",
+    "unlock": "Unlock scanner",
+    "verifying": "Verifying...",
+    "failedCamera": "Failed to start camera. Check camera permissions.",
+    "retryCamera": "Retry camera",
+    "starting": "Starting...",
+    "markVisited": "Mark as visited",
+    "marking": "Marking...",
+    "markFailed": "Error marking entry",
+    "offline": "Offline. Please try again.",
+    "loadingEvents": "Loading events...",
+    "noActiveEvents": "No active events found.",
+    "selectEvent": "Select event",
+    "enterPin": "Enter scanner PIN",
+    "backToEventList": "Back to event list",
+    "lookingUp": "Looking up ticket...",
+    "ticketNotFound": "Ticket not found",
+    "ticketNotFoundDesc": "No ticket found with this ID.",
+    "scanAgain": "Scan again",
+    "wrongEvent": "Wrong event",
+    "wrongEventDescBefore": "This ticket is for ",
+    "wrongEventDescAfter": ", not the event you're scanning for.",
+    "anotherEvent": "another event",
+    "notApproved": "Not approved",
+    "notApprovedDescBefore": "This ticket has status: ",
+    "alreadyScanned": "Already scanned",
+    "alreadyScannedDesc": "This ticket has already been used.",
+    "entrySuccess": "Entry registered!",
+    "ticketFallback": "Ticket",
+    "eventFallback": "Event",
+    "fieldName": "Name",
+    "fieldEmail": "Email",
+    "fieldCedula": "Cedula",
+    "fieldStatus": "Status",
+    "fieldVisited": "Visited",
+    "yes": "Yes",
+    "no": "No",
+    "searchPlaceholder": "Name, ID, order # or UUID",
+    "search": "Search",
+    "noResults": "No results for \"{query}\".",
+    "badgeVisited": "VISITED",
+    "headerEntered": "Entered",
+    "headerSwitch": "Switch",
+    "scanTicket": "Scan ticket",
+    "orSearchManually": "or search manually",
+    "scannerHeader": "Scanner"
   },
   "apiErrors": {
     "UNAUTHORIZED": "Unauthorized",

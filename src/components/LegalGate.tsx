@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useLanguage } from "@/lib/LanguageContext";
 import {
   TERMS_VERSION,
   ORGANIZER_TERMS_VERSION,
@@ -23,6 +24,38 @@ export function hasAcceptedCurrentLegalTerms(user: OrganizerUser | null | undefi
   );
 }
 
+function renderCheckboxLabel(
+  template: string,
+  linkText: string,
+  href: string,
+): React.ReactNode {
+  const link = (
+    <Link
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="text-accent-light hover:text-accent underline"
+    >
+      {linkText}
+    </Link>
+  );
+  const idx = template.indexOf(linkText);
+  if (idx === -1) {
+    return (
+      <>
+        {template} {link}
+      </>
+    );
+  }
+  return (
+    <>
+      {template.slice(0, idx)}
+      {link}
+      {template.slice(idx + linkText.length)}
+    </>
+  );
+}
+
 export function LegalGate({
   refreshToken,
   onAccepted,
@@ -32,6 +65,7 @@ export function LegalGate({
   onAccepted: () => void;
   onSignOut: () => void;
 }) {
+  const { t } = useLanguage();
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptedOrganizerTerms, setAcceptedOrganizerTerms] = useState(false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
@@ -54,33 +88,31 @@ export function LegalGate({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || "No se pudo guardar la aceptación. Intentá de nuevo.");
+        setError(data.error || t("legalGate.saveError"));
       } else {
         onAccepted();
       }
     } catch {
-      setError("No se pudo guardar la aceptación. Intentá de nuevo.");
+      setError(t("legalGate.saveError"));
     } finally {
       setSubmitting(false);
     }
   }
 
+  const termsLabel = t("legalGate.acceptTermsCheckbox", { version: TERMS_VERSION });
+  const organizerLabel = t("legalGate.acceptOrganizerTermsCheckbox", { version: ORGANIZER_TERMS_VERSION });
+  const privacyLabel = t("legalGate.acceptPrivacyCheckbox", { version: PRIVACY_VERSION });
+
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-surface border border-border rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         <div className="px-6 py-5 border-b border-border">
-          <h2 className="text-xl font-bold">Actualización de términos legales</h2>
-          <p className="text-sm text-muted mt-1">
-            Hemos actualizado nuestros documentos legales. Para continuar usando
-            maTickets como organizador necesitamos tu aceptación expresa.
-          </p>
+          <h2 className="text-xl font-bold">{t("legalGate.title")}</h2>
+          <p className="text-sm text-muted mt-1">{t("legalGate.intro")}</p>
         </div>
 
         <div className="px-6 py-5 overflow-y-auto space-y-4 text-sm text-foreground/80 leading-relaxed">
-          <p>
-            Por favor revisá los 3 documentos (se abren en una nueva pestaña) y
-            marcá cada casilla para confirmar tu aceptación:
-          </p>
+          <p>{t("legalGate.reviewIntro")}</p>
 
           <div className="space-y-3 pt-2">
             <label className="flex items-start gap-3 cursor-pointer">
@@ -90,18 +122,7 @@ export function LegalGate({
                 onChange={(e) => setAcceptedTerms(e.target.checked)}
                 className="mt-1 accent-accent-light"
               />
-              <span>
-                He leído y acepto los{" "}
-                <Link
-                  href="/terms"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-accent-light hover:text-accent underline"
-                >
-                  Términos y Condiciones
-                </Link>{" "}
-                (versión {TERMS_VERSION}).
-              </span>
+              <span>{renderCheckboxLabel(termsLabel, t("auth.termsLink"), "/terms")}</span>
             </label>
             <label className="flex items-start gap-3 cursor-pointer">
               <input
@@ -110,20 +131,7 @@ export function LegalGate({
                 onChange={(e) => setAcceptedOrganizerTerms(e.target.checked)}
                 className="mt-1 accent-accent-light"
               />
-              <span>
-                He leído y acepto los{" "}
-                <Link
-                  href="/terminos-organizador"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-accent-light hover:text-accent underline"
-                >
-                  Términos del Organizador
-                </Link>{" "}
-                (versión {ORGANIZER_TERMS_VERSION}), incluidas las obligaciones
-                de pago de comisión y de cumplimiento fiscal y regulatorio
-                aplicable a mi actividad.
-              </span>
+              <span>{renderCheckboxLabel(organizerLabel, t("auth.organizerTermsLink"), "/terms-organizer")}</span>
             </label>
             <label className="flex items-start gap-3 cursor-pointer">
               <input
@@ -132,18 +140,7 @@ export function LegalGate({
                 onChange={(e) => setAcceptedPrivacy(e.target.checked)}
                 className="mt-1 accent-accent-light"
               />
-              <span>
-                He leído y acepto la{" "}
-                <Link
-                  href="/privacy"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-accent-light hover:text-accent underline"
-                >
-                  Política de Privacidad
-                </Link>{" "}
-                (versión {PRIVACY_VERSION}).
-              </span>
+              <span>{renderCheckboxLabel(privacyLabel, t("auth.privacyLink"), "/privacy")}</span>
             </label>
           </div>
 
@@ -156,7 +153,7 @@ export function LegalGate({
             onClick={onSignOut}
             className="text-sm text-muted hover:text-foreground transition-colors"
           >
-            Cerrar sesión
+            {t("legalGate.signOut")}
           </button>
           <button
             type="button"
@@ -164,7 +161,7 @@ export function LegalGate({
             disabled={!allChecked || submitting}
             className="px-5 py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
           >
-            {submitting ? "Guardando..." : "Aceptar y continuar"}
+            {submitting ? t("legalGate.saving") : t("legalGate.acceptAndContinue")}
           </button>
         </div>
       </div>

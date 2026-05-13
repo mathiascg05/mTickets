@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import { getTranslations } from "next-intl/server";
 import { adminDb } from "@/lib/adminDb";
 import { redirect } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
+import { formatEventDate } from "@/lib/formatters";
+import type { Lang } from "@/lib/i18n";
 import EventDetailClient from "./EventDetailClient";
 
 type Props = {
@@ -10,7 +13,9 @@ type Props = {
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params;
+  const { slug, locale } = await params;
+  const lang = ((routing.locales as readonly string[]).includes(locale) ? locale : routing.defaultLocale) as Lang;
+  const t = await getTranslations({ locale: lang, namespace: "seo.event" });
 
   try {
     const { concerts } = await adminDb.query({
@@ -18,37 +23,42 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     });
     const concert = concerts[0];
     if (!concert || concert.status !== "active") {
-      return { title: "Event Not Found | maTickets" };
+      return { title: t("notFound") };
     }
 
-    const date = new Date(concert.date).toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      timeZone: "UTC",
-    });
+    const date = formatEventDate(concert.date, lang);
     const description = concert.venue
-      ? `${date} at ${concert.venue}`
-      : date;
+      ? t("descriptionVenue", { name: concert.name, date, venue: concert.venue })
+      : t("description", { name: concert.name, date });
+
+    const title = `${concert.name} ${t("titleSuffix")}`;
+    const canonicalPath = lang === routing.defaultLocale ? `/events/${slug}` : `/${lang}/events/${slug}`;
 
     return {
-      title: `${concert.name} | maTickets`,
-      description: `Get tickets for ${concert.name}. ${description}`,
+      title,
+      description,
+      alternates: {
+        canonical: canonicalPath,
+        languages: {
+          es: `/events/${slug}`,
+          en: `/en/events/${slug}`,
+        },
+      },
       openGraph: {
         title: concert.name,
-        description: `Get tickets for ${concert.name}. ${description}`,
+        description,
         type: "website",
         siteName: "maTickets",
+        locale: lang === "es" ? "es_ES" : "en_US",
       },
       twitter: {
         card: "summary_large_image",
         title: concert.name,
-        description: `Get tickets for ${concert.name}. ${description}`,
+        description,
       },
     };
   } catch {
-    return { title: "maTickets - Event Ticketing" };
+    return { title: t("notFound") };
   }
 }
 

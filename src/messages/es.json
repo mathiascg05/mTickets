@@ -685,6 +685,34 @@
       "clickToEditEmail": "Click para editar email"
     }
   },
+  "seo": {
+    "root": {
+      "title": "maTickets — Plataforma de ticketing para eventos",
+      "description": "Plataforma profesional de ticketing y gestión de eventos. Pagos locales, multi-moneda y QR en puerta.",
+      "ogTitle": "maTickets",
+      "ogDescription": "Plataforma profesional de ticketing y gestión de eventos."
+    },
+    "event": {
+      "titleSuffix": "| maTickets",
+      "description": "Compra tu entrada para {name}. {date}",
+      "descriptionVenue": "Compra tu entrada para {name}. {date} en {venue}",
+      "notFound": "Evento no encontrado | maTickets"
+    },
+    "legal": {
+      "terms": {
+        "title": "Términos y Condiciones | maTickets",
+        "description": "Términos y condiciones de uso para compradores de maTickets."
+      },
+      "privacy": {
+        "title": "Política de Privacidad | maTickets",
+        "description": "Política de privacidad y protección de datos de maTickets."
+      },
+      "termsOrganizer": {
+        "title": "Términos del Organizador | maTickets",
+        "description": "Términos y obligaciones para organizadores de eventos en maTickets."
+      }
+    }
+  },
   "error": {
     "title": "Algo salió mal",
     "message": "Ocurrió un error inesperado. Intenta de nuevo.",
@@ -737,11 +765,85 @@
     "willSendResetTo": "Te enviaremos un enlace de recuperación a {email}"
   },
   "queue": {
-    "joinError": "No pudimos unirte a la cola. Intenta de nuevo."
+    "joinError": "No pudimos unirte a la cola. Intenta de nuevo.",
+    "joining": "Uniéndote a la cola...",
+    "tryAgain": "Intentar de nuevo",
+    "rejoinQueue": "Volver a la cola",
+    "yourTurn": "¡Es tu turno!",
+    "redirectingToBuy": "Redirigiendo a la página de compra...",
+    "spotExpired": "Tu lugar expiró",
+    "spotExpiredDesc": "Tu lugar en la cola ha expirado. Puedes volver a unirte para conseguir uno nuevo.",
+    "youreInLine": "Estás en la cola",
+    "youreNext": "¡Eres el siguiente! Espera un momento...",
+    "peopleAhead": "{count, plural, one {# persona delante} other {# personas delante}}",
+    "peopleInQueue": "{count, plural, one {# persona en la cola} other {# personas en la cola}}",
+    "ticketsReserved": "{count, plural, one {# entrada reservada} other {# entradas reservadas}}",
+    "connectionIssues": "Problemas de conexión — tu lugar en la cola podría perderse.",
+    "positionLabel": "Posición",
+    "waitEstLabel": "Espera estimada",
+    "waitMinutes": "~{n}m",
+    "keepTabOpen": "Mantén esta pestaña abierta. Serás redirigido automáticamente cuando sea tu turno."
+  },
+  "legalGate": {
+    "title": "Actualización de términos legales",
+    "intro": "Hemos actualizado nuestros documentos legales. Para continuar usando maTickets como organizador necesitamos tu aceptación expresa.",
+    "reviewIntro": "Por favor revisa los 3 documentos (se abren en una nueva pestaña) y marca cada casilla para confirmar tu aceptación:",
+    "acceptTermsCheckbox": "He leído y acepto los Términos y Condiciones (versión {version}).",
+    "acceptOrganizerTermsCheckbox": "He leído y acepto los Términos del Organizador (versión {version}), incluidas las obligaciones de pago de comisión y de cumplimiento fiscal y regulatorio aplicable a mi actividad.",
+    "acceptPrivacyCheckbox": "He leído y acepto la Política de Privacidad (versión {version}).",
+    "saveError": "No se pudo guardar la aceptación. Intenta de nuevo.",
+    "signOut": "Cerrar sesión",
+    "saving": "Guardando...",
+    "acceptAndContinue": "Aceptar y continuar"
   },
   "scan": {
     "invalidPin": "PIN inválido",
-    "connectionError": "Error de conexión. Intenta de nuevo."
+    "connectionError": "Error de conexión. Intenta de nuevo.",
+    "unlock": "Desbloquear escáner",
+    "verifying": "Verificando...",
+    "failedCamera": "No se pudo iniciar la cámara. Verifica los permisos de cámara.",
+    "retryCamera": "Reintentar cámara",
+    "starting": "Iniciando...",
+    "markVisited": "Marcar como ingresado",
+    "marking": "Marcando...",
+    "markFailed": "Error al marcar entrada",
+    "offline": "Sin conexión. Intenta de nuevo.",
+    "loadingEvents": "Cargando eventos...",
+    "noActiveEvents": "No hay eventos activos.",
+    "selectEvent": "Selecciona un evento",
+    "enterPin": "Ingresa el PIN del escáner",
+    "backToEventList": "Volver a la lista de eventos",
+    "lookingUp": "Buscando entrada...",
+    "ticketNotFound": "Entrada no encontrada",
+    "ticketNotFoundDesc": "No se encontró ninguna entrada con este ID.",
+    "scanAgain": "Escanear de nuevo",
+    "wrongEvent": "Evento equivocado",
+    "wrongEventDescBefore": "Esta entrada es para ",
+    "wrongEventDescAfter": ", no para el evento que estás escaneando.",
+    "anotherEvent": "otro evento",
+    "notApproved": "No aprobado",
+    "notApprovedDescBefore": "Esta entrada tiene el estado: ",
+    "alreadyScanned": "Ya escaneada",
+    "alreadyScannedDesc": "Esta entrada ya fue utilizada.",
+    "entrySuccess": "¡Entrada registrada!",
+    "ticketFallback": "Entrada",
+    "eventFallback": "Evento",
+    "fieldName": "Nombre",
+    "fieldEmail": "Correo",
+    "fieldCedula": "Cédula",
+    "fieldStatus": "Estado",
+    "fieldVisited": "Ingresado",
+    "yes": "Sí",
+    "no": "No",
+    "searchPlaceholder": "Nombre, cédula, # de orden o ID",
+    "search": "Buscar",
+    "noResults": "Sin resultados para \"{query}\".",
+    "badgeVisited": "INGRESADO",
+    "headerEntered": "Ingresados",
+    "headerSwitch": "Cambiar",
+    "scanTicket": "Escanear entrada",
+    "orSearchManually": "o busca manualmente",
+    "scannerHeader": "Escáner"
   },
   "apiErrors": {
     "UNAUTHORIZED": "No autorizado",

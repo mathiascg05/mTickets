@@ -230,7 +230,7 @@ export default function QueuePage() {
             {joining && (
               <div className="py-12">
                 <div className="inline-block w-10 h-10 border-4 border-accent/30 border-t-accent rounded-full animate-spin" />
-                <p className="text-muted mt-4">Joining queue...</p>
+                <p className="text-muted mt-4">{t("queue.joining")}</p>
               </div>
             )}
 
@@ -243,7 +243,7 @@ export default function QueuePage() {
                   onClick={handleRejoin}
                   className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors"
                 >
-                  Try Again
+                  {t("queue.tryAgain")}
                 </button>
               </div>
             )}
@@ -253,9 +253,9 @@ export default function QueuePage() {
               <div className="py-12">
                 <div className="text-6xl mb-4 animate-bounce">{"\uD83C\uDF89"}</div>
                 <h2 className="text-2xl font-bold text-accent-light mb-2">
-                  It&apos;s your turn!
+                  {t("queue.yourTurn")}
                 </h2>
-                <p className="text-muted">Redirecting you to the buy page...</p>
+                <p className="text-muted">{t("queue.redirectingToBuy")}</p>
                 <div className="mt-4 inline-block w-8 h-8 border-4 border-accent/30 border-t-accent rounded-full animate-spin" />
               </div>
             )}
@@ -264,16 +264,15 @@ export default function QueuePage() {
             {queueStatus === "expired" && (
               <div className="py-8">
                 <div className="text-5xl mb-4">{"\u23F0"}</div>
-                <h2 className="text-xl font-bold mb-2">Your spot expired</h2>
+                <h2 className="text-xl font-bold mb-2">{t("queue.spotExpired")}</h2>
                 <p className="text-muted mb-6">
-                  Your place in the queue has expired. You can rejoin to get a
-                  new spot.
+                  {t("queue.spotExpiredDesc")}
                 </p>
                 <button
                   onClick={handleRejoin}
                   className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors"
                 >
-                  Rejoin Queue
+                  {t("queue.rejoinQueue")}
                 </button>
               </div>
             )}
@@ -281,7 +280,7 @@ export default function QueuePage() {
             {/* Heartbeat warning */}
             {heartbeatWarning && (
               <div className="bg-warning/10 border border-warning/30 rounded-xl px-4 py-3 mb-4 text-sm text-warning font-medium">
-                Connection issues — your queue position may be lost.
+                {t("queue.connectionIssues")}
               </div>
             )}
 
@@ -322,39 +321,38 @@ export default function QueuePage() {
                   </div>
                 </div>
 
-                <h2 className="text-xl font-bold mb-1">You&apos;re in line</h2>
+                <h2 className="text-xl font-bold mb-1">{t("queue.youreInLine")}</h2>
                 <p className="text-muted mb-6">
                   {waitingAhead === 0
-                    ? "You're next! Hang tight..."
-                    : `${waitingAhead} ${waitingAhead === 1 ? "person" : "people"} ahead of you`}
+                    ? t("queue.youreNext")
+                    : t("queue.peopleAhead", { count: waitingAhead })}
                 </p>
 
                 <div className="grid grid-cols-2 gap-4 max-w-xs mx-auto mb-6">
                   <div className="bg-background border border-border rounded-xl p-4">
                     <p className="text-xs text-muted uppercase tracking-wider mb-1">
-                      Position
+                      {t("queue.positionLabel")}
                     </p>
                     <p className="text-2xl font-bold">{position}</p>
                   </div>
                   <div className="bg-background border border-border rounded-xl p-4">
                     <p className="text-xs text-muted uppercase tracking-wider mb-1">
-                      Est. Wait
+                      {t("queue.waitEstLabel")}
                     </p>
                     <p className="text-2xl font-bold">
-                      ~{estimatedWaitMin}m
+                      {t("queue.waitMinutes", { n: estimatedWaitMin })}
                     </p>
                   </div>
                 </div>
 
                 <div className="bg-accent/5 border border-accent/20 rounded-xl p-4 max-w-sm mx-auto">
                   <p className="text-sm text-muted">
-                    {totalWaiting} {totalWaiting === 1 ? "person" : "people"}{" "}
-                    in queue &middot; {qty} ticket{qty !== 1 ? "s" : ""}{" "}
-                    reserved
+                    {t("queue.peopleInQueue", { count: totalWaiting })}
+                    {" · "}
+                    {t("queue.ticketsReserved", { count: qty })}
                   </p>
                   <p className="text-xs text-muted/60 mt-2">
-                    Keep this tab open. You&apos;ll be redirected automatically
-                    when it&apos;s your turn.
+                    {t("queue.keepTabOpen")}
                   </p>
                 </div>
               </div>

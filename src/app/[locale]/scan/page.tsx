@@ -1,6 +1,7 @@
 "use client";
 
 import { db } from "@/lib/db";
+import { useLanguage } from "@/lib/LanguageContext";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 
 const STORAGE_TOKEN_KEY = "scannerToken";
@@ -80,6 +81,7 @@ function EventSelection({
 }: {
   onSelect: (concert: ConcertInfo) => void;
 }) {
+  const { t } = useLanguage();
   const { isLoading, data } = db.useQuery({
     concerts: {
       $: { where: { status: "active" }, order: { createdAt: "desc" } },
@@ -87,7 +89,7 @@ function EventSelection({
   });
 
   if (isLoading || !data) {
-    return <div className="animate-pulse text-muted text-center py-8">Loading events...</div>;
+    return <div className="animate-pulse text-muted text-center py-8">{t("scan.loadingEvents")}</div>;
   }
 
   const concerts = data.concerts ?? [];
@@ -95,14 +97,14 @@ function EventSelection({
   if (concerts.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-muted">No active events found.</p>
+        <p className="text-muted">{t("scan.noActiveEvents")}</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      <h2 className="text-lg font-semibold text-center mb-4">Select Event</h2>
+      <h2 className="text-lg font-semibold text-center mb-4">{t("scan.selectEvent")}</h2>
       {concerts.map((c) => (
         <button
           key={c.id}
@@ -133,6 +135,7 @@ function PinEntry({
   onAuthenticated: (token: string, concert: ConcertInfo) => void;
   onBack: () => void;
 }) {
+  const { t } = useLanguage();
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -158,7 +161,7 @@ function PinEntry({
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error || "Invalid PIN");
+        setError(data.error || t("scan.invalidPin"));
         setPin("");
         inputRef.current?.focus();
         return;
@@ -169,7 +172,7 @@ function PinEntry({
       localStorage.setItem(STORAGE_CONCERT_KEY, JSON.stringify(data.concert));
       onAuthenticated(data.token, data.concert);
     } catch {
-      setError("Connection error. Please try again.");
+      setError(t("scan.connectionError"));
     } finally {
       setLoading(false);
     }
@@ -188,7 +191,7 @@ function PinEntry({
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-muted mb-2 text-center">
-            Enter Scanner PIN
+            {t("scan.enterPin")}
           </label>
           <input
             ref={inputRef}
@@ -214,7 +217,7 @@ function PinEntry({
           disabled={pin.length < 4 || loading}
           className="w-full py-3 bg-accent hover:bg-accent-dark text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
         >
-          {loading ? "Verifying..." : "Unlock Scanner"}
+          {loading ? t("scan.verifying") : t("scan.unlock")}
         </button>
       </form>
 
@@ -222,7 +225,7 @@ function PinEntry({
         onClick={onBack}
         className="w-full py-2 text-sm text-muted hover:text-foreground transition-colors"
       >
-        Back to event list
+        {t("scan.backToEventList")}
       </button>
     </div>
   );
@@ -231,6 +234,7 @@ function PinEntry({
 // ── Scanner View (QR camera) ────────────────────────────────────────────────
 
 function ScannerView({ onScan }: { onScan: (orderId: string) => void }) {
+  const { t } = useLanguage();
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrCodeRef = useRef<import("html5-qrcode").Html5Qrcode | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -264,13 +268,13 @@ function ScannerView({ onScan }: { onScan: (orderId: string) => void }) {
       setError(
         err instanceof Error
           ? err.message
-          : "Failed to start camera. Check camera permissions.",
+          : t("scan.failedCamera"),
       );
       html5QrCodeRef.current = null;
     } finally {
       setStarting(false);
     }
-  }, []);
+  }, [t]);
 
   // Auto-start scanner on mount
   useEffect(() => {
@@ -303,7 +307,7 @@ function ScannerView({ onScan }: { onScan: (orderId: string) => void }) {
             disabled={starting}
             className="w-full py-3 bg-accent hover:bg-accent-dark text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
           >
-            {starting ? "Starting..." : "Retry Camera"}
+            {starting ? t("scan.starting") : t("scan.retryCamera")}
           </button>
         </div>
       )}
@@ -324,6 +328,7 @@ function TicketInfo({
   scannerToken: string;
   scopedConcertId: string;
 }) {
+  const { t } = useLanguage();
   const [marking, setMarking] = useState(false);
   const [markError, setMarkError] = useState<string | null>(null);
   const [markSuccess, setMarkSuccess] = useState(false);
@@ -337,7 +342,7 @@ function TicketInfo({
   });
 
   if (isLoading || !data) {
-    return <div className="animate-pulse text-muted">Looking up ticket...</div>;
+    return <div className="animate-pulse text-muted">{t("scan.lookingUp")}</div>;
   }
 
   const order = data.orders[0];
@@ -345,15 +350,15 @@ function TicketInfo({
   if (!order) {
     return (
       <div className="bg-danger/10 border border-danger/30 rounded-xl p-6 text-center">
-        <p className="text-danger font-semibold text-lg">Ticket Not Found</p>
+        <p className="text-danger font-semibold text-lg">{t("scan.ticketNotFound")}</p>
         <p className="text-muted text-sm mt-2">
-          No ticket found with this ID.
+          {t("scan.ticketNotFoundDesc")}
         </p>
         <button
           onClick={onReset}
           className="mt-4 px-6 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors"
         >
-          Scan Again
+          {t("scan.scanAgain")}
         </button>
       </div>
     );
@@ -373,7 +378,7 @@ function TicketInfo({
         body: JSON.stringify({ orderId, scannerToken }),
       });
       if (!res.ok) {
-        let msg = "Error al marcar entrada";
+        let msg = t("scan.markFailed");
         try {
           const data = await res.json();
           msg = data.error || msg;
@@ -385,7 +390,7 @@ function TicketInfo({
       setMarkSuccess(true);
       playFeedback("success");
     } catch {
-      setMarkError("Sin conexión. Intenta de nuevo.");
+      setMarkError(t("scan.offline"));
       playFeedback("error");
     } finally {
       setMarking(false);
@@ -400,10 +405,10 @@ function TicketInfo({
       {isWrongEvent && (
         <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 text-center">
           <p className="text-warning font-semibold">
-            Wrong Event
+            {t("scan.wrongEvent")}
           </p>
           <p className="text-sm text-muted mt-1">
-            This ticket is for <strong>{concert?.name || "another event"}</strong>, not the event you&apos;re scanning for.
+            {t("scan.wrongEventDescBefore")}<strong>{concert?.name || t("scan.anotherEvent")}</strong>{t("scan.wrongEventDescAfter")}
           </p>
         </div>
       )}
@@ -411,10 +416,10 @@ function TicketInfo({
       {!isApproved && (
         <div className="bg-danger/10 border border-danger/30 rounded-xl p-4 text-center">
           <p className="text-danger font-semibold">
-            Not Approved
+            {t("scan.notApproved")}
           </p>
           <p className="text-sm text-muted mt-1">
-            This ticket has status: <strong>{order.status}</strong>
+            {t("scan.notApprovedDescBefore")}<strong>{order.status}</strong>
           </p>
         </div>
       )}
@@ -422,10 +427,10 @@ function TicketInfo({
       {isVisited && !markSuccess && (
         <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 text-center">
           <p className="text-warning font-semibold">
-            Already Scanned
+            {t("scan.alreadyScanned")}
           </p>
           <p className="text-sm text-muted mt-1">
-            This ticket has already been used.
+            {t("scan.alreadyScannedDesc")}
           </p>
         </div>
       )}
@@ -439,10 +444,10 @@ function TicketInfo({
       {markSuccess && (
         <div className="bg-success/10 border border-success/30 rounded-xl p-4 text-center">
           <p className="text-success font-semibold">
-            ¡Entrada registrada!
+            {t("scan.entrySuccess")}
           </p>
           <p className="text-sm text-muted mt-1">
-            {order.firstName} {order.lastName} · {ticketType?.name || "Ticket"}
+            {order.firstName} {order.lastName} · {ticketType?.name || t("scan.ticketFallback")}
           </p>
         </div>
       )}
@@ -457,25 +462,25 @@ function TicketInfo({
               {order.orderNumber}
             </p>
           )}
-          <h3 className="text-xl font-bold">{concert?.name || "Event"}</h3>
-          <p className="text-muted">{ticketType?.name || "Ticket"}</p>
+          <h3 className="text-xl font-bold">{concert?.name || t("scan.eventFallback")}</h3>
+          <p className="text-muted">{ticketType?.name || t("scan.ticketFallback")}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-4 text-sm border-t border-border pt-4">
           <div>
-            <p className="text-muted">Name</p>
+            <p className="text-muted">{t("scan.fieldName")}</p>
             <p className="font-medium">{order.firstName} {order.lastName}</p>
           </div>
           <div>
-            <p className="text-muted">Email</p>
+            <p className="text-muted">{t("scan.fieldEmail")}</p>
             <p className="font-medium">{order.email}</p>
           </div>
           <div>
-            <p className="text-muted">Cedula</p>
+            <p className="text-muted">{t("scan.fieldCedula")}</p>
             <p className="font-medium">{order.cedula}</p>
           </div>
           <div>
-            <p className="text-muted">Status</p>
+            <p className="text-muted">{t("scan.fieldStatus")}</p>
             <p
               className={`font-medium ${isApproved ? "text-success" : "text-danger"}`}
             >
@@ -483,8 +488,8 @@ function TicketInfo({
             </p>
           </div>
           <div>
-            <p className="text-muted">Visited</p>
-            <p className="font-medium">{(isVisited || markSuccess) ? "Yes" : "No"}</p>
+            <p className="text-muted">{t("scan.fieldVisited")}</p>
+            <p className="font-medium">{(isVisited || markSuccess) ? t("scan.yes") : t("scan.no")}</p>
           </div>
         </div>
       </div>
@@ -500,7 +505,7 @@ function TicketInfo({
                 disabled={marking}
                 className="flex-1 py-3 bg-success hover:bg-success/80 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
               >
-                {marking ? "Marking..." : "Mark as Visited"}
+                {marking ? t("scan.marking") : t("scan.markVisited")}
               </button>
             )}
             <button
@@ -511,7 +516,7 @@ function TicketInfo({
                   : "border border-border hover:bg-surface-hover"
               }`}
             >
-              Scan Again
+              {t("scan.scanAgain")}
             </button>
           </div>
         );
@@ -547,6 +552,7 @@ function ManualSearch({
   concertId: string;
   onSelect: (orderId: string) => void;
 }) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState("");
 
   const { data } = db.useQuery({
@@ -617,20 +623,20 @@ function ManualSearch({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="flex-1 px-4 py-2.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-          placeholder="Nombre, cédula, # de orden o ID"
+          placeholder={t("scan.searchPlaceholder")}
         />
         <button
           type="submit"
           disabled={!trimmed}
           className="px-4 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
         >
-          Buscar
+          {t("scan.search")}
         </button>
       </form>
 
       {trimmed && results.length === 0 && (
         <p className="text-sm text-muted text-center py-2">
-          Sin resultados para &ldquo;{trimmed}&rdquo;.
+          {t("scan.noResults", { query: trimmed })}
         </p>
       )}
 
@@ -658,7 +664,7 @@ function ManualSearch({
                 <div className="shrink-0 flex flex-col items-end gap-1">
                   {o.visited && (
                     <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-warning/15 text-warning">
-                      VISITED
+                      {t("scan.badgeVisited")}
                     </span>
                   )}
                   {o.status && o.status !== "approved" && (
@@ -687,6 +693,7 @@ function AuthenticatedScanner({
   scannerToken: string;
   onSwitchEvent: () => void;
 }) {
+  const { t } = useLanguage();
   const [scannedOrderId, setScannedOrderId] = useState<string | null>(null);
 
   // Real-time counter: approved tickets / scanned
@@ -719,20 +726,20 @@ function AuthenticatedScanner({
               <span className="text-muted font-normal">/{counts.total}</span>
             </p>
             <p className="text-[10px] uppercase tracking-widest text-muted mt-0.5">
-              Entrados
+              {t("scan.headerEntered")}
             </p>
           </div>
           <button
             onClick={onSwitchEvent}
             className="text-xs text-accent-light hover:underline"
           >
-            Switch
+            {t("scan.headerSwitch")}
           </button>
         </div>
       </div>
 
       <h1 className="text-2xl font-bold text-center mb-6">
-        Scan Ticket
+        {t("scan.scanTicket")}
       </h1>
 
       {scannedOrderId ? (
@@ -752,7 +759,7 @@ function AuthenticatedScanner({
             </div>
             <div className="relative flex justify-center text-sm">
               <span className="px-2 bg-background text-muted">
-                o busca manualmente
+                {t("scan.orSearchManually")}
               </span>
             </div>
           </div>
@@ -767,6 +774,7 @@ function AuthenticatedScanner({
 // ── Main Page ───────────────────────────────────────────────────────────────
 
 export default function ScanPage() {
+  const { t } = useLanguage();
   const [selectedConcert, setSelectedConcert] = useState<ConcertInfo | null>(null);
   const [scannerToken, setScannerToken] = useState<string | null>(null);
   const [authenticatedConcert, setAuthenticatedConcert] = useState<ConcertInfo | null>(null);
@@ -814,7 +822,7 @@ export default function ScanPage() {
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-md mx-auto px-4 py-4 flex items-center justify-between">
           <span className="text-xl font-bold tracking-wide">ma<span className="text-white/60">Tickets</span></span>
-          <span className="text-sm text-white/60">Scanner</span>
+          <span className="text-sm text-white/60">{t("scan.scannerHeader")}</span>
         </div>
       </header>
 

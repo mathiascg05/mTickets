@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { notFound } from "next/navigation";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
-import { setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import "../globals.css";
 import { LanguageProvider } from "@/lib/LanguageContext";
 import { Toaster } from "sonner";
@@ -18,21 +18,41 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "maTickets - Event Ticketing",
-  description: "Professional event ticketing and management platform",
-  openGraph: {
-    title: "maTickets",
-    description: "Professional event ticketing and management platform",
-    type: "website",
-    siteName: "maTickets",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "maTickets",
-    description: "Professional event ticketing and management platform",
-  },
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  if (!hasLocale(routing.locales, locale)) {
+    return {};
+  }
+  const t = await getTranslations({ locale, namespace: "seo.root" });
+  const canonical = locale === routing.defaultLocale ? "/" : `/${locale}`;
+  return {
+    title: t("title"),
+    description: t("description"),
+    alternates: {
+      canonical,
+      languages: {
+        es: "/",
+        en: "/en",
+      },
+    },
+    openGraph: {
+      title: t("ogTitle"),
+      description: t("ogDescription"),
+      type: "website",
+      siteName: "maTickets",
+      locale: locale === "es" ? "es_ES" : "en_US",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: t("ogTitle"),
+      description: t("ogDescription"),
+    },
+  };
+}
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));

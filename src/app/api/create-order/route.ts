@@ -23,6 +23,7 @@ import {
 } from "@/lib/order-pricing";
 import { errorResponse } from "@/lib/serverI18n";
 import { detectLocale, resolveEmailLang } from "@/lib/serverLocale";
+import { formatEventDate } from "@/lib/formatters";
 import { getTranslations } from "next-intl/server";
 
 type CreateOrderBody = {
@@ -525,6 +526,7 @@ export async function POST(req: NextRequest) {
 
       const emailLang = resolveEmailLang(orderLanguage, concert.defaultLanguage);
       const tEmail = await getTranslations({ locale: emailLang, namespace: "emails.confirmation" });
+      const eventDateFormatted = formatEventDate(concert.date, emailLang);
 
       for (let idx = 0; idx < orderIds.length; idx++) {
         const orderId = orderIds[idx];
@@ -536,7 +538,7 @@ export async function POST(req: NextRequest) {
           firstName: attendee.firstName,
           lastName: attendee.lastName,
           eventName: concert.name,
-          eventDate: concert.date,
+          eventDate: eventDateFormatted,
           venue: concert.venue || "",
           ticketTypeName: ticketType.name,
           price: `$${totalSnapshot.toFixed(2)}`,

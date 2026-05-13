@@ -1,14 +1,30 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
+import { routing } from "@/i18n/routing";
 import {
   ORGANIZER_TERMS_VERSION,
   ORGANIZER_TERMS_EFFECTIVE_DATE,
   LEGAL_CONTACT_EMAIL,
 } from "@/lib/legalVersions";
 
-export const metadata: Metadata = {
-  title: "Términos del Organizador | maTickets",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const lang = (routing.locales as readonly string[]).includes(locale) ? locale : routing.defaultLocale;
+  const t = await getTranslations({ locale: lang, namespace: "seo.legal.termsOrganizer" });
+  return {
+    title: t("title"),
+    description: t("description"),
+    alternates: {
+      canonical: lang === routing.defaultLocale ? "/terms-organizer" : `/${lang}/terms-organizer`,
+      languages: { es: "/terms-organizer", en: "/en/terms-organizer" },
+    },
+  };
+}
 
 export default function OrganizerTermsPage() {
   return (

@@ -8,6 +8,7 @@ import { assignOrderNumber } from "@/lib/orderNumber";
 import { isEmailSuppressed } from "@/lib/emailSuppression";
 import { buildMailHeaders } from "@/lib/emailHeaders";
 import { resolveEmailLang } from "@/lib/serverLocale";
+import { formatEventDate } from "@/lib/formatters";
 import { getTranslations } from "next-intl/server";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest) {
       firstName: order.firstName,
       lastName: order.lastName,
       eventName: concert.name,
-      eventDate: concert.date,
+      eventDate: formatEventDate(concert.date, emailLang),
       venue: concert.venue,
       ticketTypeName: ticketType.name,
       price: `$${finalPrice.toFixed(2)}`,

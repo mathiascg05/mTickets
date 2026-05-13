@@ -1,14 +1,30 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
+import { routing } from "@/i18n/routing";
 import {
   PRIVACY_VERSION,
   PRIVACY_EFFECTIVE_DATE,
   LEGAL_CONTACT_EMAIL,
 } from "@/lib/legalVersions";
 
-export const metadata: Metadata = {
-  title: "Política de Privacidad | maTickets",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const lang = (routing.locales as readonly string[]).includes(locale) ? locale : routing.defaultLocale;
+  const t = await getTranslations({ locale: lang, namespace: "seo.legal.privacy" });
+  return {
+    title: t("title"),
+    description: t("description"),
+    alternates: {
+      canonical: lang === routing.defaultLocale ? "/privacy" : `/${lang}/privacy`,
+      languages: { es: "/privacy", en: "/en/privacy" },
+    },
+  };
+}
 
 export default function PrivacyPage() {
   return (
