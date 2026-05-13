@@ -2,36 +2,40 @@
 
 import { db } from "@/lib/db";
 import { useAuthContext } from "@/lib/AuthContext";
+import { useLanguage } from "@/lib/LanguageContext";
 import { useState, useCallback } from "react";
 import BroadcastComposer from "./BroadcastComposer";
 
 type StatusFilter = "all" | "new" | "read" | "replied";
 type TopTab = "messages" | "broadcasts";
 
-const STATUS_BADGES: Record<string, { label: string; className: string }> = {
-  new: { label: "New", className: "bg-blue-100 text-blue-800" },
-  read: { label: "Read", className: "bg-yellow-100 text-yellow-800" },
-  replied: { label: "Replied", className: "bg-green-100 text-green-800" },
+const STATUS_BADGE_CLASSES: Record<string, string> = {
+  new: "bg-blue-100 text-blue-800",
+  read: "bg-yellow-100 text-yellow-800",
+  replied: "bg-green-100 text-green-800",
 };
 
-const BROADCAST_STATUS_BADGES: Record<string, { label: string; className: string }> = {
-  sending: { label: "Enviando", className: "bg-blue-100 text-blue-800" },
-  sent: { label: "Enviada", className: "bg-green-100 text-green-800" },
-  failed: { label: "Fallida", className: "bg-red-100 text-red-800" },
+const BROADCAST_STATUS_BADGE_CLASSES: Record<string, string> = {
+  sending: "bg-blue-100 text-blue-800",
+  sent: "bg-green-100 text-green-800",
+  failed: "bg-red-100 text-red-800",
 };
 
-function timeAgo(ts: number): string {
+type TFunc = (key: string, params?: Record<string, string | number>) => string;
+
+function timeAgo(ts: number, t: TFunc): string {
   const seconds = Math.floor((Date.now() - ts) / 1000);
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return t("admin.timeAgo.justNow");
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return t("admin.timeAgo.minutesAgo", { n: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t("admin.timeAgo.hoursAgo", { n: hours });
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return t("admin.timeAgo.daysAgo", { n: days });
 }
 
 export default function AdminCommunicationsPage() {
+  const { t } = useLanguage();
   const { user } = db.useAuth();
   const { email, isSuperAdmin } = useAuthContext();
   const refreshToken = user?.refresh_token || "";
@@ -72,7 +76,7 @@ export default function AdminCommunicationsPage() {
   );
 
   if (isLoading || !data) {
-    return <div className="animate-pulse text-muted">Loading...</div>;
+    return <div className="animate-pulse text-muted">{t("admin.communications.loading")}</div>;
   }
 
   const ownedConcerts = data.concerts;
@@ -132,13 +136,13 @@ export default function AdminCommunicationsPage() {
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
-        <h1 className="text-3xl font-bold">Messages</h1>
+        <h1 className="text-3xl font-bold">{t("admin.communications.messagesTitle")}</h1>
         <button
           onClick={() => setComposerOpen(true)}
           disabled={concerts.length === 0}
           className="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium transition-colors disabled:opacity-50 text-sm uppercase tracking-wider"
         >
-          Nueva campaña
+          {t("admin.broadcast.newCampaign")}
         </button>
       </div>
 
@@ -149,7 +153,7 @@ export default function AdminCommunicationsPage() {
           onChange={(e) => setEventFilter(e.target.value)}
           className="px-4 py-2.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
         >
-          <option value="all">All Events</option>
+          <option value="all">{t("admin.communications.allEvents")}</option>
           {concerts.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -168,7 +172,7 @@ export default function AdminCommunicationsPage() {
               : "border-transparent text-muted hover:text-foreground"
           }`}
         >
-          Recibidos
+          {t("admin.communications.tabReceived")}
           <span className="ml-1.5 text-xs opacity-60">({allMessages.length})</span>
         </button>
         <button
@@ -179,7 +183,7 @@ export default function AdminCommunicationsPage() {
               : "border-transparent text-muted hover:text-foreground"
           }`}
         >
-          Campañas
+          {t("admin.communications.tabCampaigns")}
           <span className="ml-1.5 text-xs opacity-60">({allBroadcasts.length})</span>
         </button>
       </div>
@@ -192,20 +196,20 @@ export default function AdminCommunicationsPage() {
               <button
                 key={tab}
                 onClick={() => setStatusFilter(tab)}
-                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors capitalize ${
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                   statusFilter === tab
                     ? "border-accent text-accent"
                     : "border-transparent text-muted hover:text-foreground"
                 }`}
               >
-                {tab === "all" ? "All" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tab === "all" ? t("admin.communications.tabAll") : t(`admin.messageStatus.${tab}`)}
                 <span className="ml-1.5 text-xs opacity-60">({counts[tab]})</span>
               </button>
             ))}
           </div>
 
           {filteredMessages.length === 0 ? (
-            <p className="text-muted text-center py-12">No messages found.</p>
+            <p className="text-muted text-center py-12">{t("admin.communications.noMessages")}</p>
           ) : (
             <div className="space-y-3">
               {filteredMessages.map((msg) => (
@@ -226,7 +230,7 @@ export default function AdminCommunicationsPage() {
         <>
           {filteredBroadcasts.length === 0 ? (
             <p className="text-muted text-center py-12">
-              No has enviado campañas todavía. Haz clic en &ldquo;Nueva campaña&rdquo; para empezar.
+              {t("admin.communications.noBroadcasts")}
             </p>
           ) : (
             <div className="space-y-3">
@@ -289,7 +293,9 @@ function MessageCard({
   onToggle: () => void;
   refreshToken: string;
 }) {
-  const badge = STATUS_BADGES[message.status] ?? STATUS_BADGES.new;
+  const { t } = useLanguage();
+  const badgeClass = STATUS_BADGE_CLASSES[message.status] ?? STATUS_BADGE_CLASSES.new;
+  const badgeLabel = t(`admin.messageStatus.${message.status in STATUS_BADGE_CLASSES ? message.status : "new"}`);
 
   // Mark as read when expanding a "new" message
   const handleToggle = useCallback(() => {
@@ -311,8 +317,8 @@ function MessageCard({
               <span className="font-semibold text-sm">
                 {message.firstName} {message.lastName}
               </span>
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.className}`}>
-                {badge.label}
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badgeClass}`}>
+                {badgeLabel}
               </span>
             </div>
             <p className="text-sm font-medium text-foreground truncate">{message.subject}</p>
@@ -321,7 +327,7 @@ function MessageCard({
               <span>&middot;</span>
               <span>{message.concertName}</span>
               <span>&middot;</span>
-              <span>{timeAgo(message.createdAt)}</span>
+              <span>{timeAgo(message.createdAt, t)}</span>
             </div>
           </div>
           <div className="shrink-0 text-muted">
@@ -340,16 +346,16 @@ function MessageCard({
       {expanded && (
         <div className="px-5 pb-5 border-t border-border pt-4 space-y-4">
           <div>
-            <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-1">Message</p>
+            <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-1">{t("admin.communications.messageLabel")}</p>
             <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{message.body}</p>
           </div>
 
           {message.status === "replied" && message.adminReply && (
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-[11px] font-medium text-green-600 uppercase tracking-widest mb-1">Your Reply</p>
+              <p className="text-[11px] font-medium text-green-600 uppercase tracking-widest mb-1">{t("admin.communications.yourReply")}</p>
               <p className="text-sm text-green-800 whitespace-pre-wrap leading-relaxed">{message.adminReply}</p>
               {message.repliedAt && (
-                <p className="text-xs text-green-600 mt-2">Replied {timeAgo(message.repliedAt)}</p>
+                <p className="text-xs text-green-600 mt-2">{t("admin.communications.repliedAgo", { time: timeAgo(message.repliedAt, t) })}</p>
               )}
             </div>
           )}
@@ -364,13 +370,14 @@ function MessageCard({
 }
 
 function ReplyForm({ messageId, refreshToken }: { messageId: string; refreshToken: string }) {
+  const { t } = useLanguage();
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
 
   const handleSend = useCallback(async () => {
     if (!reply.trim()) {
-      setError("Reply cannot be empty.");
+      setError(t("admin.communications.replyEmpty"));
       return;
     }
     setSending(true);
@@ -386,22 +393,22 @@ function ReplyForm({ messageId, refreshToken }: { messageId: string; refreshToke
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Failed to send reply.");
+        setError(data.error || t("admin.communications.replySendFailed"));
         return;
       }
       setReply("");
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError(t("admin.broadcast.sendError"));
     } finally {
       setSending(false);
     }
-  }, [reply, messageId, refreshToken]);
+  }, [reply, messageId, refreshToken, t]);
 
   return (
     <div className="space-y-3">
       <div>
         <label className="block text-[11px] font-medium text-muted uppercase tracking-widest mb-1.5">
-          Reply
+          {t("admin.communications.replyLabel")}
         </label>
         <textarea
           value={reply}
@@ -409,7 +416,7 @@ function ReplyForm({ messageId, refreshToken }: { messageId: string; refreshToke
           maxLength={5000}
           rows={3}
           className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm resize-none"
-          placeholder="Type your reply..."
+          placeholder={t("admin.communications.replyPlaceholder")}
         />
         <p className="text-right text-xs text-muted mt-1">{reply.length}/5000</p>
       </div>
@@ -419,7 +426,7 @@ function ReplyForm({ messageId, refreshToken }: { messageId: string; refreshToke
         disabled={sending || !reply.trim()}
         className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
       >
-        {sending ? "Sending..." : "Send Reply"}
+        {sending ? t("admin.communications.sendingReply") : t("admin.communications.sendReply")}
       </button>
     </div>
   );
@@ -451,7 +458,10 @@ function BroadcastCard({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const badge = BROADCAST_STATUS_BADGES[broadcast.status] ?? BROADCAST_STATUS_BADGES.sent;
+  const { t } = useLanguage();
+  const badgeStatus = broadcast.status in BROADCAST_STATUS_BADGE_CLASSES ? broadcast.status : "sent";
+  const badgeClass = BROADCAST_STATUS_BADGE_CLASSES[badgeStatus];
+  const badgeLabel = t(`admin.broadcastStatus.${badgeStatus}`);
 
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden transition-colors hover:border-accent/30">
@@ -463,24 +473,24 @@ function BroadcastCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="font-semibold text-sm truncate">{broadcast.subject}</span>
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.className}`}>
-                {badge.label}
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badgeClass}`}>
+                {badgeLabel}
               </span>
             </div>
             <div className="flex items-center gap-2 mt-1 text-xs text-muted flex-wrap">
               <span>{broadcast.concertName}</span>
               <span>&middot;</span>
               <span>
-                {broadcast.sentCount}/{broadcast.recipientCount} entregados
+                {t("admin.communications.deliveredCount", { sent: broadcast.sentCount, total: broadcast.recipientCount })}
               </span>
               {broadcast.failedCount > 0 && (
                 <>
                   <span>&middot;</span>
-                  <span className="text-red-500">{broadcast.failedCount} fallidos</span>
+                  <span className="text-red-500">{t("admin.communications.failedShort", { count: broadcast.failedCount })}</span>
                 </>
               )}
               <span>&middot;</span>
-              <span>{timeAgo(broadcast.createdAt)}</span>
+              <span>{timeAgo(broadcast.createdAt, t)}</span>
             </div>
           </div>
           <div className="shrink-0 text-muted">
@@ -499,29 +509,29 @@ function BroadcastCard({
       {expanded && (
         <div className="px-5 pb-5 border-t border-border pt-4 space-y-4">
           <div>
-            <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-1">Mensaje</p>
+            <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-1">{t("admin.communications.messageLabel")}</p>
             <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{broadcast.body}</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
             <div>
-              <p className="text-[11px] font-medium text-muted uppercase tracking-widest">Destinatarios</p>
+              <p className="text-[11px] font-medium text-muted uppercase tracking-widest">{t("admin.communications.recipientsLabel")}</p>
               <p className="font-semibold">{broadcast.recipientCount}</p>
             </div>
             <div>
-              <p className="text-[11px] font-medium text-muted uppercase tracking-widest">Enviados</p>
+              <p className="text-[11px] font-medium text-muted uppercase tracking-widest">{t("admin.communications.sentLabel")}</p>
               <p className="font-semibold text-green-700">{broadcast.sentCount}</p>
             </div>
             <div>
-              <p className="text-[11px] font-medium text-muted uppercase tracking-widest">Fallidos</p>
+              <p className="text-[11px] font-medium text-muted uppercase tracking-widest">{t("admin.communications.failedLabel")}</p>
               <p className="font-semibold text-red-700">{broadcast.failedCount}</p>
             </div>
             <div>
-              <p className="text-[11px] font-medium text-muted uppercase tracking-widest">Suprimidos</p>
+              <p className="text-[11px] font-medium text-muted uppercase tracking-widest">{t("admin.communications.suppressedLabel")}</p>
               <p className="font-semibold text-yellow-700">{broadcast.suppressedCount}</p>
             </div>
           </div>
           <div>
-            <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-1">Enviado por</p>
+            <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-1">{t("admin.communications.sentByLabel")}</p>
             <p className="text-sm">{broadcast.createdByEmail}</p>
           </div>
         </div>

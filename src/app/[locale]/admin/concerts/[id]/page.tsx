@@ -268,8 +268,8 @@ function ConcertEditForm({ concert, isSuperAdmin }: { concert: ConcertData; isSu
             }
             className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
           >
-            <option value="es">Español</option>
-            <option value="en">English</option>
+            <option value="es">{t("admin.lang.es")}</option>
+            <option value="en">{t("admin.lang.en")}</option>
           </select>
         </div>
         <div className="flex items-center gap-3">
@@ -492,7 +492,7 @@ function PaymentMethodCard({
                   value={zelleEmail}
                   onChange={(e) => { setZelleEmail(e.target.value); setDirty(true); }}
                   className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  placeholder="correo@ejemplo.com"
+                  placeholder={t("admin.placeholders.email")}
                   type="email"
                 />
               </div>
@@ -502,7 +502,7 @@ function PaymentMethodCard({
                   value={zelleName}
                   onChange={(e) => { setZelleName(e.target.value); setDirty(true); }}
                   className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  placeholder="Nombre Apellido"
+                  placeholder={t("admin.placeholders.name")}
                 />
               </div>
             </div>
@@ -517,7 +517,7 @@ function PaymentMethodCard({
                   value={pmCedula}
                   onChange={(e) => { setPmCedula(e.target.value); setDirty(true); }}
                   className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  placeholder="V-12345678"
+                  placeholder={t("admin.placeholders.cedula")}
                 />
               </div>
               <div>
@@ -526,7 +526,7 @@ function PaymentMethodCard({
                   value={pmPhone}
                   onChange={(e) => { setPmPhone(e.target.value); setDirty(true); }}
                   className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  placeholder="0412-1234567"
+                  placeholder={t("admin.placeholders.phone")}
                 />
               </div>
               <div>
@@ -535,7 +535,7 @@ function PaymentMethodCard({
                   value={pmBank}
                   onChange={(e) => { setPmBank(e.target.value); setDirty(true); }}
                   className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  placeholder="Banesco, Mercantil..."
+                  placeholder={t("admin.placeholders.bank")}
                 />
               </div>
             </div>
@@ -1887,7 +1887,7 @@ function CustomFieldCard({
               className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
             >
               {FIELD_TYPE_VALUES.map((ft) => (
-                <option key={ft} value={ft}>{getFieldTypeLabel(ft, lang)}</option>
+                <option key={ft} value={ft}>{getFieldTypeLabel(ft, t)}</option>
               ))}
             </select>
           </div>
@@ -2568,7 +2568,7 @@ function PlatformFeeSection({
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       console.error("Failed to save fee config:", err);
-      toast.error("Error saving fee config");
+      toast.error(t("admin.communications.feeConfigSaveError"));
     } finally {
       setSaving(false);
     }

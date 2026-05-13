@@ -71,7 +71,7 @@ export default function BalancesPage() {
     try {
       const amount = parseFloat(creditAmount);
       if (isNaN(amount) || amount <= 0) {
-        toast.error("Invalid amount");
+        toast.error(t("admin.balances.invalidAmount"));
         return;
       }
 
@@ -131,7 +131,7 @@ export default function BalancesPage() {
       setCreditConcertId("");
     } catch (err) {
       console.error("Failed to credit account:", err);
-      toast.error("Error crediting account");
+      toast.error(t("admin.balances.creditError"));
     } finally {
       setCrediting(false);
     }
@@ -169,7 +169,7 @@ export default function BalancesPage() {
       ]);
     } catch (err) {
       console.error("Failed to void transaction:", err);
-      toast.error("Error voiding transaction");
+      toast.error(t("admin.balances.voidError"));
     } finally {
       setVoidingTxnId(null);
     }

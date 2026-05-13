@@ -3022,7 +3022,7 @@ export default function ConcertOrdersPage() {
                     <p
                       className="text-xs text-muted cursor-pointer hover:text-accent-light transition-colors group inline-flex items-center gap-1"
                       onClick={() => setEditingEmailOrderId(order.id)}
-                      title="Click to edit email"
+                      title={t("admin.ordersTooltips.clickToEditEmail")}
                     >
                       {order.email}
                       <svg className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">

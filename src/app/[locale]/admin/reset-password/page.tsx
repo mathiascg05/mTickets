@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function ResetPasswordPage() {
+  const { t } = useLanguage();
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
   const token = searchParams.get("token") || "";
@@ -20,11 +22,11 @@ export default function ResetPasswordPage() {
     setError(null);
 
     if (password.length < 8) {
-      setError("Password must be at least 8 characters");
+      setError(t("auth.passwordMin"));
       return;
     }
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError(t("auth.passwordsDiffer"));
       return;
     }
 
@@ -37,12 +39,12 @@ export default function ResetPasswordPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "Something went wrong");
+        setError(data.error || t("auth.somethingWrong"));
       } else {
         setSuccess(true);
       }
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError(t("auth.somethingWrong"));
     } finally {
       setLoading(false);
     }
@@ -53,9 +55,9 @@ export default function ResetPasswordPage() {
       <div className="min-h-screen flex items-center justify-center px-4 bg-background">
         <div className="bg-surface border border-border rounded-2xl p-8 w-full max-w-sm shadow-lg text-center">
           <h1 className="text-2xl font-bold text-accent mb-2">ma<span className="text-accent/60">Tickets</span></h1>
-          <p className="text-danger text-sm mb-4">Invalid reset link.</p>
+          <p className="text-danger text-sm mb-4">{t("auth.invalidResetLink")}</p>
           <Link href="/admin" className="text-accent-light hover:text-accent font-medium transition-colors text-sm">
-            Back to login
+            {t("auth.backToLogin")}
           </Link>
         </div>
       </div>
@@ -67,12 +69,12 @@ export default function ResetPasswordPage() {
       <div className="min-h-screen flex items-center justify-center px-4 bg-background">
         <div className="bg-surface border border-border rounded-2xl p-8 w-full max-w-sm shadow-lg text-center">
           <h1 className="text-2xl font-bold text-accent mb-2">ma<span className="text-accent/60">Tickets</span></h1>
-          <p className="text-sm text-foreground mb-4">Your password has been reset successfully.</p>
+          <p className="text-sm text-foreground mb-4">{t("auth.resetSuccess")}</p>
           <Link
             href="/admin"
             className="inline-block w-full py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors text-center"
           >
-            Log in
+            {t("auth.login")}
           </Link>
         </div>
       </div>
@@ -84,34 +86,34 @@ export default function ResetPasswordPage() {
       <div className="bg-surface border border-border rounded-2xl p-8 w-full max-w-sm shadow-lg">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-accent">ma<span className="text-accent/60">Tickets</span></h1>
-          <p className="text-sm text-muted mt-1">Set a new password</p>
+          <p className="text-sm text-muted mt-1">{t("auth.resetSubtitle")}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <p className="text-sm text-muted">
-            New password for <strong className="text-foreground">{email}</strong>
+            {t("auth.newPasswordFor")} <strong className="text-foreground">{email}</strong>
           </p>
           <div>
-            <label className="block text-sm font-medium mb-1.5">New Password</label>
+            <label className="block text-sm font-medium mb-1.5">{t("auth.newPasswordLabel")}</label>
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
-              placeholder="Enter new password"
+              placeholder={t("auth.enterNewPassword")}
               minLength={8}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1.5">Confirm Password</label>
+            <label className="block text-sm font-medium mb-1.5">{t("auth.confirmPasswordLabel")}</label>
             <input
               type="password"
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
-              placeholder="Confirm new password"
+              placeholder={t("auth.confirmNewPassword")}
               minLength={8}
             />
           </div>
@@ -121,10 +123,10 @@ export default function ResetPasswordPage() {
             disabled={loading}
             className="w-full py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
           >
-            {loading ? "Resetting..." : "Reset Password"}
+            {loading ? t("auth.resetting") : t("auth.resetPassword")}
           </button>
           <Link href="/admin" className="block text-center text-sm text-muted hover:text-foreground transition-colors">
-            Back to login
+            {t("auth.backToLogin")}
           </Link>
         </form>
       </div>

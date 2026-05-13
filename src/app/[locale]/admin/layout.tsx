@@ -154,7 +154,7 @@ function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
-                placeholder="you@email.com"
+                placeholder={t("admin.placeholders.email")}
               />
             </div>
             {error && <p className="text-danger text-sm">{error}</p>}

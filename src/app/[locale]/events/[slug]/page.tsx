@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { adminDb } from "@/lib/adminDb";
+import { redirect } from "@/i18n/navigation";
+import { routing } from "@/i18n/routing";
 import EventDetailClient from "./EventDetailClient";
 
 type Props = {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ slug: string; locale: string }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -49,6 +52,30 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-export default function ConcertDetailPage() {
+export default async function ConcertDetailPage({ params }: Props) {
+  const { slug, locale } = await params;
+
+  const cookieStore = await cookies();
+  const hasLocaleCookie = cookieStore.has("NEXT_LOCALE");
+
+  if (!hasLocaleCookie) {
+    try {
+      const { concerts } = await adminDb.query({
+        concerts: { $: { where: { slug } } },
+      });
+      const concert = concerts[0];
+      const defaultLang = (concert as { defaultLanguage?: string } | undefined)?.defaultLanguage;
+      if (
+        defaultLang &&
+        (routing.locales as readonly string[]).includes(defaultLang) &&
+        defaultLang !== locale
+      ) {
+        redirect({ href: `/events/${slug}`, locale: defaultLang });
+      }
+    } catch {
+      // best effort; fall through to render
+    }
+  }
+
   return <EventDetailClient />;
 }
