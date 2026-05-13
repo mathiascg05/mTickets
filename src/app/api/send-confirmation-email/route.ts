@@ -7,6 +7,8 @@ import { buildConfirmationEmailHtml, buildConfirmationEmailText } from "@/lib/em
 import { assignOrderNumber } from "@/lib/orderNumber";
 import { isEmailSuppressed } from "@/lib/emailSuppression";
 import { buildMailHeaders } from "@/lib/emailHeaders";
+import { resolveEmailLang } from "@/lib/serverLocale";
+import { getTranslations } from "next-intl/server";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -87,6 +89,11 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const orderUrl = `${appUrl}/ticket/${orderId}`;
 
+    const emailLang = resolveEmailLang(
+      (order as { language?: string }).language,
+      (concert as { defaultLanguage?: string }).defaultLanguage,
+    );
+
     const emailParams = {
       firstName: order.firstName,
       lastName: order.lastName,
@@ -97,16 +104,19 @@ export async function POST(req: NextRequest) {
       price: `$${finalPrice.toFixed(2)}`,
       orderUrl,
       orderNumber,
+      lang: emailLang,
     };
-    const html = buildConfirmationEmailHtml(emailParams);
-    const text = buildConfirmationEmailText(emailParams);
+    const html = await buildConfirmationEmailHtml(emailParams);
+    const text = await buildConfirmationEmailText(emailParams);
+
+    const tEmail = await getTranslations({ locale: emailLang, namespace: "emails.confirmation" });
 
     const emailFrom = (await import("@/lib/mailer")).EMAIL_FROM;
     const mailOptions = {
       from: `"maTickets" <${emailFrom}>`,
       replyTo: emailFrom,
       to: order.email,
-      subject: `Order ${orderNumber} - ${concert.name}`,
+      subject: tEmail("subject", { orderNumber, eventName: concert.name }),
       html,
       text,
       messageId: generateMessageId(),

@@ -11,6 +11,7 @@ import {
   type BroadcastFilters,
   type BroadcastRecipient,
 } from "@/lib/broadcastRecipients";
+import { resolveEmailLang } from "@/lib/serverLocale";
 
 const SUBJECT_MAX = 200;
 const BODY_MAX = 5000;
@@ -19,27 +20,36 @@ const CHUNK_SIZE = 5;
 
 async function sendOneEmail(
   recipient: BroadcastRecipient,
-  params: { eventName: string; subject: string; body: string; organizerEmail: string },
+  params: {
+    eventName: string;
+    subject: string;
+    body: string;
+    organizerEmail: string;
+    concertDefaultLanguage?: string;
+  },
 ): Promise<boolean> {
   try {
+    const lang = resolveEmailLang(recipient.language, params.concertDefaultLanguage);
     await transporter.sendMail({
       from: `"maTickets" <${EMAIL_FROM}>`,
       to: recipient.email,
       subject: params.subject,
       messageId: generateMessageId(),
-      text: buildBroadcastEmailText({
+      text: await buildBroadcastEmailText({
         firstName: recipient.firstName,
         eventName: params.eventName,
         subject: params.subject,
         body: params.body,
         organizerEmail: params.organizerEmail,
+        lang,
       }),
-      html: buildBroadcastEmailHtml({
+      html: await buildBroadcastEmailHtml({
         firstName: recipient.firstName,
         eventName: params.eventName,
         subject: params.subject,
         body: params.body,
         organizerEmail: params.organizerEmail,
+        lang,
       }),
       headers: buildMailHeaders(recipient.email),
     });
@@ -166,6 +176,7 @@ export async function POST(req: NextRequest) {
       subject: subject.trim(),
       body: body.trim(),
       organizerEmail: concert.organizerEmail,
+      concertDefaultLanguage: (concert as { defaultLanguage?: string }).defaultLanguage,
     };
 
     let sentCount = 0;

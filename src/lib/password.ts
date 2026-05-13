@@ -11,9 +11,14 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash);
 }
 
-export function validatePassword(password: string): string | null {
+export type PasswordValidationError = {
+  code: string;
+  values?: Record<string, string | number>;
+};
+
+export function validatePassword(password: string): PasswordValidationError | null {
   if (password.length < MIN_PASSWORD_LENGTH) {
-    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
+    return { code: "PASSWORD_TOO_SHORT", values: { min: MIN_PASSWORD_LENGTH } };
   }
   return null;
 }

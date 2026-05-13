@@ -5,6 +5,8 @@ import { buildTicketEmailHtml, buildTicketEmailText } from "@/lib/emailTemplate"
 import { assignOrderNumber } from "@/lib/orderNumber";
 import { isEmailSuppressed } from "@/lib/emailSuppression";
 import { buildMailHeaders } from "@/lib/emailHeaders";
+import { resolveEmailLang } from "@/lib/serverLocale";
+import { getTranslations } from "next-intl/server";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -73,6 +75,11 @@ export async function sendTicketEmailForOrder(orderId: string): Promise<{ succes
   const ticketPageUrl = `${appUrl}/ticket/${orderId}`;
   const primaryColor = (concert as { primaryColor?: string }).primaryColor || "#1a2b4a";
 
+  const emailLang = resolveEmailLang(
+    (order as { language?: string }).language,
+    (concert as { defaultLanguage?: string }).defaultLanguage,
+  );
+
   // Build email HTML and plain text
   const emailParams = {
     firstName: order.firstName,
@@ -86,16 +93,19 @@ export async function sendTicketEmailForOrder(orderId: string): Promise<{ succes
     orderNumber,
     primaryColor,
     ticketPageUrl,
+    lang: emailLang,
   };
-  const html = buildTicketEmailHtml(emailParams);
-  const text = buildTicketEmailText(emailParams);
+  const html = await buildTicketEmailHtml(emailParams);
+  const text = await buildTicketEmailText(emailParams);
+
+  const tEmail = await getTranslations({ locale: emailLang, namespace: "emails.ticket" });
 
   const gmailUser = EMAIL_FROM;
   const mailOptions = {
     from: `"maTickets" <${gmailUser}>`,
     replyTo: gmailUser,
     to: order.email,
-    subject: `Ticket ${orderNumber} - ${concert.name}`,
+    subject: tEmail("subject", { orderNumber, eventName: concert.name }),
     html,
     text,
     messageId: generateMessageId(),

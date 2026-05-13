@@ -156,7 +156,7 @@ describe("POST /api/create-order — input validation", () => {
       );
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toMatch(/ticketTypeId/i);
+      expect(body.code).toBe("INVALID_TICKET_TYPE");
     });
 
     it("rejects integer ticketTypeId", async () => {
@@ -196,7 +196,7 @@ describe("POST /api/create-order — input validation", () => {
       );
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toMatch(/qty/i);
+      expect(body.code).toBe("QTY_OUT_OF_RANGE");
     });
 
     it("rejects qty = -1", async () => {
@@ -388,7 +388,7 @@ describe("POST /api/create-order — input validation", () => {
       );
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toMatch(/reservationId/i);
+      expect(body.code).toBe("INVALID_INPUT");
     });
 
     it("rejects invalid purchaseGroupId (not UUID)", async () => {
@@ -403,7 +403,7 @@ describe("POST /api/create-order — input validation", () => {
       );
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toMatch(/purchaseGroupId/i);
+      expect(body.code).toBe("INVALID_INPUT");
     });
   });
 

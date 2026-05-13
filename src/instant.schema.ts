@@ -82,6 +82,7 @@ const _schema = i.schema({
       platformFeeAmountSnapshot: i.number().optional(),
       acceptedTermsVersion: i.string().optional(),
       acceptedPrivacyVersion: i.string().optional(),
+      language: i.string().optional(),
       createdAt: i.number().indexed(),
     }),
     paymentMethods: i.entity({
@@ -155,6 +156,7 @@ const _schema = i.schema({
       status: i.string().indexed(),
       adminReply: i.string().optional(),
       repliedAt: i.number().optional().indexed(),
+      language: i.string().optional(),
       createdAt: i.number().indexed(),
     }),
     organizerBalances: i.entity({

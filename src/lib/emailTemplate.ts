@@ -1,3 +1,15 @@
+import { getTranslations } from "next-intl/server";
+import { routing } from "@/i18n/routing";
+
+type EmailLang = (typeof routing.locales)[number];
+
+function normalizeLang(lang: string | undefined | null): EmailLang {
+  if (lang && (routing.locales as readonly string[]).includes(lang)) {
+    return lang as EmailLang;
+  }
+  return routing.defaultLocale as EmailLang;
+}
+
 export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
@@ -7,7 +19,7 @@ export function escapeHtml(str: string): string {
     .replace(/'/g, "&#39;");
 }
 
-export function buildConfirmationEmailHtml(params: {
+export async function buildConfirmationEmailHtml(params: {
   firstName: string;
   lastName: string;
   eventName: string;
@@ -17,7 +29,14 @@ export function buildConfirmationEmailHtml(params: {
   price: string;
   orderUrl: string;
   orderNumber?: string;
+  lang?: string;
 }) {
+  const lang = normalizeLang(params.lang);
+  const [t, tCommon] = await Promise.all([
+    getTranslations({ locale: lang, namespace: "emails.confirmation" }),
+    getTranslations({ locale: lang, namespace: "emails.common" }),
+  ]);
+
   const firstName = escapeHtml(params.firstName);
   const lastName = escapeHtml(params.lastName);
   const eventName = escapeHtml(params.eventName);
@@ -25,11 +44,22 @@ export function buildConfirmationEmailHtml(params: {
   const venue = escapeHtml(params.venue);
   const ticketTypeName = escapeHtml(params.ticketTypeName);
   const price = escapeHtml(params.price);
-  const orderUrl = escapeHtml(params.orderUrl);
   const orderNumber = params.orderNumber ? escapeHtml(params.orderNumber) : undefined;
 
+  const greeting = escapeHtml(tCommon("greeting", { firstName: params.firstName, lastName: params.lastName }));
+  const footer = escapeHtml(tCommon("footer"));
+  const intro = escapeHtml(t("intro"));
+  const labelEvent = escapeHtml(t("labelEvent"));
+  const labelDate = escapeHtml(t("labelDate"));
+  const labelVenue = escapeHtml(t("labelVenue"));
+  const labelTicketType = escapeHtml(t("labelTicketType"));
+  const labelPrice = escapeHtml(t("labelPrice"));
+  const labelOrderNumber = escapeHtml(t("labelOrderNumber"));
+  const labelStatus = escapeHtml(t("labelStatus"));
+  const introWaiting = escapeHtml(t("introWaiting"));
+
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${lang}">
 <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
 <body style="margin:0;padding:0;background-color:#f5f7fa;font-family:system-ui,-apple-system,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;padding:32px 16px;">
@@ -44,8 +74,8 @@ export function buildConfirmationEmailHtml(params: {
         <!-- Greeting -->
         <tr>
           <td style="padding:32px 32px 16px;">
-            <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">Hi ${firstName} ${lastName},</p>
-            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">Your order has been received. We are reviewing your payment proof.</p>
+            <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">${greeting}</p>
+            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">${intro}</p>
           </td>
         </tr>
         <!-- Status Icon -->
@@ -53,7 +83,7 @@ export function buildConfirmationEmailHtml(params: {
           <td align="center" style="padding:16px 32px;">
             <div style="background-color:#fef3c7;border-radius:12px;padding:24px;display:inline-block;">
               <div style="font-size:48px;line-height:1;">&#9203;</div>
-              <p style="margin:8px 0 0;font-size:14px;color:#92400e;font-weight:600;">Payment under review</p>
+              <p style="margin:8px 0 0;font-size:14px;color:#92400e;font-weight:600;">${labelStatus}</p>
             </div>
           </td>
         </tr>
@@ -63,37 +93,37 @@ export function buildConfirmationEmailHtml(params: {
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;border-radius:12px;padding:20px;">
               ${orderNumber ? `<tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Order Number</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelOrderNumber}</p>
                   <p style="margin:2px 0 0;font-size:18px;color:#1a2b4a;font-weight:700;font-family:monospace;">${orderNumber}</p>
                 </td>
               </tr>` : ""}
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Event</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelEvent}</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${eventName}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Date</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelDate}</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${eventDate}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Venue</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelVenue}</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${venue}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Ticket Type</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelTicketType}</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${ticketTypeName}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Price</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelPrice}</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${price}</p>
                 </td>
               </tr>
@@ -103,13 +133,13 @@ export function buildConfirmationEmailHtml(params: {
         <!-- Info -->
         <tr>
           <td style="padding:0 32px 28px;text-align:center;">
-            <p style="margin:0;font-size:14px;color:#7a8599;line-height:1.5;">You will receive a new email with your QR code once your payment is approved.</p>
+            <p style="margin:0;font-size:14px;color:#7a8599;line-height:1.5;">${introWaiting}</p>
           </td>
         </tr>
         <!-- Footer -->
         <tr>
           <td style="padding:20px 32px;border-top:1px solid #d8dde6;text-align:center;">
-            <p style="margin:0;font-size:12px;color:#7a8599;">maTickets &mdash; Digital ticketing system</p>
+            <p style="margin:0;font-size:12px;color:#7a8599;">${footer}</p>
           </td>
         </tr>
       </table>
@@ -119,7 +149,7 @@ export function buildConfirmationEmailHtml(params: {
 </html>`;
 }
 
-export function buildConfirmationEmailText(params: {
+export async function buildConfirmationEmailText(params: {
   firstName: string;
   lastName: string;
   eventName: string;
@@ -129,33 +159,41 @@ export function buildConfirmationEmailText(params: {
   price: string;
   orderUrl: string;
   orderNumber?: string;
+  lang?: string;
 }) {
-  const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, orderUrl, orderNumber } = params;
+  const lang = normalizeLang(params.lang);
+  const [t, tCommon] = await Promise.all([
+    getTranslations({ locale: lang, namespace: "emails.confirmation" }),
+    getTranslations({ locale: lang, namespace: "emails.common" }),
+  ]);
+  const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, orderNumber } = params;
+  const greeting = tCommon("greeting", { firstName, lastName });
+  const footer = tCommon("footer");
 
   return `maTickets
 ========
 
-Hi ${firstName} ${lastName},
+${greeting}
 
-Your order has been received. We are reviewing your payment proof.
-${orderNumber ? `\nOrder Number: ${orderNumber}\n` : ""}
---- Event Details ---
+${t("intro")}
+${orderNumber ? `\n${t("labelOrderNumber")}: ${orderNumber}\n` : ""}
+--- ${t("eventDetailsHeader")} ---
 
-Event: ${eventName}
-Date: ${eventDate}
-Venue: ${venue}
-Ticket Type: ${ticketTypeName}
-Price: ${price}
+${t("labelEvent")}: ${eventName}
+${t("labelDate")}: ${eventDate}
+${t("labelVenue")}: ${venue}
+${t("labelTicketType")}: ${ticketTypeName}
+${t("labelPrice")}: ${price}
 
 ---
 
-You will receive a new email with your QR code once your payment is approved.
+${t("introWaiting")}
 
-maTickets - Digital ticketing system
+${footer}
 `;
 }
 
-export function buildTicketEmailText(params: {
+export async function buildTicketEmailText(params: {
   firstName: string;
   lastName: string;
   eventName: string;
@@ -166,35 +204,43 @@ export function buildTicketEmailText(params: {
   ticketUrl: string;
   orderNumber?: string;
   ticketPageUrl?: string;
+  lang?: string;
 }) {
+  const lang = normalizeLang(params.lang);
+  const [t, tCommon] = await Promise.all([
+    getTranslations({ locale: lang, namespace: "emails.ticket" }),
+    getTranslations({ locale: lang, namespace: "emails.common" }),
+  ]);
   const { firstName, lastName, eventName, eventDate, venue, ticketTypeName, price, ticketUrl, orderNumber, ticketPageUrl } = params;
+  const greeting = tCommon("greeting", { firstName, lastName });
+  const footer = tCommon("footer");
 
   return `maTickets
 ========
 
-Hi ${firstName} ${lastName},
+${greeting}
 
-Your ticket has been approved. Show the attached QR code at the event entrance.
-${orderNumber ? `\nOrder Number: ${orderNumber}\n` : ""}
---- Event Details ---
+${t("intro")}
+${orderNumber ? `\n${t("labelOrderNumber")}: ${orderNumber}\n` : ""}
+--- ${t("eventDetailsHeader")} ---
 
-Event: ${eventName}
-Date: ${eventDate}
-Venue: ${venue}
-Ticket Type: ${ticketTypeName}
-Price: ${price}
+${t("labelEvent")}: ${eventName}
+${t("labelDate")}: ${eventDate}
+${t("labelVenue")}: ${venue}
+${t("labelTicketType")}: ${ticketTypeName}
+${t("labelPrice")}: ${price}
 
 ---
 
-View your ticket online: ${ticketUrl}
-${ticketPageUrl ? `\nSave your ticket as a beautiful image: ${ticketPageUrl}\n` : ""}
-If you can't see the QR code in the email body, you'll find it as an attachment (ticket-qr.png).
+${t("viewOnline")}: ${ticketUrl}
+${ticketPageUrl ? `\n${t("saveAsImage")}: ${ticketPageUrl}\n` : ""}
+${t("attachmentNote")}
 
-maTickets - Digital ticketing system
+${footer}
 `;
 }
 
-export function buildTicketEmailHtml(params: {
+export async function buildTicketEmailHtml(params: {
   firstName: string;
   lastName: string;
   eventName: string;
@@ -206,7 +252,14 @@ export function buildTicketEmailHtml(params: {
   orderNumber?: string;
   primaryColor?: string;
   ticketPageUrl?: string;
+  lang?: string;
 }) {
+  const lang = normalizeLang(params.lang);
+  const [t, tCommon] = await Promise.all([
+    getTranslations({ locale: lang, namespace: "emails.ticket" }),
+    getTranslations({ locale: lang, namespace: "emails.common" }),
+  ]);
+
   const firstName = escapeHtml(params.firstName);
   const lastName = escapeHtml(params.lastName);
   const eventName = escapeHtml(params.eventName);
@@ -214,10 +267,20 @@ export function buildTicketEmailHtml(params: {
   const venue = escapeHtml(params.venue);
   const ticketTypeName = escapeHtml(params.ticketTypeName);
   const price = escapeHtml(params.price);
-  const ticketUrl = escapeHtml(params.ticketUrl);
   const orderNumber = params.orderNumber ? escapeHtml(params.orderNumber) : undefined;
   const brandColor = params.primaryColor || "#1a2b4a";
   const ticketPageUrl = params.ticketPageUrl ? escapeHtml(params.ticketPageUrl) : undefined;
+
+  const greeting = escapeHtml(tCommon("greeting", { firstName: params.firstName, lastName: params.lastName }));
+  const footer = escapeHtml(tCommon("footer"));
+  const intro = escapeHtml(t("intro"));
+  const saveButton = escapeHtml(t("saveButton"));
+  const saveHint = escapeHtml(t("saveHint"));
+  const labelEvent = escapeHtml(t("labelEvent"));
+  const labelDate = escapeHtml(t("labelDate"));
+  const labelVenue = escapeHtml(t("labelVenue"));
+  const labelTicketType = escapeHtml(t("labelTicketType"));
+  const labelPrice = escapeHtml(t("labelPrice"));
 
   // Derive a lighter shade for gradient
   const hex = brandColor.replace("#", "");
@@ -230,7 +293,7 @@ export function buildTicketEmailHtml(params: {
   const lighterColor = `rgb(${lighterR},${lighterG},${lighterB})`;
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${lang}">
 <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
 <body style="margin:0;padding:0;background-color:#f5f7fa;font-family:system-ui,-apple-system,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;padding:32px 16px;">
@@ -245,8 +308,8 @@ export function buildTicketEmailHtml(params: {
         <!-- Greeting -->
         <tr>
           <td style="padding:28px 32px 12px;">
-            <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">Hi ${firstName} ${lastName},</p>
-            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">Your ticket has been approved! Show the QR code below at the event entrance.</p>
+            <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">${greeting}</p>
+            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">${intro}</p>
           </td>
         </tr>
         <!-- QR Code with branded background -->
@@ -268,8 +331,8 @@ export function buildTicketEmailHtml(params: {
         ${ticketPageUrl ? `<!-- Save Ticket Button -->
         <tr>
           <td align="center" style="padding:4px 32px 20px;">
-            <a href="${ticketPageUrl}" target="_blank" style="display:inline-block;background:linear-gradient(135deg, ${brandColor} 0%, ${lighterColor} 100%);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:12px;font-size:15px;font-weight:600;letter-spacing:0.3px;">Guardar mi entrada</a>
-            <p style="margin:8px 0 0;font-size:12px;color:#7a8599;">Guarda tu entrada como imagen en tu dispositivo</p>
+            <a href="${ticketPageUrl}" target="_blank" style="display:inline-block;background:linear-gradient(135deg, ${brandColor} 0%, ${lighterColor} 100%);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:12px;font-size:15px;font-weight:600;letter-spacing:0.3px;">${saveButton}</a>
+            <p style="margin:8px 0 0;font-size:12px;color:#7a8599;">${saveHint}</p>
           </td>
         </tr>` : ""}
         <!-- Event Details -->
@@ -278,31 +341,31 @@ export function buildTicketEmailHtml(params: {
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;border-radius:12px;padding:20px;">
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Event</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelEvent}</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${eventName}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Date</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelDate}</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${eventDate}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Venue</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelVenue}</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${venue}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Ticket Type</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelTicketType}</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${ticketTypeName}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Price</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelPrice}</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${price}</p>
                 </td>
               </tr>
@@ -312,7 +375,7 @@ export function buildTicketEmailHtml(params: {
         <!-- Footer -->
         <tr>
           <td style="padding:20px 32px;border-top:1px solid #d8dde6;text-align:center;">
-            <p style="margin:0;font-size:12px;color:#7a8599;">maTickets &mdash; Digital ticketing system</p>
+            <p style="margin:0;font-size:12px;color:#7a8599;">${footer}</p>
           </td>
         </tr>
       </table>
@@ -322,21 +385,36 @@ export function buildTicketEmailHtml(params: {
 </html>`;
 }
 
-export function buildReplyEmailHtml(params: {
+export async function buildReplyEmailHtml(params: {
   firstName: string;
   eventName: string;
   subject: string;
   originalMessage: string;
   reply: string;
+  lang?: string;
 }) {
+  const lang = normalizeLang(params.lang);
+  const [t, tCommon] = await Promise.all([
+    getTranslations({ locale: lang, namespace: "emails.reply" }),
+    getTranslations({ locale: lang, namespace: "emails.common" }),
+  ]);
+
   const firstName = escapeHtml(params.firstName);
   const eventName = escapeHtml(params.eventName);
   const subject = escapeHtml(params.subject);
   const originalMessage = escapeHtml(params.originalMessage).replace(/\n/g, "<br />");
   const reply = escapeHtml(params.reply).replace(/\n/g, "<br />");
 
+  const greeting = escapeHtml(tCommon("greetingShort", { firstName: params.firstName }));
+  const footer = escapeHtml(tCommon("footer"));
+  const intro = t("intro", { eventName });
+  const labelSubject = escapeHtml(t("labelSubject"));
+  const labelReply = escapeHtml(t("labelReply"));
+  const labelOriginal = escapeHtml(t("labelOriginal"));
+  const reLabel = escapeHtml(t("subject", { subject: params.subject }));
+
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${lang}">
 <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
 <body style="margin:0;padding:0;background-color:#f5f7fa;font-family:system-ui,-apple-system,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;padding:32px 16px;">
@@ -351,8 +429,8 @@ export function buildReplyEmailHtml(params: {
         <!-- Greeting -->
         <tr>
           <td style="padding:32px 32px 16px;">
-            <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">Hi ${firstName},</p>
-            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">The organizer of <strong style="color:#1a2b4a;">${eventName}</strong> has replied to your message.</p>
+            <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">${greeting}</p>
+            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">${intro}</p>
           </td>
         </tr>
         <!-- Reply -->
@@ -361,13 +439,13 @@ export function buildReplyEmailHtml(params: {
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;border-radius:12px;padding:20px;">
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Subject</p>
-                  <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">Re: ${subject}</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelSubject}</p>
+                  <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${reLabel}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0 0 8px;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Reply</p>
+                  <p style="margin:0 0 8px;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelReply}</p>
                   <p style="margin:0;font-size:14px;color:#1a2b4a;line-height:1.6;">${reply}</p>
                 </td>
               </tr>
@@ -377,7 +455,7 @@ export function buildReplyEmailHtml(params: {
         <!-- Original message -->
         <tr>
           <td style="padding:0 32px 24px;">
-            <p style="margin:0 0 8px;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Your original message</p>
+            <p style="margin:0 0 8px;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelOriginal}</p>
             <div style="padding:12px 16px;background-color:#f5f7fa;border-left:3px solid #d8dde6;border-radius:4px;">
               <p style="margin:0;font-size:13px;color:#7a8599;line-height:1.5;">${originalMessage}</p>
             </div>
@@ -386,7 +464,7 @@ export function buildReplyEmailHtml(params: {
         <!-- Footer -->
         <tr>
           <td style="padding:20px 32px;border-top:1px solid #d8dde6;text-align:center;">
-            <p style="margin:0;font-size:12px;color:#7a8599;">maTickets &mdash; Digital ticketing system</p>
+            <p style="margin:0;font-size:12px;color:#7a8599;">${footer}</p>
           </td>
         </tr>
       </table>
@@ -396,52 +474,74 @@ export function buildReplyEmailHtml(params: {
 </html>`;
 }
 
-export function buildReplyEmailText(params: {
+export async function buildReplyEmailText(params: {
   firstName: string;
   eventName: string;
   subject: string;
   originalMessage: string;
   reply: string;
+  lang?: string;
 }) {
+  const lang = normalizeLang(params.lang);
+  const [t, tCommon] = await Promise.all([
+    getTranslations({ locale: lang, namespace: "emails.reply" }),
+    getTranslations({ locale: lang, namespace: "emails.common" }),
+  ]);
   const { firstName, eventName, subject, originalMessage, reply } = params;
+  const greeting = tCommon("greetingShort", { firstName });
+  const footer = tCommon("footer");
 
   return `maTickets
 ========
 
-Hi ${firstName},
+${greeting}
 
-The organizer of ${eventName} has replied to your message.
+${t("introText", { eventName })}
 
---- Re: ${subject} ---
+--- ${t("subject", { subject })} ---
 
 ${reply}
 
---- Your original message ---
+--- ${t("labelOriginal")} ---
 
 ${originalMessage}
 
 ---
 
-maTickets - Digital ticketing system
+${footer}
 `;
 }
 
-export function buildBroadcastEmailHtml(params: {
+export async function buildBroadcastEmailHtml(params: {
   firstName: string;
   eventName: string;
   subject: string;
   body: string;
   organizerEmail: string;
+  lang?: string;
 }) {
-  const firstName = escapeHtml(params.firstName || "");
+  const lang = normalizeLang(params.lang);
+  const [t, tCommon] = await Promise.all([
+    getTranslations({ locale: lang, namespace: "emails.broadcast" }),
+    getTranslations({ locale: lang, namespace: "emails.common" }),
+  ]);
+
+  const firstName = params.firstName || "";
   const eventName = escapeHtml(params.eventName);
   const subject = escapeHtml(params.subject);
   const body = escapeHtml(params.body).replace(/\n/g, "<br />");
   const organizerEmail = escapeHtml(params.organizerEmail);
-  const greeting = firstName ? `Hola ${firstName},` : "Hola,";
+  const greeting = firstName
+    ? escapeHtml(tCommon("greetingShort", { firstName }))
+    : escapeHtml(tCommon("greetingFallback"));
+  const footer = escapeHtml(tCommon("footer"));
+  const intro = t("intro", { eventName });
+  const footerNote = t("footer", { eventName, organizerEmail });
+  const labelSubject = escapeHtml(t("labelSubject"));
+  const labelMessage = escapeHtml(t("labelMessage"));
 
   return `<!DOCTYPE html>
-<html lang="es">
+<html lang="${lang}">
 <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
 <body style="margin:0;padding:0;background-color:#f5f7fa;font-family:system-ui,-apple-system,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;padding:32px 16px;">
@@ -457,7 +557,7 @@ export function buildBroadcastEmailHtml(params: {
         <tr>
           <td style="padding:32px 32px 8px;">
             <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">${greeting}</p>
-            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">El organizador de <strong style="color:#1a2b4a;">${eventName}</strong> te ha enviado un mensaje.</p>
+            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">${intro}</p>
           </td>
         </tr>
         <!-- Subject + Body -->
@@ -466,13 +566,13 @@ export function buildBroadcastEmailHtml(params: {
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;border-radius:12px;padding:20px;">
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Asunto</p>
+                  <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelSubject}</p>
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${subject}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:6px 20px;">
-                  <p style="margin:0 0 8px;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">Mensaje</p>
+                  <p style="margin:0 0 8px;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelMessage}</p>
                   <p style="margin:0;font-size:14px;color:#1a2b4a;line-height:1.6;">${body}</p>
                 </td>
               </tr>
@@ -482,9 +582,8 @@ export function buildBroadcastEmailHtml(params: {
         <!-- Footer -->
         <tr>
           <td style="padding:20px 32px;border-top:1px solid #d8dde6;text-align:center;">
-            <p style="margin:0 0 4px;font-size:12px;color:#7a8599;">Este mensaje fue enviado por el organizador de <strong>${eventName}</strong>.</p>
-            <p style="margin:0;font-size:12px;color:#7a8599;">Para responder al organizador, escribe a <a href="mailto:${organizerEmail}" style="color:#1a2b4a;text-decoration:underline;">${organizerEmail}</a>.</p>
-            <p style="margin:12px 0 0;font-size:12px;color:#7a8599;">maTickets &mdash; Digital ticketing system</p>
+            <p style="margin:0 0 4px;font-size:12px;color:#7a8599;">${footerNote}</p>
+            <p style="margin:12px 0 0;font-size:12px;color:#7a8599;">${footer}</p>
           </td>
         </tr>
       </table>
@@ -494,22 +593,29 @@ export function buildBroadcastEmailHtml(params: {
 </html>`;
 }
 
-export function buildBroadcastEmailText(params: {
+export async function buildBroadcastEmailText(params: {
   firstName: string;
   eventName: string;
   subject: string;
   body: string;
   organizerEmail: string;
+  lang?: string;
 }) {
+  const lang = normalizeLang(params.lang);
+  const [t, tCommon] = await Promise.all([
+    getTranslations({ locale: lang, namespace: "emails.broadcast" }),
+    getTranslations({ locale: lang, namespace: "emails.common" }),
+  ]);
   const { firstName, eventName, subject, body, organizerEmail } = params;
-  const greeting = firstName ? `Hola ${firstName},` : "Hola,";
+  const greeting = firstName ? tCommon("greetingShort", { firstName }) : tCommon("greetingFallback");
+  const footer = tCommon("footer");
 
   return `maTickets
 ========
 
 ${greeting}
 
-El organizador de ${eventName} te ha enviado un mensaje.
+${t("introText", { eventName })}
 
 --- ${subject} ---
 
@@ -517,9 +623,8 @@ ${body}
 
 ---
 
-Este mensaje fue enviado por el organizador de ${eventName}.
-Para responder, escribe a ${organizerEmail}.
+${t("footerText", { eventName, organizerEmail })}
 
-maTickets - Digital ticketing system
+${footer}
 `;
 }

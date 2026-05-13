@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { verifyScannerToken } from "@/lib/scannerToken";
 import { isAuthorizedForConcert } from "@/lib/authHelpers";
+import { errorResponse } from "@/lib/serverI18n";
 
 export async function POST(req: NextRequest) {
   try {
     const { orderId, userEmail, scannerToken } = await req.json();
 
     if (!orderId || typeof orderId !== "string") {
-      return NextResponse.json({ error: "orderId is required" }, { status: 400 });
+      return errorResponse(req, "ORDER_ID_REQUIRED", 400);
     }
 
     // Auth: either organizer/super-admin email or scanner token
@@ -18,27 +19,27 @@ export async function POST(req: NextRequest) {
     if (scannerToken) {
       const result = verifyScannerToken(scannerToken);
       if (!result) {
-        return NextResponse.json({ error: "Invalid or expired scanner token" }, { status: 401 });
+        return errorResponse(req, "SCANNER_TOKEN_INVALID", 401);
       }
       scopedConcertId = result.concertId;
     } else if (userEmail) {
       // Verify the email belongs to a real authenticated user via Bearer token
       const authHeader = req.headers.get("authorization");
       if (!authHeader?.startsWith("Bearer ")) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        return errorResponse(req, "UNAUTHORIZED", 401);
       }
       const token = authHeader.slice(7);
       try {
         const user = await adminDb.auth.verifyToken(token);
         if (!user?.email) {
-          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+          return errorResponse(req, "UNAUTHORIZED", 401);
         }
         authenticatedEmail = user.email.toLowerCase();
       } catch {
-        return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+        return errorResponse(req, "UNAUTHORIZED", 401);
       }
     } else {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return errorResponse(req, "UNAUTHORIZED", 401);
     }
 
     // Fetch order — needed for both scope check and visited/status guard
@@ -66,14 +67,14 @@ export async function POST(req: NextRequest) {
         }
       | undefined;
     if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      return errorResponse(req, "ORDER_NOT_FOUND", 404);
     }
 
     // If scanner token, verify the order belongs to the scoped concert
     if (scopedConcertId) {
       const concertId = order.ticketType?.concert?.id;
       if (concertId !== scopedConcertId) {
-        return NextResponse.json({ error: "Wrong event" }, { status: 403 });
+        return errorResponse(req, "WRONG_EVENT", 403);
       }
     }
 
@@ -87,16 +88,16 @@ export async function POST(req: NextRequest) {
           collaborators: concertInfo.collaborators,
         })
       ) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        return errorResponse(req, "UNAUTHORIZED", 401);
       }
     }
 
     // Double-scan guard
     if (order.visited) {
-      return NextResponse.json({ error: "Already scanned" }, { status: 409 });
+      return errorResponse(req, "ALREADY_SCANNED", 409);
     }
     if (order.status !== "approved") {
-      return NextResponse.json({ error: "Ticket not approved" }, { status: 403 });
+      return errorResponse(req, "TICKET_NOT_APPROVED", 403);
     }
 
     const visitedAt = Date.now();
@@ -121,9 +122,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[mark-visited] Error:", err);
-    return NextResponse.json(
-      { error: "Failed to mark as visited" },
-      { status: 500 },
-    );
+    return errorResponse(req, "MARK_VISITED_FAILED", 500);
   }
 }

@@ -21,6 +21,9 @@ import {
   computeOrderTotalAtPurchase,
   computePlatformFeeAtPurchase,
 } from "@/lib/order-pricing";
+import { errorResponse } from "@/lib/serverI18n";
+import { detectLocale, resolveEmailLang } from "@/lib/serverLocale";
+import { getTranslations } from "next-intl/server";
 
 type CreateOrderBody = {
   ticketTypeId: string;
@@ -76,65 +79,37 @@ export async function POST(req: NextRequest) {
 
     // Input validation
     if (!isValidUUID(ticketTypeId)) {
-      return NextResponse.json(
-        { error: "Invalid ticketTypeId format" },
-        { status: 400 },
-      );
+      return errorResponse(req, "INVALID_TICKET_TYPE", 400);
     }
     if (!isValidQty(qty)) {
-      return NextResponse.json(
-        { error: "qty must be an integer between 1 and 5" },
-        { status: 400 },
-      );
+      return errorResponse(req, "QTY_OUT_OF_RANGE", 400);
     }
     if (!Array.isArray(attendees) || attendees.length !== qty) {
-      return NextResponse.json(
-        { error: "attendees array must match qty" },
-        { status: 400 },
-      );
+      return errorResponse(req, "ATTENDEES_MISMATCH", 400);
     }
     const validationErrors = attendees.flatMap((a, i) => validateAttendee(a, i));
     if (validationErrors.length > 0) {
-      return NextResponse.json(
-        { error: "Validation failed", details: validationErrors },
-        { status: 400 },
-      );
+      return errorResponse(req, "VALIDATION_FAILED", 400, {
+        extra: { details: validationErrors },
+      });
     }
     if (paymentMethodName && (!isValidName(paymentMethodName) || paymentMethodName.length > 100)) {
-      return NextResponse.json(
-        { error: "Invalid payment method name" },
-        { status: 400 },
-      );
+      return errorResponse(req, "INVALID_INPUT", 400);
     }
     if (paymentMethodId && !isValidUUID(paymentMethodId)) {
-      return NextResponse.json(
-        { error: "Invalid paymentMethodId format" },
-        { status: 400 },
-      );
+      return errorResponse(req, "INVALID_INPUT", 400);
     }
     if (reservationId && !isValidUUID(reservationId)) {
-      return NextResponse.json(
-        { error: "Invalid reservationId format" },
-        { status: 400 },
-      );
+      return errorResponse(req, "INVALID_INPUT", 400);
     }
     if (purchaseGroupId && !isValidUUID(purchaseGroupId)) {
-      return NextResponse.json(
-        { error: "Invalid purchaseGroupId format" },
-        { status: 400 },
-      );
+      return errorResponse(req, "INVALID_INPUT", 400);
     }
     if (paymentProofPath && !/^payment-proofs\/\d+-[a-zA-Z0-9._-]+$/.test(paymentProofPath)) {
-      return NextResponse.json(
-        { error: "Invalid file path" },
-        { status: 400 },
-      );
+      return errorResponse(req, "INVALID_INPUT", 400);
     }
     if (referenceNumber && (typeof referenceNumber !== "string" || referenceNumber.length > 100)) {
-      return NextResponse.json(
-        { error: "Invalid reference number" },
-        { status: 400 },
-      );
+      return errorResponse(req, "INVALID_INPUT", 400);
     }
     // Check for duplicate reference numbers (skip memo-only codes like "MT-XXXXX")
     if (referenceNumber && !/^MT-[A-Z0-9]{5}$/.test(referenceNumber)) {
@@ -149,39 +124,24 @@ export async function POST(req: NextRequest) {
         },
       });
       if (existingOrders.length > 0) {
-        return NextResponse.json(
-          { error: "Este numero de referencia ya fue utilizado" },
-          { status: 400 },
-        );
+        return errorResponse(req, "REFERENCE_NUMBER_USED", 400);
       }
     }
     if (customFieldValues) {
       if (typeof customFieldValues !== "string" || customFieldValues.length > 5000) {
-        return NextResponse.json(
-          { error: "Invalid custom field values" },
-          { status: 400 },
-        );
+        return errorResponse(req, "INVALID_INPUT", 400);
       }
       try {
         const parsed = JSON.parse(customFieldValues);
         if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-          return NextResponse.json(
-            { error: "Invalid custom field values format" },
-            { status: 400 },
-          );
+          return errorResponse(req, "INVALID_INPUT", 400);
         }
       } catch {
-        return NextResponse.json(
-          { error: "Invalid custom field values JSON" },
-          { status: 400 },
-        );
+        return errorResponse(req, "INVALID_INPUT", 400);
       }
     }
     if (couponCode && (typeof couponCode !== "string" || couponCode.length > 50 || !/^[A-Z0-9_-]+$/i.test(couponCode))) {
-      return NextResponse.json(
-        { error: "Invalid coupon code format" },
-        { status: 400 },
-      );
+      return errorResponse(req, "INVALID_COUPON", 400);
     }
 
     // Query fresh data server-side
@@ -206,10 +166,7 @@ export async function POST(req: NextRequest) {
 
     const ticketType = ticketTypes[0];
     if (!ticketType) {
-      return NextResponse.json(
-        { error: "Ticket type not found" },
-        { status: 404 },
-      );
+      return errorResponse(req, "TICKET_TYPE_NOT_FOUND", 404);
     }
 
     // Admin SDK returns has-one relations as arrays
@@ -223,23 +180,18 @@ export async function POST(req: NextRequest) {
       status: string;
       lastOrderSeq?: number;
       orderNumberPrefix?: string;
+      defaultLanguage?: string;
       coupons: { id: string; code: string; discountType: string; discountValue: number; maxUses?: number; active: boolean }[];
       paymentMethods: { id: string; type?: string; name: string; discountType?: string; discountValue?: number }[];
       platformFeeConfig?: { feePercent: number; feeFixed: number; billingMode?: string } | { feePercent: number; feeFixed: number; billingMode?: string }[];
     };
 
     if (!concert) {
-      return NextResponse.json(
-        { error: "Concert not found for this ticket type" },
-        { status: 404 },
-      );
+      return errorResponse(req, "CONCERT_NOT_FOUND", 404);
     }
 
     if (concert.status !== "active") {
-      return NextResponse.json(
-        { error: "Event is not available for sale" },
-        { status: 404 },
-      );
+      return errorResponse(req, "EVENT_NOT_AVAILABLE", 404);
     }
 
     const phases = (ticketType.phases || []) as {
@@ -295,10 +247,9 @@ export async function POST(req: NextRequest) {
     );
 
     if (available < qty) {
-      return NextResponse.json(
-        { error: "Not enough tickets available", available },
-        { status: 409 },
-      );
+      return errorResponse(req, "NOT_ENOUGH_TICKETS", 409, {
+        extra: { available },
+      });
     }
 
     // Validate coupon server-side
@@ -310,16 +261,10 @@ export async function POST(req: NextRequest) {
         (c) => c.code.toUpperCase() === couponCode.toUpperCase(),
       );
       if (!coupon) {
-        return NextResponse.json(
-          { error: "Invalid coupon code" },
-          { status: 400 },
-        );
+        return errorResponse(req, "INVALID_COUPON", 400);
       }
       if (!coupon.active) {
-        return NextResponse.json(
-          { error: "Coupon is no longer active" },
-          { status: 400 },
-        );
+        return errorResponse(req, "COUPON_INACTIVE", 400);
       }
       if (coupon.maxUses != null) {
         const usageCount = allOrders.filter(
@@ -328,10 +273,7 @@ export async function POST(req: NextRequest) {
             (o.status === "approved" || o.status === "pending"),
         ).length;
         if (usageCount >= coupon.maxUses) {
-          return NextResponse.json(
-            { error: "Coupon usage limit reached" },
-            { status: 400 },
-          );
+          return errorResponse(req, "COUPON_LIMIT_REACHED", 400);
         }
       }
 
@@ -382,6 +324,9 @@ export async function POST(req: NextRequest) {
       email: a.email.trim(),
       cedula: a.cedula.trim(),
     }));
+
+    // Capture buyer's locale for downstream email delivery
+    const orderLanguage = detectLocale(req);
 
     const feePercentSnapshot = ticketType.feePercent ?? 0;
     const feeFixedSnapshot = ticketType.feeFixed ?? 0;
@@ -439,6 +384,7 @@ export async function POST(req: NextRequest) {
             visited: false,
             createdAt: Date.now(),
             orderNumber,
+            language: orderLanguage,
             priceSnapshot: effectivePrice,
             feePercentSnapshot,
             feeFixedSnapshot,
@@ -487,10 +433,7 @@ export async function POST(req: NextRequest) {
           if (failCleanup.length > 0) {
             try { await adminDb.transact(failCleanup); } catch { /* best effort */ }
           }
-          return NextResponse.json(
-            { error: "Failed to create order. Please try again." },
-            { status: 500 },
-          );
+          return errorResponse(req, "CREATE_ORDER_FAILED", 500);
         }
         console.warn(`[create-order] Transaction attempt ${attempt + 1} failed, retrying:`, err);
         await new Promise((r) => setTimeout(r, 50 + Math.random() * 200));
@@ -537,11 +480,9 @@ export async function POST(req: NextRequest) {
         const freshAvail = getAvailability(freshTT, freshPhases, freshOrders, getTodayString(), freshReservations);
 
         let rollback = false;
-        let rollbackReason = "";
 
         if (freshAvail.available < 0) {
           rollback = true;
-          rollbackReason = "Tickets oversold due to concurrent purchase. Please try again.";
         }
 
         // Check coupon overuse
@@ -556,7 +497,6 @@ export async function POST(req: NextRequest) {
             ).length;
             if (usageCount > coupon.maxUses) {
               rollback = true;
-              rollbackReason = "Coupon usage limit exceeded due to concurrent purchase. Please try again.";
             }
           }
         }
@@ -572,10 +512,7 @@ export async function POST(req: NextRequest) {
           ];
           await adminDb.transact(rollbackTxns);
 
-          return NextResponse.json(
-            { error: rollbackReason, code: "CONCURRENT_CONFLICT" },
-            { status: 409 },
-          );
+          return errorResponse(req, "CONCURRENT_CONFLICT", 409);
         }
       }
     }
@@ -585,6 +522,9 @@ export async function POST(req: NextRequest) {
     after(async () => {
       const emailFrom = EMAIL_FROM;
       if (!emailFrom) return;
+
+      const emailLang = resolveEmailLang(orderLanguage, concert.defaultLanguage);
+      const tEmail = await getTranslations({ locale: emailLang, namespace: "emails.confirmation" });
 
       for (let idx = 0; idx < orderIds.length; idx++) {
         const orderId = orderIds[idx];
@@ -602,6 +542,7 @@ export async function POST(req: NextRequest) {
           price: `$${totalSnapshot.toFixed(2)}`,
           orderUrl,
           orderNumber,
+          lang: emailLang,
         };
 
         if (await isEmailSuppressed(attendee.email)) {
@@ -613,9 +554,9 @@ export async function POST(req: NextRequest) {
           from: `"maTickets" <${emailFrom}>`,
           replyTo: emailFrom,
           to: attendee.email,
-          subject: `Order ${orderNumber} - ${concert.name}`,
-          html: buildConfirmationEmailHtml(emailParams),
-          text: buildConfirmationEmailText(emailParams),
+          subject: tEmail("subject", { orderNumber, eventName: concert.name }),
+          html: await buildConfirmationEmailHtml(emailParams),
+          text: await buildConfirmationEmailText(emailParams),
           messageId: generateMessageId(),
           date: new Date(),
           envelope: { from: emailFrom, to: attendee.email },
@@ -633,9 +574,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ orderIds }, { status: 200 });
   } catch (err) {
     console.error("[create-order] Unexpected error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return errorResponse(req, "INTERNAL_ERROR", 500);
   }
 }

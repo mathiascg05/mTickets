@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { id } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { isValidUUID, isValidEmail, isValidName } from "@/lib/validation";
+import { errorResponse } from "@/lib/serverI18n";
+import { detectLocale } from "@/lib/serverLocale";
 
 // In-memory rate limit: 3 messages per email per 10 minutes
 const rateLimitMap = new Map<string, number[]>();
@@ -24,31 +26,28 @@ export async function POST(req: NextRequest) {
     const { concertId, firstName, lastName, email, subject, body: messageBody } = body;
 
     if (!isValidUUID(concertId)) {
-      return NextResponse.json({ error: "Invalid event." }, { status: 400 });
+      return errorResponse(req, "INVALID_EVENT", 400);
     }
     if (!isValidName(firstName)) {
-      return NextResponse.json({ error: "Invalid first name." }, { status: 400 });
+      return errorResponse(req, "INVALID_FIRST_NAME", 400);
     }
     if (!isValidName(lastName)) {
-      return NextResponse.json({ error: "Invalid last name." }, { status: 400 });
+      return errorResponse(req, "INVALID_LAST_NAME", 400);
     }
     if (!isValidEmail(email)) {
-      return NextResponse.json({ error: "Invalid email." }, { status: 400 });
+      return errorResponse(req, "INVALID_EMAIL", 400);
     }
     if (typeof subject !== "string" || subject.trim().length === 0 || subject.length > 200) {
-      return NextResponse.json({ error: "Subject is required (max 200 chars)." }, { status: 400 });
+      return errorResponse(req, "SUBJECT_REQUIRED", 400);
     }
     if (typeof messageBody !== "string" || messageBody.trim().length === 0 || messageBody.length > 2000) {
-      return NextResponse.json({ error: "Message is required (max 2000 chars)." }, { status: 400 });
+      return errorResponse(req, "MESSAGE_BODY_REQUIRED", 400);
     }
 
     const normalizedEmail = (email as string).toLowerCase().trim();
 
     if (!checkRateLimit(normalizedEmail)) {
-      return NextResponse.json(
-        { error: "Too many messages. Please try again later." },
-        { status: 429 },
-      );
+      return errorResponse(req, "TOO_MANY_MESSAGES", 429);
     }
 
     const { concerts } = await adminDb.query({
@@ -56,12 +55,10 @@ export async function POST(req: NextRequest) {
     });
     const concertForContact = concerts[0];
     if (!concertForContact || concertForContact.status !== "active") {
-      return NextResponse.json(
-        { error: "Event is not available." },
-        { status: 404 },
-      );
+      return errorResponse(req, "EVENT_NOT_AVAILABLE_CONTACT", 404);
     }
 
+    const lang = detectLocale(req);
     const messageId = id();
     await adminDb.transact(
       adminDb.tx.messages[messageId]
@@ -72,6 +69,7 @@ export async function POST(req: NextRequest) {
           subject: subject.trim(),
           body: messageBody.trim(),
           status: "new",
+          language: lang,
           createdAt: Date.now(),
         })
         .link({ concert: concertId }),
@@ -80,9 +78,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[contact-organizer] error:", err);
-    return NextResponse.json(
-      { error: "Something went wrong. Please try again." },
-      { status: 500 },
-    );
+    return errorResponse(req, "INTERNAL_ERROR", 500);
   }
 }

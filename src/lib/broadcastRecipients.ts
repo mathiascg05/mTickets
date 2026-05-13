@@ -14,6 +14,7 @@ export type BroadcastRecipient = {
   ticketTypeName: string;
   paymentMethod: string;
   status: string;
+  language?: string;
 };
 
 export type ResolvedRecipients = {
@@ -71,6 +72,7 @@ export async function resolveRecipients(
       ticketTypeName: tt?.name ?? "",
       paymentMethod: o.paymentMethod ?? "",
       status: o.status ?? "",
+      language: (o as { language?: string }).language,
     });
   }
 

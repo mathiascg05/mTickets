@@ -3,6 +3,7 @@ import { adminDb } from "@/lib/adminDb";
 import { transporter, generateMessageId, EMAIL_FROM } from "@/lib/mailer";
 import { hashPassword, validatePassword } from "@/lib/password";
 import { buildResetUrl, verifyResetToken } from "@/lib/resetToken";
+import { errorResponse } from "@/lib/serverI18n";
 
 /** POST /api/reset-password — send reset email */
 export async function POST(req: NextRequest) {
@@ -10,7 +11,7 @@ export async function POST(req: NextRequest) {
     const { email } = await req.json();
 
     if (typeof email !== "string" || !email.includes("@")) {
-      return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+      return errorResponse(req, "INVALID_EMAIL", 400);
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[reset-password] Send error:", err);
-    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+    return errorResponse(req, "INTERNAL_ERROR", 500);
   }
 }
 
@@ -62,26 +63,26 @@ export async function PUT(req: NextRequest) {
     const { email, token, password, confirmPassword } = await req.json();
 
     if (typeof email !== "string" || typeof token !== "string") {
-      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+      return errorResponse(req, "INVALID_INPUT", 400);
     }
 
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!verifyResetToken(normalizedEmail, token)) {
-      return NextResponse.json({ error: "Invalid or expired reset link. Please request a new one." }, { status: 400 });
+      return errorResponse(req, "INVALID_RESET_LINK", 400);
     }
 
     if (typeof password !== "string") {
-      return NextResponse.json({ error: "Password is required" }, { status: 400 });
+      return errorResponse(req, "PASSWORD_REQUIRED", 400);
     }
 
     const passwordError = validatePassword(password);
     if (passwordError) {
-      return NextResponse.json({ error: passwordError }, { status: 400 });
+      return errorResponse(req, passwordError.code, 400, { values: passwordError.values });
     }
 
     if (password !== confirmPassword) {
-      return NextResponse.json({ error: "Passwords do not match" }, { status: 400 });
+      return errorResponse(req, "PASSWORDS_MISMATCH", 400);
     }
 
     // Find user and their credentials
@@ -93,7 +94,7 @@ export async function PUT(req: NextRequest) {
     });
 
     if ($users.length === 0) {
-      return NextResponse.json({ error: "Account not found" }, { status: 404 });
+      return errorResponse(req, "NO_ACCOUNT", 404);
     }
 
     const user = $users[0];
@@ -120,6 +121,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[reset-password] Reset error:", err);
-    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+    return errorResponse(req, "INTERNAL_ERROR", 500);
   }
 }

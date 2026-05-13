@@ -3,6 +3,7 @@ import { id } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
 import { hashPassword, verifyPassword, validatePassword } from "@/lib/password";
+import { errorResponse } from "@/lib/serverI18n";
 import {
   TERMS_VERSION,
   ORGANIZER_TERMS_VERSION,
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
     const { email, action } = await req.json();
 
     if (typeof email !== "string" || !email.includes("@")) {
-      return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+      return errorResponse(req, "INVALID_EMAIL", 400);
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -27,23 +28,17 @@ export async function POST(req: NextRequest) {
     const userExists = $users.length > 0;
 
     if (mode === "login" && !userExists) {
-      return NextResponse.json(
-        { error: "No account found. Please create an account first." },
-        { status: 404 },
-      );
+      return errorResponse(req, "NO_ACCOUNT", 404);
     }
 
     if (mode === "register" && userExists) {
-      return NextResponse.json(
-        { error: "An account with this email already exists. Please log in." },
-        { status: 409 },
-      );
+      return errorResponse(req, "ACCOUNT_EXISTS", 409);
     }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[admin-auth] Check error:", err);
-    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+    return errorResponse(req, "INTERNAL_ERROR", 500);
   }
 }
 
@@ -61,10 +56,10 @@ export async function PUT(req: NextRequest) {
     } = await req.json();
 
     if (typeof email !== "string" || !email.includes("@")) {
-      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+      return errorResponse(req, "INVALID_INPUT", 400);
     }
     if (typeof password !== "string" || !password) {
-      return NextResponse.json({ error: "Password is required" }, { status: 400 });
+      return errorResponse(req, "PASSWORD_REQUIRED", 400);
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -73,23 +68,17 @@ export async function PUT(req: NextRequest) {
     if (action === "register") {
       const passwordError = validatePassword(password);
       if (passwordError) {
-        return NextResponse.json({ error: passwordError }, { status: 400 });
+        return errorResponse(req, passwordError.code, 400, { values: passwordError.values });
       }
       if (password !== confirmPassword) {
-        return NextResponse.json({ error: "Passwords do not match" }, { status: 400 });
+        return errorResponse(req, "PASSWORDS_MISMATCH", 400);
       }
       if (
         acceptedTermsVersion !== TERMS_VERSION ||
         acceptedOrganizerTermsVersion !== ORGANIZER_TERMS_VERSION ||
         acceptedPrivacyVersion !== PRIVACY_VERSION
       ) {
-        return NextResponse.json(
-          {
-            error:
-              "Debes aceptar los Términos, los Términos del Organizador y la Política de Privacidad para crear una cuenta.",
-          },
-          { status: 400 },
-        );
+        return errorResponse(req, "MUST_ACCEPT_LEGAL", 400);
       }
 
       // Check user doesn't already exist
@@ -97,10 +86,7 @@ export async function PUT(req: NextRequest) {
         $users: { $: { where: { email: normalizedEmail } } },
       });
       if ($users.length > 0) {
-        return NextResponse.json(
-          { error: "An account with this email already exists." },
-          { status: 409 },
-        );
+        return errorResponse(req, "ACCOUNT_EXISTS", 409);
       }
 
       // Hash password
@@ -147,10 +133,7 @@ export async function PUT(req: NextRequest) {
     });
 
     if ($users.length === 0) {
-      return NextResponse.json(
-        { error: "No account found. Please create an account first." },
-        { status: 404 },
-      );
+      return errorResponse(req, "NO_ACCOUNT", 404);
     }
 
     const user = $users[0];
@@ -158,15 +141,12 @@ export async function PUT(req: NextRequest) {
     const credential = Array.isArray(creds) ? creds[0] : creds;
 
     if (!credential?.passwordHash) {
-      return NextResponse.json(
-        { error: "No password set. Use 'Forgot password?' to set one." },
-        { status: 400 },
-      );
+      return errorResponse(req, "NO_PASSWORD_SET", 400);
     }
 
     const isValid = await verifyPassword(password, credential.passwordHash);
     if (!isValid) {
-      return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
+      return errorResponse(req, "INCORRECT_PASSWORD", 401);
     }
 
     const token = await adminDb.auth.createToken({ email: normalizedEmail });
@@ -182,6 +162,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ token });
   } catch (err) {
     console.error("[admin-auth] Auth error:", err);
-    return NextResponse.json({ error: "Authentication failed" }, { status: 500 });
+    return errorResponse(req, "AUTH_FAILED", 500);
   }
 }

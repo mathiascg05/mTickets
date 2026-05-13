@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { createScannerToken } from "@/lib/scannerToken";
+import { errorResponse } from "@/lib/serverI18n";
 import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
@@ -8,17 +9,11 @@ export async function POST(req: NextRequest) {
     const { concertId, pin } = await req.json();
 
     if (!concertId || typeof concertId !== "string") {
-      return NextResponse.json(
-        { error: "concertId is required" },
-        { status: 400 },
-      );
+      return errorResponse(req, "CONCERT_ID_REQUIRED", 400);
     }
 
     if (!pin || typeof pin !== "string" || !/^\d{4,6}$/.test(pin)) {
-      return NextResponse.json(
-        { error: "PIN must be 4-6 digits" },
-        { status: 400 },
-      );
+      return errorResponse(req, "PIN_FORMAT", 400);
     }
 
     const { concerts } = await adminDb.query({
@@ -27,10 +22,7 @@ export async function POST(req: NextRequest) {
 
     const concert = concerts[0];
     if (!concert || !concert.scannerPin) {
-      return NextResponse.json(
-        { error: "Invalid PIN" },
-        { status: 401 },
-      );
+      return errorResponse(req, "INVALID_PIN", 401);
     }
 
     // Constant-time comparison
@@ -42,10 +34,7 @@ export async function POST(req: NextRequest) {
     ) {
       // Brute-force deterrent: delay wrong PIN responses
       await new Promise((r) => setTimeout(r, 1000));
-      return NextResponse.json(
-        { error: "Invalid PIN" },
-        { status: 401 },
-      );
+      return errorResponse(req, "INVALID_PIN", 401);
     }
 
     const token = createScannerToken(concertId);
@@ -61,9 +50,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[verify-scanner-pin] Error:", err);
-    return NextResponse.json(
-      { error: "Failed to verify PIN" },
-      { status: 500 },
-    );
+    return errorResponse(req, "INTERNAL_ERROR", 500);
   }
 }
