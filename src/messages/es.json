@@ -649,7 +649,7 @@
       "phone": "0412-1234567",
       "bank": "Banesco, Mercantil..."
     },
-    "balances": {
+    "balancesToasts": {
       "invalidAmount": "Monto inválido",
       "creditError": "Error al acreditar la cuenta",
       "voidError": "Error al anular la transacción"

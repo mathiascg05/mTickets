@@ -649,7 +649,7 @@
       "phone": "0412-1234567",
       "bank": "Bank name..."
     },
-    "balances": {
+    "balancesToasts": {
       "invalidAmount": "Invalid amount",
       "creditError": "Error crediting account",
       "voidError": "Error voiding transaction"
