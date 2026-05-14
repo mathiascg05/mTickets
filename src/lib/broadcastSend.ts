@@ -9,10 +9,12 @@ import type { BroadcastRecipient } from "@/lib/broadcastRecipients";
 // on bursts of 35+ recipients).
 export const CHUNK_SIZE = 2;
 export const CHUNK_DELAY_MS = 1100;
-export const RATE_LIMIT_RETRIES = 2;
-export const RATE_LIMIT_BACKOFF_MS = [2000, 4000];
+export const RATE_LIMIT_RETRIES = 3;
+export const RATE_LIMIT_BACKOFF_MS = [2000, 4000, 8000];
 
-export type SendResult = { ok: true } | { ok: false; reason: string };
+export type SendResult =
+  | { ok: true }
+  | { ok: false; reason: string; transient: boolean };
 
 export type FailedEmailEntry = { email: string; reason: string };
 
@@ -27,19 +29,39 @@ export type BroadcastEmailParams = {
 export const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-export function isRateLimitError(err: unknown): boolean {
+export function isTransientError(err: unknown): boolean {
   if (!err) return false;
   const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
-  // Resend returns 429 / "Too many requests"; nodemailer surfaces SMTP 421
-  // ("Service not available") for throttled connections.
-  return (
+  // Rate-limit / throttling.
+  if (
     msg.includes("429") ||
     msg.includes("too many") ||
     msg.includes("rate limit") ||
     msg.includes(" 421 ") ||
     msg.startsWith("421 ")
-  );
+  ) {
+    return true;
+  }
+  // Network / connection blips.
+  if (
+    msg.includes("etimedout") ||
+    msg.includes("econnreset") ||
+    msg.includes("econnrefused") ||
+    msg.includes("enotfound") ||
+    msg.includes("eai_again") ||
+    msg.includes("socket hang up") ||
+    msg.includes("network timeout")
+  ) {
+    return true;
+  }
+  // Generic SMTP 4xx (transient by spec). Match a standalone 4xx in the message.
+  if (/(^|\s)4\d{2}(\s|$)/.test(msg)) return true;
+  return false;
 }
+
+// Back-compat alias — the old name was misleading once we added more transient
+// classes, but external callers (and tests) may still use it.
+export const isRateLimitError = isTransientError;
 
 export async function sendOneEmail(
   recipient: BroadcastRecipient,
@@ -66,6 +88,7 @@ export async function sendOneEmail(
   ]);
 
   let lastErr: unknown;
+  let lastWasTransient = false;
   for (let attempt = 0; attempt <= RATE_LIMIT_RETRIES; attempt++) {
     try {
       await transporter.sendMail({
@@ -80,8 +103,9 @@ export async function sendOneEmail(
       return { ok: true };
     } catch (err) {
       lastErr = err;
-      if (attempt < RATE_LIMIT_RETRIES && isRateLimitError(err)) {
-        await sleep(RATE_LIMIT_BACKOFF_MS[attempt] ?? 4000);
+      lastWasTransient = isTransientError(err);
+      if (attempt < RATE_LIMIT_RETRIES && lastWasTransient) {
+        await sleep(RATE_LIMIT_BACKOFF_MS[attempt] ?? 8000);
         continue;
       }
       break;
@@ -90,7 +114,7 @@ export async function sendOneEmail(
 
   console.error(`[broadcast] Failed to send to ${recipient.email}:`, lastErr);
   const reason = lastErr instanceof Error ? lastErr.message : String(lastErr);
-  return { ok: false, reason };
+  return { ok: false, reason, transient: lastWasTransient };
 }
 
 export type BatchResult = {

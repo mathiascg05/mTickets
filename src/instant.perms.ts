@@ -173,6 +173,20 @@ const rules = {
       `auth.email == '${SUPER_ADMIN}'`,
     ],
   },
+  broadcastDeliveries: {
+    allow: {
+      view: "isOwner || isSuperAdmin",
+      create: "false",
+      update: "false",
+      delete: "isOwner || isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('broadcast.concert.organizerEmail') || auth.email in data.ref('broadcast.concert.collaborators.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
   organizerBalances: {
     allow: {
       view: "isOwner || isSuperAdmin",

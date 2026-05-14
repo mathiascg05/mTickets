@@ -1,30 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { id } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { isValidUUID } from "@/lib/validation";
 import { isAuthorizedForConcert } from "@/lib/authHelpers";
-import { sendBatch } from "@/lib/broadcastSend";
 import {
   resolveRecipients,
   type BroadcastFilters,
-  type BroadcastRecipient,
 } from "@/lib/broadcastRecipients";
-import { isEmailSuppressed } from "@/lib/emailSuppression";
+import {
+  processBroadcastBatch,
+  requeueFailedDeliveries,
+} from "@/lib/broadcastProcessor";
 
 export const maxDuration = 300;
 
-type RetryMode = "failed" | "all";
-type FailedEntry = { email: string; reason?: string };
+type RetryMode = "failed" | "all" | "missing";
 
-function parseFailed(raw: unknown): FailedEntry[] {
-  if (typeof raw !== "string") return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((e): e is FailedEntry => typeof e?.email === "string");
-  } catch {
-    return [];
-  }
-}
+const INLINE_DRAIN_LIMIT = 50;
+const INLINE_DRAIN_DEADLINE_MS = 60_000;
 
 function parseFilters(raw: unknown): BroadcastFilters {
   if (typeof raw !== "string") return {};
@@ -42,6 +35,129 @@ function parseFilters(raw: unknown): BroadcastFilters {
   } catch {
     return {};
   }
+}
+
+function parseLegacyFailed(raw: unknown): Set<string> {
+  const out = new Set<string>();
+  if (typeof raw !== "string") return out;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return out;
+    for (const entry of parsed) {
+      const email = (entry as { email?: string })?.email;
+      if (typeof email === "string") out.add(email.trim().toLowerCase());
+    }
+  } catch {
+    // ignore
+  }
+  return out;
+}
+
+/**
+ * Legacy migration: a broadcast created before per-recipient tracking has
+ * counters + a failedEmailsJson blob, but no `broadcastDeliveries` rows. Before
+ * we can retry, materialise one row per resolved recipient. Best-effort: if
+ * the original orders are gone we still create rows for the failed emails
+ * (without snapshot context) so the retry can proceed.
+ */
+async function materialiseLegacyDeliveries(
+  broadcast: {
+    id: string;
+    filtersJson?: string;
+    failedEmailsJson?: string;
+  },
+  concertId: string,
+): Promise<{ created: number }> {
+  const filters = parseFilters(broadcast.filtersJson);
+  const failedSet = parseLegacyFailed(broadcast.failedEmailsJson);
+
+  const hasFilters =
+    (filters.ticketTypeIds?.length ?? 0) > 0 ||
+    (filters.paymentMethodTypes?.length ?? 0) > 0 ||
+    (filters.orderStatuses?.length ?? 0) > 0;
+  if (!hasFilters && failedSet.size === 0) return { created: 0 };
+
+  const resolved = hasFilters
+    ? await resolveRecipients(concertId, filters)
+    : { recipients: [], suppressedEmails: [] };
+
+  const seen = new Set<string>();
+  const rows: Array<{ data: Record<string, unknown> }> = [];
+  const now = Date.now();
+
+  for (const r of resolved.recipients) {
+    const key = r.email.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const wasFailed = failedSet.has(key);
+    rows.push({
+      data: {
+        email: key,
+        emailDisplay: r.email,
+        firstName: r.firstName ?? "",
+        lastName: r.lastName ?? "",
+        ticketTypeName: r.ticketTypeName ?? "",
+        paymentMethod: r.paymentMethod ?? "",
+        orderStatus: r.status ?? "",
+        language: r.language,
+        deliveryStatus: wasFailed ? "pending" : "sent",
+        attempts: wasFailed ? 0 : 1,
+        sentAt: wasFailed ? undefined : now,
+        createdAt: now,
+      },
+    });
+  }
+  for (const email of resolved.suppressedEmails) {
+    const key = email.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({
+      data: {
+        email: key,
+        emailDisplay: email,
+        firstName: "",
+        lastName: "",
+        ticketTypeName: "",
+        paymentMethod: "",
+        orderStatus: "",
+        deliveryStatus: "suppressed",
+        attempts: 0,
+        createdAt: now,
+      },
+    });
+  }
+  // Make sure every previously-failed email has a row even if the order is
+  // gone (e.g. cancelled / hard-deleted between original send and retry).
+  for (const email of failedSet) {
+    if (seen.has(email)) continue;
+    seen.add(email);
+    rows.push({
+      data: {
+        email,
+        emailDisplay: email,
+        firstName: "",
+        lastName: "",
+        ticketTypeName: "",
+        paymentMethod: "",
+        orderStatus: "",
+        deliveryStatus: "pending",
+        attempts: 0,
+        createdAt: now,
+      },
+    });
+  }
+
+  for (let i = 0; i < rows.length; i += 100) {
+    const slice = rows.slice(i, i + 100);
+    await adminDb.transact(
+      slice.map((row) =>
+        adminDb.tx.broadcastDeliveries[id()]
+          .update(row.data)
+          .link({ broadcast: broadcast.id }),
+      ),
+    );
+  }
+  return { created: rows.length };
 }
 
 export async function POST(req: NextRequest) {
@@ -62,7 +178,8 @@ export async function POST(req: NextRequest) {
     if (!isValidUUID(broadcastId)) {
       return NextResponse.json({ error: "Invalid broadcast ID." }, { status: 400 });
     }
-    const mode: RetryMode = rawMode === "all" ? "all" : "failed";
+    const mode: RetryMode =
+      rawMode === "all" || rawMode === "missing" ? rawMode : "failed";
 
     // Load broadcast + linked concert
     const { broadcasts } = await adminDb.query({
@@ -93,75 +210,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Resolve the recipient list depending on mode.
-    let recipients: BroadcastRecipient[] = [];
-    let skippedSuppressed: FailedEntry[] = [];
-
-    if (mode === "failed") {
-      const failed = parseFailed(broadcast.failedEmailsJson);
-      if (failed.length === 0) {
-        return NextResponse.json(
-          {
-            error:
-              "No per-recipient failure list saved for this campaign. Use mode \"all\" to resend to every original recipient.",
-          },
-          { status: 400 },
-        );
-      }
-      const emails = Array.from(new Set(failed.map((f) => f.email)));
-
-      // Look up orders for these emails to recover firstName / language.
-      const { orders = [] } = await adminDb.query({
-        orders: {
-          $: {
-            where: {
-              "ticketType.concert.id": concert.id,
-              email: { $in: emails },
-            },
-          },
+    // Lazy migration for legacy broadcasts (created before per-recipient
+    // tracking). Materialise delivery rows from the saved filters +
+    // failedEmailsJson so the new processor can take over. After migration the
+    // previously-failed emails are already in the "pending" bucket, so for
+    // "failed" mode we don't need to call requeueFailedDeliveries — we just
+    // count what's pending and rely on the cron to pick it up.
+    const { broadcastDeliveries: existingDeliveries = [] } = await adminDb.query({
+      broadcastDeliveries: {
+        $: { where: { "broadcast.id": broadcastId }, limit: 1 },
+      },
+    });
+    let migratedFromLegacy = false;
+    if (existingDeliveries.length === 0) {
+      const result = await materialiseLegacyDeliveries(
+        {
+          id: broadcastId,
+          filtersJson: broadcast.filtersJson as string | undefined,
+          failedEmailsJson: broadcast.failedEmailsJson as string | undefined,
         },
-      });
+        concert.id,
+      );
+      migratedFromLegacy = result.created > 0;
+    }
 
-      const byEmail = new Map<string, BroadcastRecipient>();
-      for (const o of orders) {
-        if (!o.email) continue;
-        const key = o.email.trim().toLowerCase();
-        if (byEmail.has(key)) continue;
-        byEmail.set(key, {
-          email: o.email,
-          firstName: o.firstName ?? "",
-          lastName: o.lastName ?? "",
-          ticketTypeName: "",
-          paymentMethod: o.paymentMethod ?? "",
-          status: o.status ?? "",
-          language: (o as { language?: string }).language,
-        });
-      }
+    // Branch on mode.
+    let requeued = 0;
+    let suppressed = 0;
+    let added = 0;
 
-      for (const email of emails) {
-        if (await isEmailSuppressed(email)) {
-          skippedSuppressed.push({ email, reason: "Suppressed (bounce list)" });
-          continue;
-        }
-        const key = email.trim().toLowerCase();
-        const r =
-          byEmail.get(key) ??
-          ({
-            email,
-            firstName: "",
-            lastName: "",
-            ticketTypeName: "",
-            paymentMethod: "",
-            status: "",
-            language: undefined,
-          } satisfies BroadcastRecipient);
-        recipients.push(r);
-      }
-    } else {
-      // mode === "all": re-resolve every original recipient via filtersJson.
-      // This is the only option for legacy broadcasts that don't have a
-      // per-recipient failure list saved. Note: people who already received
-      // the email will receive it again — the caller should warn the user.
+    if (mode === "missing") {
+      // Re-resolve recipients via stored filters and create delivery rows for
+      // any emails that don't already have one on this broadcast.
       const filters = parseFilters(broadcast.filtersJson);
       const hasAnyFilter =
         (filters.ticketTypeIds?.length ?? 0) > 0 ||
@@ -174,100 +254,141 @@ export async function POST(req: NextRequest) {
         );
       }
       const resolved = await resolveRecipients(concert.id, filters);
-      recipients = resolved.recipients;
-      skippedSuppressed = resolved.suppressedEmails.map((email) => ({
-        email,
-        reason: "Suppressed (bounce list)",
-      }));
-      if (recipients.length === 0) {
+
+      // Pull existing delivery emails for this broadcast.
+      const { broadcastDeliveries: existing = [] } = await adminDb.query({
+        broadcastDeliveries: {
+          $: { where: { "broadcast.id": broadcastId } },
+        },
+      });
+      const existingEmails = new Set(
+        existing
+          .map((d) => (d as { email?: string }).email ?? "")
+          .filter(Boolean)
+          .map((e) => e.toLowerCase()),
+      );
+
+      const now = Date.now();
+      const newRows = [
+        ...resolved.recipients.map((r) => ({
+          email: r.email,
+          isSuppressed: false,
+          recipient: r,
+        })),
+        ...resolved.suppressedEmails.map((email) => ({
+          email,
+          isSuppressed: true,
+          recipient: null,
+        })),
+      ].filter((row) => !existingEmails.has(row.email.toLowerCase()));
+
+      for (let i = 0; i < newRows.length; i += 100) {
+        const slice = newRows.slice(i, i + 100);
+        await adminDb.transact(
+          slice.map((row) =>
+            adminDb.tx.broadcastDeliveries[id()]
+              .update({
+                email: row.email.trim().toLowerCase(),
+                emailDisplay: row.email,
+                firstName: row.recipient?.firstName ?? "",
+                lastName: row.recipient?.lastName ?? "",
+                ticketTypeName: row.recipient?.ticketTypeName ?? "",
+                paymentMethod: row.recipient?.paymentMethod ?? "",
+                orderStatus: row.recipient?.status ?? "",
+                language: row.recipient?.language,
+                deliveryStatus: row.isSuppressed ? "suppressed" : "pending",
+                attempts: 0,
+                createdAt: now,
+              })
+              .link({ broadcast: broadcastId }),
+          ),
+        );
+      }
+      added = newRows.length;
+      requeued = newRows.filter((r) => !r.isSuppressed).length;
+
+      // Also bump recipientCount to include the new pendings.
+      const newPending = newRows.filter((r) => !r.isSuppressed).length;
+      const newSuppressed = newRows.filter((r) => r.isSuppressed).length;
+      if (newPending > 0 || newSuppressed > 0) {
+        await adminDb.transact(
+          adminDb.tx.broadcasts[broadcastId].update({
+            recipientCount: (broadcast.recipientCount ?? 0) + newPending,
+            suppressedCount: (broadcast.suppressedCount ?? 0) + newSuppressed,
+          }),
+        );
+      }
+    } else {
+      // mode: "failed" or "all"
+      const result = await requeueFailedDeliveries(broadcastId, {
+        includeSent: mode === "all",
+      });
+      requeued = result.requeued;
+      suppressed = result.suppressed;
+
+      // For freshly-migrated legacy broadcasts the previously-failed emails
+      // are already in the "pending" bucket (the migration created them that
+      // way), so requeueFailedDeliveries returns 0 even though there's real
+      // work to do. Count those pending rows so the response and inline drain
+      // both reflect the true workload.
+      if (migratedFromLegacy && requeued === 0) {
+        const { broadcastDeliveries: pendings = [] } = await adminDb.query({
+          broadcastDeliveries: {
+            $: {
+              where: { "broadcast.id": broadcastId, deliveryStatus: "pending" },
+            },
+          },
+        });
+        requeued = pendings.length;
+      }
+
+      if (requeued === 0 && suppressed === 0 && added === 0) {
         return NextResponse.json(
           {
             error:
-              "No recipients to resend — every original address is either gone from the orders table or on the suppression list.",
+              "Nothing to retry — every targeted address is already sent or suppressed.",
           },
           { status: 400 },
         );
       }
     }
 
-    if (recipients.length === 0) {
-      // Failed-mode edge case: all previously failed addresses are suppressed.
-      const stillFailed = skippedSuppressed;
+    // Mark broadcast as queued so the cron picks it up.
+    if (requeued > 0 || added > 0) {
       await adminDb.transact(
         adminDb.tx.broadcasts[broadcastId].update({
-          failedCount: stillFailed.length,
-          failedEmailsJson: JSON.stringify(stillFailed),
+          processingState: "queued",
+          status: "sending",
         }),
       );
-      return NextResponse.json({
-        success: true,
-        mode,
-        retriedCount: 0,
-        newSentCount: 0,
-        newFailedCount: stillFailed.length,
-        totalSentCount: broadcast.sentCount,
-        totalFailedCount: stillFailed.length,
-      });
     }
 
-    const { sentCount: newSentCount, failedEmails: newlyFailed } = await sendBatch(
-      recipients,
-      {
-        eventName: concert.name,
-        subject: broadcast.subject,
-        body: broadcast.body,
-        organizerEmail: concert.organizerEmail,
-        concertDefaultLanguage: (concert as { defaultLanguage?: string }).defaultLanguage,
-      },
-    );
-
-    const stillFailed = [...newlyFailed, ...skippedSuppressed];
-
-    // Counter strategy:
-    // - mode="failed": sentCount accumulates (we know the original successes
-    //   stayed successes, so we add only newSentCount).
-    // - mode="all": legacy resend, we don't have a clean diff so the counters
-    //   reflect the latest attempt. recipientCount also realigns to the
-    //   resolved size in case filters now return a different audience.
-    let totalSentCount: number;
-    let totalFailedCount: number;
-    let recipientCountUpdate: { recipientCount?: number };
-    if (mode === "failed") {
-      totalSentCount = (broadcast.sentCount ?? 0) + newSentCount;
-      totalFailedCount = stillFailed.length;
-      recipientCountUpdate = {};
-    } else {
-      totalSentCount = newSentCount;
-      totalFailedCount = stillFailed.length;
-      recipientCountUpdate = { recipientCount: recipients.length };
+    // Best-effort inline drain so the user sees immediate progress.
+    let inlineResult = {
+      claimed: 0,
+      sent: 0,
+      failed: 0,
+      retryable: 0,
+      drained: true,
+    };
+    if (requeued > 0 || added > 0) {
+      try {
+        inlineResult = await processBroadcastBatch(broadcastId, {
+          limit: INLINE_DRAIN_LIMIT,
+          deadlineMs: Date.now() + INLINE_DRAIN_DEADLINE_MS,
+        });
+      } catch (err) {
+        console.error("[retry-broadcast] Inline drain error (cron will retry):", err);
+      }
     }
-
-    const finalStatus =
-      totalFailedCount === 0
-        ? "sent"
-        : totalSentCount === 0
-          ? "failed"
-          : "sent";
-
-    await adminDb.transact(
-      adminDb.tx.broadcasts[broadcastId].update({
-        sentCount: totalSentCount,
-        failedCount: totalFailedCount,
-        status: finalStatus,
-        completedAt: Date.now(),
-        failedEmailsJson: JSON.stringify(stillFailed),
-        ...recipientCountUpdate,
-      }),
-    );
 
     return NextResponse.json({
       success: true,
       mode,
-      retriedCount: recipients.length,
-      newSentCount,
-      newFailedCount: stillFailed.length,
-      totalSentCount,
-      totalFailedCount,
+      requeued,
+      suppressed,
+      added,
+      inline: inlineResult,
     });
   } catch (err) {
     console.error("[retry-broadcast] error:", err);

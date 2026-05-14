@@ -21,6 +21,22 @@ const BROADCAST_STATUS_BADGE_CLASSES: Record<string, string> = {
   failed: "bg-red-100 text-red-800",
 };
 
+const DELIVERY_STATUS_BADGE_CLASSES: Record<string, string> = {
+  pending: "bg-gray-100 text-gray-700",
+  in_flight: "bg-blue-100 text-blue-800",
+  sent: "bg-green-100 text-green-800",
+  failed: "bg-red-100 text-red-800",
+  suppressed: "bg-yellow-100 text-yellow-800",
+};
+
+const DELIVERY_STATUS_I18N_KEY: Record<string, string> = {
+  pending: "admin.communications.deliveryStatusPending",
+  in_flight: "admin.communications.deliveryStatusInFlight",
+  sent: "admin.communications.deliveryStatusSent",
+  failed: "admin.communications.deliveryStatusFailed",
+  suppressed: "admin.communications.deliveryStatusSuppressed",
+};
+
 type TFunc = (key: string, params?: Record<string, string | number>) => string;
 
 function timeAgo(ts: number, t: TFunc): string {
@@ -54,7 +70,10 @@ export default function AdminCommunicationsPage() {
       messages: { $: { order: { createdAt: "desc" as const } } },
       ticketTypes: {},
       paymentMethods: {},
-      broadcasts: { $: { order: { createdAt: "desc" as const } } },
+      broadcasts: {
+        $: { order: { createdAt: "desc" as const } },
+        deliveries: {},
+      },
     },
   });
 
@@ -69,7 +88,10 @@ export default function AdminCommunicationsPage() {
               messages: { $: { order: { createdAt: "desc" as const } } },
               ticketTypes: {},
               paymentMethods: {},
-              broadcasts: { $: { order: { createdAt: "desc" as const } } },
+              broadcasts: {
+                $: { order: { createdAt: "desc" as const } },
+                deliveries: {},
+              },
             },
           },
         },
@@ -122,6 +144,7 @@ export default function AdminCommunicationsPage() {
   const allBroadcasts = concerts.flatMap((concert) =>
     (concert.broadcasts || []).map((b) => ({
       ...b,
+      deliveries: (b as { deliveries?: DeliveryRow[] }).deliveries ?? [],
       concertId: concert.id,
       concertName: concert.name,
     })),
@@ -433,6 +456,25 @@ function ReplyForm({ messageId, refreshToken }: { messageId: string; refreshToke
   );
 }
 
+type DeliveryRow = {
+  id: string;
+  email: string;
+  emailDisplay: string;
+  firstName: string;
+  lastName: string;
+  ticketTypeName: string;
+  paymentMethod: string;
+  orderStatus: string;
+  language?: string;
+  deliveryStatus: string;
+  attempts: number;
+  lastTriedAt?: number;
+  sentAt?: number;
+  failedAt?: number;
+  reason?: string;
+  createdAt: number;
+};
+
 type BroadcastWithConcert = {
   id: string;
   subject: string;
@@ -443,10 +485,12 @@ type BroadcastWithConcert = {
   failedCount: number;
   suppressedCount: number;
   status: string;
+  processingState?: string;
   createdByEmail: string;
   createdAt: number;
   completedAt?: number;
   failedEmailsJson?: string;
+  deliveries: DeliveryRow[];
   concertId: string;
   concertName: string;
 };
@@ -534,42 +578,80 @@ function BroadcastCard({
             <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-1">{t("admin.communications.messageLabel")}</p>
             <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{broadcast.body}</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-            <div>
-              <p className="text-[11px] font-medium text-muted uppercase tracking-widest">{t("admin.communications.recipientsLabel")}</p>
-              <p className="font-semibold">{broadcast.recipientCount}</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-medium text-muted uppercase tracking-widest">{t("admin.communications.sentLabel")}</p>
-              <p className="font-semibold text-green-700">{broadcast.sentCount}</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-medium text-muted uppercase tracking-widest">{t("admin.communications.failedLabel")}</p>
-              <p className="font-semibold text-red-700">{broadcast.failedCount}</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-medium text-muted uppercase tracking-widest">{t("admin.communications.suppressedLabel")}</p>
-              <p className="font-semibold text-yellow-700">{broadcast.suppressedCount}</p>
-            </div>
-          </div>
+          <BroadcastStatsGrid broadcast={broadcast} />
           <div>
             <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-1">{t("admin.communications.sentByLabel")}</p>
             <p className="text-sm">{broadcast.createdByEmail}</p>
           </div>
-          <FailedEmailsSection
-            broadcastId={broadcast.id}
-            failedEmailsJson={broadcast.failedEmailsJson}
-            failedCount={broadcast.failedCount}
-            recipientCount={broadcast.recipientCount}
-            refreshToken={refreshToken}
-          />
+          {broadcast.deliveries.length > 0 ? (
+            <RecipientsSection
+              broadcastId={broadcast.id}
+              deliveries={broadcast.deliveries}
+              processingState={broadcast.processingState}
+              refreshToken={refreshToken}
+            />
+          ) : (
+            <LegacyFailedEmailsSection
+              broadcastId={broadcast.id}
+              failedEmailsJson={broadcast.failedEmailsJson}
+              failedCount={broadcast.failedCount}
+              recipientCount={broadcast.recipientCount}
+              refreshToken={refreshToken}
+            />
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function FailedEmailsSection({
+function BroadcastStatsGrid({ broadcast }: { broadcast: BroadcastWithConcert }) {
+  const { t } = useLanguage();
+  // Prefer derived counts from the deliveries list when available — that way
+  // the UI reflects the latest cron tick without waiting for the broadcast
+  // counter to be recomputed.
+  const hasDeliveries = broadcast.deliveries.length > 0;
+  const sent = hasDeliveries
+    ? broadcast.deliveries.filter((d) => d.deliveryStatus === "sent").length
+    : broadcast.sentCount;
+  const failed = hasDeliveries
+    ? broadcast.deliveries.filter((d) => d.deliveryStatus === "failed").length
+    : broadcast.failedCount;
+  const pending = hasDeliveries
+    ? broadcast.deliveries.filter(
+        (d) => d.deliveryStatus === "pending" || d.deliveryStatus === "in_flight",
+      ).length
+    : Math.max(0, broadcast.recipientCount - broadcast.sentCount - broadcast.failedCount);
+  const suppressed = hasDeliveries
+    ? broadcast.deliveries.filter((d) => d.deliveryStatus === "suppressed").length
+    : broadcast.suppressedCount;
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+      <div>
+        <p className="text-[11px] font-medium text-muted uppercase tracking-widest">{t("admin.communications.recipientsLabel")}</p>
+        <p className="font-semibold">{broadcast.recipientCount}</p>
+      </div>
+      <div>
+        <p className="text-[11px] font-medium text-muted uppercase tracking-widest">{t("admin.communications.pendingLabel")}</p>
+        <p className="font-semibold text-blue-700">{pending}</p>
+      </div>
+      <div>
+        <p className="text-[11px] font-medium text-muted uppercase tracking-widest">{t("admin.communications.sentLabel")}</p>
+        <p className="font-semibold text-green-700">{sent}</p>
+      </div>
+      <div>
+        <p className="text-[11px] font-medium text-muted uppercase tracking-widest">{t("admin.communications.failedLabel")}</p>
+        <p className="font-semibold text-red-700">{failed}</p>
+      </div>
+      <div>
+        <p className="text-[11px] font-medium text-muted uppercase tracking-widest">{t("admin.communications.suppressedLabel")}</p>
+        <p className="font-semibold text-yellow-700">{suppressed}</p>
+      </div>
+    </div>
+  );
+}
+
+function LegacyFailedEmailsSection({
   broadcastId,
   failedEmailsJson,
   failedCount,
@@ -742,6 +824,259 @@ function FailedEmailsSection({
                   <td className="px-3 py-2 text-muted break-all">{f.reason}</td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type DeliveryTab = "all" | "pending" | "in_flight" | "sent" | "failed" | "suppressed";
+
+const DELIVERY_TAB_I18N_KEY: Record<DeliveryTab, string> = {
+  all: "admin.communications.deliveryTabAll",
+  pending: "admin.communications.deliveryTabPending",
+  in_flight: "admin.communications.deliveryTabSending",
+  sent: "admin.communications.deliveryTabSent",
+  failed: "admin.communications.deliveryTabFailed",
+  suppressed: "admin.communications.deliveryTabSuppressed",
+};
+
+function formatLastTry(ts: number | undefined, t: TFunc): string {
+  if (!ts) return "—";
+  return timeAgo(ts, t);
+}
+
+function RecipientsSection({
+  broadcastId,
+  deliveries,
+  processingState,
+  refreshToken,
+}: {
+  broadcastId: string;
+  deliveries: DeliveryRow[];
+  processingState?: string;
+  refreshToken: string;
+}) {
+  const { t } = useLanguage();
+  const [activeTab, setActiveTab] = useState<DeliveryTab>("all");
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState("");
+  const [retryInfo, setRetryInfo] = useState("");
+  const [checkingMissing, setCheckingMissing] = useState(false);
+  const [missingError, setMissingError] = useState("");
+  const [missingInfo, setMissingInfo] = useState("");
+
+  const counts = useMemo(() => {
+    const c = { all: deliveries.length, pending: 0, in_flight: 0, sent: 0, failed: 0, suppressed: 0 };
+    for (const d of deliveries) {
+      if (d.deliveryStatus in c) {
+        c[d.deliveryStatus as Exclude<DeliveryTab, "all">] += 1;
+      }
+    }
+    return c;
+  }, [deliveries]);
+
+  const filtered = useMemo(() => {
+    const sorted = [...deliveries].sort((a, b) => {
+      // Failed first, then in_flight, then pending, then sent, then suppressed.
+      const order: Record<string, number> = {
+        failed: 0,
+        in_flight: 1,
+        pending: 2,
+        sent: 3,
+        suppressed: 4,
+      };
+      const da = order[a.deliveryStatus] ?? 5;
+      const db = order[b.deliveryStatus] ?? 5;
+      if (da !== db) return da - db;
+      return (a.email || "").localeCompare(b.email || "");
+    });
+    if (activeTab === "all") return sorted;
+    return sorted.filter((d) => d.deliveryStatus === activeTab);
+  }, [deliveries, activeTab]);
+
+  const runRetry = useCallback(
+    async (mode: "failed" | "all" | "missing") => {
+      setRetryError("");
+      setRetryInfo("");
+      setMissingError("");
+      setMissingInfo("");
+      if (mode === "missing") {
+        setCheckingMissing(true);
+      } else {
+        setRetrying(true);
+      }
+      try {
+        const res = await fetch("/api/retry-broadcast", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${refreshToken}`,
+          },
+          body: JSON.stringify({ broadcastId, mode }),
+        });
+        const data = (await res.json()) as {
+          error?: string;
+          requeued?: number;
+          added?: number;
+        };
+        if (!res.ok) {
+          if (mode === "missing") {
+            setMissingError(data.error || t("admin.communications.retryError"));
+          } else {
+            setRetryError(data.error || t("admin.communications.retryError"));
+          }
+          return;
+        }
+        if (mode === "missing") {
+          if ((data.added ?? 0) === 0) {
+            setMissingInfo(t("admin.communications.noNewMatches"));
+          } else {
+            setMissingInfo(
+              t("admin.communications.newMatchesFound", { count: data.added ?? 0 }),
+            );
+          }
+        } else {
+          setRetryInfo(
+            t("admin.communications.retryRequeued", { count: data.requeued ?? 0 }),
+          );
+        }
+      } catch {
+        if (mode === "missing") {
+          setMissingError(t("admin.communications.retryError"));
+        } else {
+          setRetryError(t("admin.communications.retryError"));
+        }
+      } finally {
+        setRetrying(false);
+        setCheckingMissing(false);
+      }
+    },
+    [broadcastId, refreshToken, t],
+  );
+
+  const isActivelySending = processingState === "queued" || processingState === "draining" || counts.in_flight > 0;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+        <p className="text-[11px] font-medium text-muted uppercase tracking-widest">
+          {t("admin.communications.failedEmailsTitle")}
+        </p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => runRetry("failed")}
+            disabled={retrying || counts.failed === 0}
+            className="text-xs px-2.5 py-1 rounded-md bg-accent text-white hover:bg-accent-dark transition-colors disabled:opacity-50"
+          >
+            {retrying
+              ? t("admin.communications.retryingFailed")
+              : t("admin.communications.retryFailedDeliveries", { count: counts.failed })}
+          </button>
+          <button
+            type="button"
+            onClick={() => runRetry("missing")}
+            disabled={checkingMissing}
+            className="text-xs px-2.5 py-1 rounded-md border border-border text-muted hover:text-foreground hover:border-accent/40 transition-colors disabled:opacity-50"
+          >
+            {checkingMissing
+              ? t("admin.communications.checkingNewMatches")
+              : t("admin.communications.checkNewMatches")}
+          </button>
+        </div>
+      </div>
+
+      {isActivelySending && (
+        <p className="text-xs text-blue-600 mb-2">{t("admin.communications.sendingInBackground")}</p>
+      )}
+      {retryInfo && <p className="text-xs text-green-700 mb-2">{retryInfo}</p>}
+      {retryError && <p className="text-xs text-red-600 mb-2">{retryError}</p>}
+      {missingInfo && <p className="text-xs text-green-700 mb-2">{missingInfo}</p>}
+      {missingError && <p className="text-xs text-red-600 mb-2">{missingError}</p>}
+
+      {/* Status tabs */}
+      <div className="flex gap-1 mb-3 border-b border-border overflow-x-auto">
+        {(["all", "pending", "in_flight", "sent", "failed", "suppressed"] as DeliveryTab[]).map(
+          (tab) => {
+            const count = counts[tab as keyof typeof counts] ?? 0;
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === tab
+                    ? "border-accent text-accent"
+                    : "border-transparent text-muted hover:text-foreground"
+                }`}
+              >
+                {t(DELIVERY_TAB_I18N_KEY[tab], { count })}
+              </button>
+            );
+          },
+        )}
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="text-xs text-muted py-4 text-center">
+          {t("admin.communications.deliveryNoneInTab")}
+        </p>
+      ) : (
+        <div className="bg-background border border-border rounded-lg overflow-hidden overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border">
+              <tr>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted uppercase tracking-widest">
+                  {t("admin.communications.deliveryColEmail")}
+                </th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted uppercase tracking-widest">
+                  {t("admin.communications.deliveryColName")}
+                </th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted uppercase tracking-widest">
+                  {t("admin.communications.deliveryColTicketType")}
+                </th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted uppercase tracking-widest">
+                  {t("admin.communications.deliveryColStatus")}
+                </th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted uppercase tracking-widest">
+                  {t("admin.communications.deliveryColReason")}
+                </th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted uppercase tracking-widest">
+                  {t("admin.communications.deliveryColLastTry")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((d) => {
+                const badgeClass =
+                  DELIVERY_STATUS_BADGE_CLASSES[d.deliveryStatus] ??
+                  "bg-gray-100 text-gray-700";
+                const badgeLabel = t(
+                  DELIVERY_STATUS_I18N_KEY[d.deliveryStatus] ??
+                    "admin.communications.deliveryStatusPending",
+                );
+                const lastTry = d.lastTriedAt ?? d.sentAt ?? d.failedAt;
+                const fullName = [d.firstName, d.lastName].filter(Boolean).join(" ");
+                return (
+                  <tr key={d.id} className="border-b border-border/50 last:border-0">
+                    <td className="px-3 py-2 text-muted break-all">{d.emailDisplay || d.email}</td>
+                    <td className="px-3 py-2 text-muted">{fullName || "—"}</td>
+                    <td className="px-3 py-2 text-muted">{d.ticketTypeName || "—"}</td>
+                    <td className="px-3 py-2">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badgeClass}`}>
+                        {badgeLabel}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-muted break-all">{d.reason || "—"}</td>
+                    <td className="px-3 py-2 text-muted whitespace-nowrap">
+                      {formatLastTry(lastTry, t)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
