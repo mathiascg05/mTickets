@@ -559,6 +559,8 @@ function BroadcastCard({
           <FailedEmailsSection
             broadcastId={broadcast.id}
             failedEmailsJson={broadcast.failedEmailsJson}
+            failedCount={broadcast.failedCount}
+            recipientCount={broadcast.recipientCount}
             refreshToken={refreshToken}
           />
         </div>
@@ -570,10 +572,14 @@ function BroadcastCard({
 function FailedEmailsSection({
   broadcastId,
   failedEmailsJson,
+  failedCount,
+  recipientCount,
   refreshToken,
 }: {
   broadcastId: string;
   failedEmailsJson?: string;
+  failedCount: number;
+  recipientCount: number;
   refreshToken: string;
 }) {
   const { t } = useLanguage();
@@ -581,9 +587,14 @@ function FailedEmailsSection({
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState("");
   const [retryInfo, setRetryInfo] = useState<string>("");
+  const [confirmingResendAll, setConfirmingResendAll] = useState(false);
   const failed = useMemo(() => parseFailedEmails(failedEmailsJson), [failedEmailsJson]);
 
-  if (failed.length === 0) return null;
+  if (failedCount <= 0) return null;
+  // "Failed mode" = we have a per-recipient list saved, so we can retry only the
+  // ones that bounced. "All mode" = legacy or list lost — resend to every
+  // original recipient (some may receive twice).
+  const mode: "failed" | "all" = failed.length > 0 ? "failed" : "all";
 
   const handleCopy = async () => {
     try {
@@ -595,10 +606,11 @@ function FailedEmailsSection({
     }
   };
 
-  const handleRetry = async () => {
+  const runRetry = async (resolvedMode: "failed" | "all") => {
     setRetryError("");
     setRetryInfo("");
     setRetrying(true);
+    setConfirmingResendAll(false);
     try {
       const res = await fetch("/api/retry-broadcast", {
         method: "POST",
@@ -606,7 +618,7 @@ function FailedEmailsSection({
           "Content-Type": "application/json",
           Authorization: `Bearer ${refreshToken}`,
         },
-        body: JSON.stringify({ broadcastId }),
+        body: JSON.stringify({ broadcastId, mode: resolvedMode }),
       });
       const data = (await res.json()) as {
         error?: string;
@@ -630,6 +642,15 @@ function FailedEmailsSection({
     }
   };
 
+  const handleRetryClick = () => {
+    if (mode === "all") {
+      // Surface confirmation: legacy resend will reach people who already got it.
+      setConfirmingResendAll(true);
+      return;
+    }
+    runRetry("failed");
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
@@ -639,54 +660,92 @@ function FailedEmailsSection({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={handleRetry}
+            onClick={handleRetryClick}
             disabled={retrying}
             className="text-xs px-2.5 py-1 rounded-md bg-accent text-white hover:bg-accent-dark transition-colors disabled:opacity-50"
           >
             {retrying
               ? t("admin.communications.retryingFailed")
-              : t("admin.communications.retryFailed", { count: failed.length })}
+              : mode === "failed"
+                ? t("admin.communications.retryFailed", { count: failed.length })
+                : t("admin.communications.resendAll", { count: recipientCount })}
           </button>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="text-xs px-2.5 py-1 rounded-md border border-border text-muted hover:text-foreground hover:border-accent/40 transition-colors"
-          >
-            {copied
-              ? t("admin.communications.copyFailedEmailsDone")
-              : t("admin.communications.copyFailedEmails")}
-          </button>
+          {mode === "failed" && (
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="text-xs px-2.5 py-1 rounded-md border border-border text-muted hover:text-foreground hover:border-accent/40 transition-colors"
+            >
+              {copied
+                ? t("admin.communications.copyFailedEmailsDone")
+                : t("admin.communications.copyFailedEmails")}
+            </button>
+          )}
         </div>
       </div>
-      <p className="text-xs text-muted mb-2">{t("admin.communications.failedEmailsHint")}</p>
-      {retryInfo && (
-        <p className="text-xs text-green-700 mb-2">{retryInfo}</p>
+
+      {mode === "failed" ? (
+        <p className="text-xs text-muted mb-2">{t("admin.communications.failedEmailsHint")}</p>
+      ) : (
+        <p className="text-xs text-muted mb-2">
+          {t("admin.communications.legacyFailedHint", { failed: failedCount, total: recipientCount })}
+        </p>
       )}
-      {retryError && (
-        <p className="text-xs text-red-600 mb-2">{retryError}</p>
+
+      {confirmingResendAll && (
+        <div className="mb-2 rounded-md border border-yellow-300 bg-yellow-50 p-3 text-xs text-yellow-900">
+          <p className="mb-2">
+            {t("admin.communications.resendAllConfirm", { count: recipientCount })}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => runRetry("all")}
+              disabled={retrying}
+              className="px-2.5 py-1 rounded-md bg-yellow-800 text-white hover:bg-yellow-900 transition-colors disabled:opacity-50"
+            >
+              {retrying
+                ? t("admin.communications.retryingFailed")
+                : t("admin.communications.resendAllConfirmYes")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingResendAll(false)}
+              className="px-2.5 py-1 rounded-md border border-yellow-300 text-yellow-900 hover:bg-yellow-100 transition-colors"
+            >
+              {t("common.cancel")}
+            </button>
+          </div>
+        </div>
       )}
-      <div className="bg-background border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="border-b border-border">
-            <tr>
-              <th className="text-left px-3 py-2 text-xs font-medium text-muted uppercase tracking-widest">
-                {t("admin.broadcast.colEmail")}
-              </th>
-              <th className="text-left px-3 py-2 text-xs font-medium text-muted uppercase tracking-widest">
-                {t("admin.communications.failedEmailReason")}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {failed.map((f, i) => (
-              <tr key={`${f.email}-${i}`} className="border-b border-border/50 last:border-0">
-                <td className="px-3 py-2 text-muted break-all">{f.email}</td>
-                <td className="px-3 py-2 text-muted break-all">{f.reason}</td>
+
+      {retryInfo && <p className="text-xs text-green-700 mb-2">{retryInfo}</p>}
+      {retryError && <p className="text-xs text-red-600 mb-2">{retryError}</p>}
+
+      {mode === "failed" && (
+        <div className="bg-background border border-border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="border-b border-border">
+              <tr>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted uppercase tracking-widest">
+                  {t("admin.broadcast.colEmail")}
+                </th>
+                <th className="text-left px-3 py-2 text-xs font-medium text-muted uppercase tracking-widest">
+                  {t("admin.communications.failedEmailReason")}
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {failed.map((f, i) => (
+                <tr key={`${f.email}-${i}`} className="border-b border-border/50 last:border-0">
+                  <td className="px-3 py-2 text-muted break-all">{f.email}</td>
+                  <td className="px-3 py-2 text-muted break-all">{f.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

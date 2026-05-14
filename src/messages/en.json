@@ -702,7 +702,11 @@
       "retryFailed": "Retry {count} failed",
       "retryingFailed": "Retrying...",
       "retryResult": "Retry done: {sent} delivered, {failed} still failing.",
-      "retryError": "Could not retry the failed deliveries."
+      "retryError": "Could not retry the failed deliveries.",
+      "legacyFailedHint": "This campaign was sent before per-recipient tracking was available, so we don't know which {failed} of the {total} recipients failed. You can resend to every original recipient — the ones who already got it will receive it again.",
+      "resendAll": "Resend to all {count}",
+      "resendAllConfirm": "This will resend the email to all {count} original recipients. People who already received it will get it again. Continue?",
+      "resendAllConfirmYes": "Yes, resend to all"
     },
     "ordersTooltips": {
       "clickToEditEmail": "Click to edit email"

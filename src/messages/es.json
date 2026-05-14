@@ -702,7 +702,11 @@
       "retryFailed": "Reintentar {count} fallidos",
       "retryingFailed": "Reintentando...",
       "retryResult": "Reintento completado: {sent} enviados, {failed} aún fallan.",
-      "retryError": "No se pudo reintentar los envíos fallidos."
+      "retryError": "No se pudo reintentar los envíos fallidos.",
+      "legacyFailedHint": "Esta campaña se envió antes de que registráramos el detalle por destinatario, así que no sabemos cuáles {failed} de los {total} fallaron. Podés reenviar a todos los destinatarios originales — quienes ya lo recibieron lo van a recibir de nuevo.",
+      "resendAll": "Reenviar a los {count}",
+      "resendAllConfirm": "Esto va a reenviar el correo a los {count} destinatarios originales. Quienes ya lo recibieron lo van a recibir de nuevo. ¿Continuar?",
+      "resendAllConfirmYes": "Sí, reenviar a todos"
     },
     "ordersTooltips": {
       "clickToEditEmail": "Click para editar email"
