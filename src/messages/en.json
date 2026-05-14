@@ -734,7 +734,11 @@
       "sendingInBackground": "Sending in the background — this view updates live.",
       "retryFailedDeliveries": "Resend to {count} failed",
       "retryRequeued": "Requeued {count} addresses for delivery.",
-      "retryNothingToDo": "Nothing to retry — every address is already sent or suppressed."
+      "retryNothingToDo": "Nothing to retry — every address is already sent or suppressed.",
+      "filtersLabel": "Filters",
+      "filtersOrderStatus": "Order status",
+      "filtersTicketTypes": "Ticket types",
+      "filtersPaymentMethods": "Payment methods"
     },
     "ordersTooltips": {
       "clickToEditEmail": "Click to edit email"

@@ -147,6 +147,15 @@ export default function AdminCommunicationsPage() {
       deliveries: (b as { deliveries?: DeliveryRow[] }).deliveries ?? [],
       concertId: concert.id,
       concertName: concert.name,
+      concertTicketTypes: (concert.ticketTypes ?? []).map((tt) => ({
+        id: tt.id,
+        name: tt.name,
+      })),
+      concertPaymentMethods: (concert.paymentMethods ?? []).map((pm) => ({
+        id: pm.id,
+        type: pm.type,
+        name: pm.name,
+      })),
     })),
   );
   allBroadcasts.sort((a, b) => b.createdAt - a.createdAt);
@@ -493,6 +502,8 @@ type BroadcastWithConcert = {
   deliveries: DeliveryRow[];
   concertId: string;
   concertName: string;
+  concertTicketTypes: { id: string; name: string }[];
+  concertPaymentMethods: { id: string; type: string; name: string }[];
 };
 
 type FailedEmailEntry = { email: string; reason: string };
@@ -583,6 +594,11 @@ function BroadcastCard({
             <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-1">{t("admin.communications.sentByLabel")}</p>
             <p className="text-sm">{broadcast.createdByEmail}</p>
           </div>
+          <BroadcastFiltersDisplay
+            filtersJson={broadcast.filtersJson}
+            ticketTypes={broadcast.concertTicketTypes}
+            paymentMethods={broadcast.concertPaymentMethods}
+          />
           {broadcast.deliveries.length > 0 ? (
             <RecipientsSection
               broadcastId={broadcast.id}
@@ -1081,6 +1097,110 @@ function RecipientsSection({
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+const PAYMENT_METHOD_TYPE_LABELS: Record<string, string> = {
+  efectivo: "Efectivo",
+  zelle: "Zelle",
+  pago_movil: "Pago Móvil",
+};
+
+function BroadcastFiltersDisplay({
+  filtersJson,
+  ticketTypes,
+  paymentMethods,
+}: {
+  filtersJson?: string;
+  ticketTypes: { id: string; name: string }[];
+  paymentMethods: { id: string; type: string; name: string }[];
+}) {
+  const { t } = useLanguage();
+
+  const filters = useMemo(() => {
+    if (!filtersJson) return null;
+    try {
+      const parsed = JSON.parse(filtersJson);
+      if (!parsed || typeof parsed !== "object") return null;
+      return {
+        orderStatuses: Array.isArray(parsed.orderStatuses) ? (parsed.orderStatuses as string[]) : [],
+        ticketTypeIds: Array.isArray(parsed.ticketTypeIds) ? (parsed.ticketTypeIds as string[]) : [],
+        paymentMethodTypes: Array.isArray(parsed.paymentMethodTypes)
+          ? (parsed.paymentMethodTypes as string[])
+          : [],
+      };
+    } catch {
+      return null;
+    }
+  }, [filtersJson]);
+
+  if (!filters) return null;
+
+  const statusLabels = filters.orderStatuses.map((s) => t(`common.${s}`));
+
+  const ticketTypeLabels = filters.ticketTypeIds.map(
+    (id) => ticketTypes.find((tt) => tt.id === id)?.name ?? id,
+  );
+
+  const paymentMethodLabels = filters.paymentMethodTypes.map((type) => {
+    const baseLabel = PAYMENT_METHOD_TYPE_LABELS[type];
+    if (baseLabel) return baseLabel;
+    const match = paymentMethods.find((pm) => pm.type === type);
+    return match?.name ?? type;
+  });
+
+  if (
+    statusLabels.length === 0 &&
+    ticketTypeLabels.length === 0 &&
+    paymentMethodLabels.length === 0
+  ) {
+    return null;
+  }
+
+  return (
+    <div>
+      <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-2">
+        {t("admin.communications.filtersLabel")}
+      </p>
+      <div className="space-y-1.5 text-sm">
+        {statusLabels.length > 0 && (
+          <FilterRow
+            label={t("admin.communications.filtersOrderStatus")}
+            chips={statusLabels}
+          />
+        )}
+        {ticketTypeLabels.length > 0 && (
+          <FilterRow
+            label={t("admin.communications.filtersTicketTypes")}
+            chips={ticketTypeLabels}
+          />
+        )}
+        {paymentMethodLabels.length > 0 && (
+          <FilterRow
+            label={t("admin.communications.filtersPaymentMethods")}
+            chips={paymentMethodLabels}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FilterRow({ label, chips }: { label: string; chips: string[] }) {
+  return (
+    <div className="flex gap-2 items-baseline flex-wrap">
+      <span className="text-xs text-muted shrink-0 sm:min-w-[140px]">{label}:</span>
+      <div className="flex gap-1.5 flex-wrap">
+        {chips.map((c, i) => (
+          <span
+            key={`${c}-${i}`}
+            className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-background border border-border"
+          >
+            {c}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

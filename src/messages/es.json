@@ -734,7 +734,11 @@
       "sendingInBackground": "Enviando en segundo plano — esta vista se actualiza en vivo.",
       "retryFailedDeliveries": "Reenviar a {count} fallidos",
       "retryRequeued": "{count} direcciones reencoladas para entrega.",
-      "retryNothingToDo": "No hay nada que reintentar — todas las direcciones ya están enviadas o suprimidas."
+      "retryNothingToDo": "No hay nada que reintentar — todas las direcciones ya están enviadas o suprimidas.",
+      "filtersLabel": "Filtros",
+      "filtersOrderStatus": "Estado de orden",
+      "filtersTicketTypes": "Tipos de ticket",
+      "filtersPaymentMethods": "Métodos de pago"
     },
     "ordersTooltips": {
       "clickToEditEmail": "Click para editar email"
