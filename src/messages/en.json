@@ -693,7 +693,12 @@
       "sentLabel": "Sent",
       "failedLabel": "Failed",
       "suppressedLabel": "Suppressed",
-      "sentByLabel": "Sent by"
+      "sentByLabel": "Sent by",
+      "failedEmailsTitle": "Failed deliveries",
+      "failedEmailsHint": "These addresses did not receive the email. Common causes: invalid address, bounced inbox, or provider rate limit.",
+      "failedEmailReason": "Reason",
+      "copyFailedEmails": "Copy emails",
+      "copyFailedEmailsDone": "Copied"
     },
     "ordersTooltips": {
       "clickToEditEmail": "Click to edit email"

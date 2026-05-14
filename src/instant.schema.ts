@@ -209,6 +209,7 @@ const _schema = i.schema({
       createdByEmail: i.string().indexed(),
       createdAt: i.number().indexed(),
       completedAt: i.number().optional().indexed(),
+      failedEmailsJson: i.string().optional(),
     }),
   },
   links: {

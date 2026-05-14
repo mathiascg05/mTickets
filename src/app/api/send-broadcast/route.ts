@@ -13,10 +13,39 @@ import {
 } from "@/lib/broadcastRecipients";
 import { resolveEmailLang } from "@/lib/serverLocale";
 
+// Allow up to ~5 minutes; throttled sending of 100 recipients (the
+// RECIPIENT_LIMIT) takes ~60-70s, comfortably under this ceiling on any plan
+// that supports it (Vercel clamps to plan max automatically).
+export const maxDuration = 300;
+
 const SUBJECT_MAX = 200;
 const BODY_MAX = 5000;
 const RECIPIENT_LIMIT = 100;
-const CHUNK_SIZE = 5;
+// Resend free is 2 req/s. Keep chunks small and pause between them so we
+// never exceed the provider's rate limit (which used to surface as ~70%
+// failure rate on bursts of 35+ recipients).
+const CHUNK_SIZE = 2;
+const CHUNK_DELAY_MS = 1100;
+const RATE_LIMIT_RETRIES = 2;
+const RATE_LIMIT_BACKOFF_MS = [2000, 4000];
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+function isRateLimitError(err: unknown): boolean {
+  if (!err) return false;
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  // Resend returns 429 / "Too many requests"; nodemailer surfaces SMTP 421
+  // ("Service not available") for throttled connections.
+  return (
+    msg.includes("429") ||
+    msg.includes("too many") ||
+    msg.includes("rate limit") ||
+    msg.includes(" 421 ") ||
+    msg.startsWith("421 ")
+  );
+}
+
+type SendResult = { ok: true } | { ok: false; reason: string };
 
 async function sendOneEmail(
   recipient: BroadcastRecipient,
@@ -27,37 +56,53 @@ async function sendOneEmail(
     organizerEmail: string;
     concertDefaultLanguage?: string;
   },
-): Promise<boolean> {
-  try {
-    const lang = resolveEmailLang(recipient.language, params.concertDefaultLanguage);
-    await transporter.sendMail({
-      from: `"maTickets" <${EMAIL_FROM}>`,
-      to: recipient.email,
+): Promise<SendResult> {
+  const lang = resolveEmailLang(recipient.language, params.concertDefaultLanguage);
+  const [text, html] = await Promise.all([
+    buildBroadcastEmailText({
+      firstName: recipient.firstName,
+      eventName: params.eventName,
       subject: params.subject,
-      messageId: generateMessageId(),
-      text: await buildBroadcastEmailText({
-        firstName: recipient.firstName,
-        eventName: params.eventName,
+      body: params.body,
+      organizerEmail: params.organizerEmail,
+      lang,
+    }),
+    buildBroadcastEmailHtml({
+      firstName: recipient.firstName,
+      eventName: params.eventName,
+      subject: params.subject,
+      body: params.body,
+      organizerEmail: params.organizerEmail,
+      lang,
+    }),
+  ]);
+
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= RATE_LIMIT_RETRIES; attempt++) {
+    try {
+      await transporter.sendMail({
+        from: `"maTickets" <${EMAIL_FROM}>`,
+        to: recipient.email,
         subject: params.subject,
-        body: params.body,
-        organizerEmail: params.organizerEmail,
-        lang,
-      }),
-      html: await buildBroadcastEmailHtml({
-        firstName: recipient.firstName,
-        eventName: params.eventName,
-        subject: params.subject,
-        body: params.body,
-        organizerEmail: params.organizerEmail,
-        lang,
-      }),
-      headers: buildMailHeaders(recipient.email),
-    });
-    return true;
-  } catch (err) {
-    console.error(`[send-broadcast] Failed to send to ${recipient.email}:`, err);
-    return false;
+        messageId: generateMessageId(),
+        text,
+        html,
+        headers: buildMailHeaders(recipient.email),
+      });
+      return { ok: true };
+    } catch (err) {
+      lastErr = err;
+      if (attempt < RATE_LIMIT_RETRIES && isRateLimitError(err)) {
+        await sleep(RATE_LIMIT_BACKOFF_MS[attempt] ?? 4000);
+        continue;
+      }
+      break;
+    }
   }
+
+  console.error(`[send-broadcast] Failed to send to ${recipient.email}:`, lastErr);
+  const reason = lastErr instanceof Error ? lastErr.message : String(lastErr);
+  return { ok: false, reason };
 }
 
 export async function POST(req: NextRequest) {
@@ -181,12 +226,22 @@ export async function POST(req: NextRequest) {
 
     let sentCount = 0;
     let failedCount = 0;
+    const failedEmails: { email: string; reason: string }[] = [];
     for (let i = 0; i < recipients.length; i += CHUNK_SIZE) {
       const chunk = recipients.slice(i, i + CHUNK_SIZE);
       const results = await Promise.all(chunk.map((r) => sendOneEmail(r, emailParams)));
-      for (const ok of results) {
-        if (ok) sentCount++;
-        else failedCount++;
+      results.forEach((res, idx) => {
+        if (res.ok) {
+          sentCount++;
+        } else {
+          failedCount++;
+          failedEmails.push({ email: chunk[idx].email, reason: res.reason });
+        }
+      });
+      // Pause between chunks to respect Resend's 2 req/s rate limit. Skip the
+      // wait after the final chunk so we don't pad the response unnecessarily.
+      if (i + CHUNK_SIZE < recipients.length) {
+        await sleep(CHUNK_DELAY_MS);
       }
     }
 
@@ -198,6 +253,9 @@ export async function POST(req: NextRequest) {
         failedCount,
         status: finalStatus,
         completedAt: Date.now(),
+        ...(failedEmails.length > 0
+          ? { failedEmailsJson: JSON.stringify(failedEmails) }
+          : {}),
       }),
     );
 

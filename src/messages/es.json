@@ -693,7 +693,12 @@
       "sentLabel": "Enviados",
       "failedLabel": "Fallidos",
       "suppressedLabel": "Suprimidos",
-      "sentByLabel": "Enviado por"
+      "sentByLabel": "Enviado por",
+      "failedEmailsTitle": "Envíos fallidos",
+      "failedEmailsHint": "Estas direcciones no recibieron el correo. Causas comunes: dirección inválida, casilla rebotada o límite del proveedor.",
+      "failedEmailReason": "Motivo",
+      "copyFailedEmails": "Copiar emails",
+      "copyFailedEmailsDone": "Copiado"
     },
     "ordersTooltips": {
       "clickToEditEmail": "Click para editar email"

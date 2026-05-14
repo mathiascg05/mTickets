@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { useAuthContext } from "@/lib/AuthContext";
 import { useLanguage } from "@/lib/LanguageContext";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import BroadcastComposer from "./BroadcastComposer";
 
 type StatusFilter = "all" | "new" | "read" | "replied";
@@ -445,9 +445,28 @@ type BroadcastWithConcert = {
   createdByEmail: string;
   createdAt: number;
   completedAt?: number;
+  failedEmailsJson?: string;
   concertId: string;
   concertName: string;
 };
+
+type FailedEmailEntry = { email: string; reason: string };
+
+function parseFailedEmails(raw: string | undefined): FailedEmailEntry[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (e): e is FailedEmailEntry =>
+          typeof e?.email === "string" && typeof e?.reason === "string",
+      )
+      .map((e) => ({ email: e.email, reason: e.reason }));
+  } catch {
+    return [];
+  }
+}
 
 function BroadcastCard({
   broadcast,
@@ -534,8 +553,69 @@ function BroadcastCard({
             <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-1">{t("admin.communications.sentByLabel")}</p>
             <p className="text-sm">{broadcast.createdByEmail}</p>
           </div>
+          <FailedEmailsSection failedEmailsJson={broadcast.failedEmailsJson} />
         </div>
       )}
+    </div>
+  );
+}
+
+function FailedEmailsSection({ failedEmailsJson }: { failedEmailsJson?: string }) {
+  const { t } = useLanguage();
+  const [copied, setCopied] = useState(false);
+  const failed = useMemo(() => parseFailedEmails(failedEmailsJson), [failedEmailsJson]);
+
+  if (failed.length === 0) return null;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(failed.map((f) => f.email).join("\n"));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard may be unavailable; ignore
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+        <p className="text-[11px] font-medium text-muted uppercase tracking-widest">
+          {t("admin.communications.failedEmailsTitle")}
+        </p>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="text-xs px-2.5 py-1 rounded-md border border-border text-muted hover:text-foreground hover:border-accent/40 transition-colors"
+        >
+          {copied
+            ? t("admin.communications.copyFailedEmailsDone")
+            : t("admin.communications.copyFailedEmails")}
+        </button>
+      </div>
+      <p className="text-xs text-muted mb-2">{t("admin.communications.failedEmailsHint")}</p>
+      <div className="bg-background border border-border rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="border-b border-border">
+            <tr>
+              <th className="text-left px-3 py-2 text-xs font-medium text-muted uppercase tracking-widest">
+                {t("admin.broadcast.colEmail")}
+              </th>
+              <th className="text-left px-3 py-2 text-xs font-medium text-muted uppercase tracking-widest">
+                {t("admin.communications.failedEmailReason")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {failed.map((f, i) => (
+              <tr key={`${f.email}-${i}`} className="border-b border-border/50 last:border-0">
+                <td className="px-3 py-2 text-muted break-all">{f.email}</td>
+                <td className="px-3 py-2 text-muted break-all">{f.reason}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
