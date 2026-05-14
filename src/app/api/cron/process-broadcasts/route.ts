@@ -6,9 +6,11 @@ import { processBroadcastBatch } from "@/lib/broadcastProcessor";
 // final counter recompute + response.
 export const maxDuration = 60;
 
+// At ~8 sends/sec sustained (Resend Pro tuning), 200 rows fit in ~25s of pure
+// send time. Leaves headroom for the counter recompute + finalisation.
 const PER_TICK_DEADLINE_MS = 45_000;
 const PER_RUN_BROADCAST_CAP = 3;
-const PER_BROADCAST_LIMIT = 40;
+const PER_BROADCAST_LIMIT = 200;
 
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;

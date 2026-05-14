@@ -4,11 +4,11 @@ import { buildMailHeaders } from "@/lib/emailHeaders";
 import { resolveEmailLang } from "@/lib/serverLocale";
 import type { BroadcastRecipient } from "@/lib/broadcastRecipients";
 
-// Resend free is 2 req/s. Keep chunks small and pause between them so we never
-// exceed the provider's rate limit (which used to surface as ~70% failure rate
-// on bursts of 35+ recipients).
-export const CHUNK_SIZE = 2;
-export const CHUNK_DELAY_MS = 1100;
+// Tuned for Resend Pro (10 req/s). Bursts of 5 every 600ms = ~8.3 req/s
+// sustained, comfortably under the limit. If you upgrade Resend's plan or
+// switch back to free, adjust here.
+export const CHUNK_SIZE = 5;
+export const CHUNK_DELAY_MS = 600;
 export const RATE_LIMIT_RETRIES = 3;
 export const RATE_LIMIT_BACKOFF_MS = [2000, 4000, 8000];
 

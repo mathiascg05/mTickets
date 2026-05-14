@@ -17,8 +17,8 @@ export const maxDuration = 60;
 
 type RetryMode = "failed" | "all" | "missing";
 
-const INLINE_DRAIN_LIMIT = 25;
-const INLINE_DRAIN_DEADLINE_MS = 30_000;
+const INLINE_DRAIN_LIMIT = 80;
+const INLINE_DRAIN_DEADLINE_MS = 35_000;
 
 function parseFilters(raw: unknown): BroadcastFilters {
   if (typeof raw !== "string") return {};

@@ -20,11 +20,11 @@ const BODY_MAX = 5000;
 // orders table. There is no hard product cap on a campaign anymore; the cron
 // worker handles whatever volume lands in the queue.
 const MAX_RECIPIENTS = 5000;
-// How many rows to drain inline. Resend free is 2 req/s; CHUNK_SIZE=2 with
-// 1.1s between chunks → ~1.8 sends/sec sustained. ~25 rows fits in ~15s of
-// pure send time, leaving room for row creation + counter recompute under 60s.
-const INLINE_DRAIN_LIMIT = 25;
-const INLINE_DRAIN_DEADLINE_MS = 30_000;
+// How many rows to drain inline. With Resend Pro tuning (CHUNK_SIZE=5 every
+// 600ms ≈ 8 sends/sec), 80 rows fit in ~10s of send time, leaving plenty of
+// headroom for row creation + counter recompute under the 60s Hobby cap.
+const INLINE_DRAIN_LIMIT = 80;
+const INLINE_DRAIN_DEADLINE_MS = 35_000;
 
 export async function POST(req: NextRequest) {
   try {
