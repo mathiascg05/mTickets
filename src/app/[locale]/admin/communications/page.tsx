@@ -240,6 +240,7 @@ export default function AdminCommunicationsPage() {
                   broadcast={b}
                   expanded={expandedId === b.id}
                   onToggle={() => setExpandedId(expandedId === b.id ? null : b.id)}
+                  refreshToken={refreshToken}
                 />
               ))}
             </div>
@@ -472,10 +473,12 @@ function BroadcastCard({
   broadcast,
   expanded,
   onToggle,
+  refreshToken,
 }: {
   broadcast: BroadcastWithConcert;
   expanded: boolean;
   onToggle: () => void;
+  refreshToken: string;
 }) {
   const { t } = useLanguage();
   const badgeStatus = broadcast.status in BROADCAST_STATUS_BADGE_CLASSES ? broadcast.status : "sent";
@@ -553,16 +556,31 @@ function BroadcastCard({
             <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-1">{t("admin.communications.sentByLabel")}</p>
             <p className="text-sm">{broadcast.createdByEmail}</p>
           </div>
-          <FailedEmailsSection failedEmailsJson={broadcast.failedEmailsJson} />
+          <FailedEmailsSection
+            broadcastId={broadcast.id}
+            failedEmailsJson={broadcast.failedEmailsJson}
+            refreshToken={refreshToken}
+          />
         </div>
       )}
     </div>
   );
 }
 
-function FailedEmailsSection({ failedEmailsJson }: { failedEmailsJson?: string }) {
+function FailedEmailsSection({
+  broadcastId,
+  failedEmailsJson,
+  refreshToken,
+}: {
+  broadcastId: string;
+  failedEmailsJson?: string;
+  refreshToken: string;
+}) {
   const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState("");
+  const [retryInfo, setRetryInfo] = useState<string>("");
   const failed = useMemo(() => parseFailedEmails(failedEmailsJson), [failedEmailsJson]);
 
   if (failed.length === 0) return null;
@@ -577,23 +595,76 @@ function FailedEmailsSection({ failedEmailsJson }: { failedEmailsJson?: string }
     }
   };
 
+  const handleRetry = async () => {
+    setRetryError("");
+    setRetryInfo("");
+    setRetrying(true);
+    try {
+      const res = await fetch("/api/retry-broadcast", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${refreshToken}`,
+        },
+        body: JSON.stringify({ broadcastId }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        newSentCount?: number;
+        newFailedCount?: number;
+      };
+      if (!res.ok) {
+        setRetryError(data.error || t("admin.communications.retryError"));
+        return;
+      }
+      setRetryInfo(
+        t("admin.communications.retryResult", {
+          sent: data.newSentCount ?? 0,
+          failed: data.newFailedCount ?? 0,
+        }),
+      );
+    } catch {
+      setRetryError(t("admin.communications.retryError"));
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
         <p className="text-[11px] font-medium text-muted uppercase tracking-widest">
           {t("admin.communications.failedEmailsTitle")}
         </p>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="text-xs px-2.5 py-1 rounded-md border border-border text-muted hover:text-foreground hover:border-accent/40 transition-colors"
-        >
-          {copied
-            ? t("admin.communications.copyFailedEmailsDone")
-            : t("admin.communications.copyFailedEmails")}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRetry}
+            disabled={retrying}
+            className="text-xs px-2.5 py-1 rounded-md bg-accent text-white hover:bg-accent-dark transition-colors disabled:opacity-50"
+          >
+            {retrying
+              ? t("admin.communications.retryingFailed")
+              : t("admin.communications.retryFailed", { count: failed.length })}
+          </button>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="text-xs px-2.5 py-1 rounded-md border border-border text-muted hover:text-foreground hover:border-accent/40 transition-colors"
+          >
+            {copied
+              ? t("admin.communications.copyFailedEmailsDone")
+              : t("admin.communications.copyFailedEmails")}
+          </button>
+        </div>
       </div>
       <p className="text-xs text-muted mb-2">{t("admin.communications.failedEmailsHint")}</p>
+      {retryInfo && (
+        <p className="text-xs text-green-700 mb-2">{retryInfo}</p>
+      )}
+      {retryError && (
+        <p className="text-xs text-red-600 mb-2">{retryError}</p>
+      )}
       <div className="bg-background border border-border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="border-b border-border">

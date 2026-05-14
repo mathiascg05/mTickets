@@ -698,7 +698,11 @@
       "failedEmailsHint": "Estas direcciones no recibieron el correo. Causas comunes: dirección inválida, casilla rebotada o límite del proveedor.",
       "failedEmailReason": "Motivo",
       "copyFailedEmails": "Copiar emails",
-      "copyFailedEmailsDone": "Copiado"
+      "copyFailedEmailsDone": "Copiado",
+      "retryFailed": "Reintentar {count} fallidos",
+      "retryingFailed": "Reintentando...",
+      "retryResult": "Reintento completado: {sent} enviados, {failed} aún fallan.",
+      "retryError": "No se pudo reintentar los envíos fallidos."
     },
     "ordersTooltips": {
       "clickToEditEmail": "Click para editar email"

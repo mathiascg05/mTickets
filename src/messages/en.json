@@ -698,7 +698,11 @@
       "failedEmailsHint": "These addresses did not receive the email. Common causes: invalid address, bounced inbox, or provider rate limit.",
       "failedEmailReason": "Reason",
       "copyFailedEmails": "Copy emails",
-      "copyFailedEmailsDone": "Copied"
+      "copyFailedEmailsDone": "Copied",
+      "retryFailed": "Retry {count} failed",
+      "retryingFailed": "Retrying...",
+      "retryResult": "Retry done: {sent} delivered, {failed} still failing.",
+      "retryError": "Could not retry the failed deliveries."
     },
     "ordersTooltips": {
       "clickToEditEmail": "Click to edit email"
