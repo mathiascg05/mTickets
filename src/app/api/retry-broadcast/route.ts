@@ -12,12 +12,13 @@ import {
   requeueFailedDeliveries,
 } from "@/lib/broadcastProcessor";
 
-export const maxDuration = 300;
+// Vercel Hobby caps function duration at 60s.
+export const maxDuration = 60;
 
 type RetryMode = "failed" | "all" | "missing";
 
-const INLINE_DRAIN_LIMIT = 50;
-const INLINE_DRAIN_DEADLINE_MS = 60_000;
+const INLINE_DRAIN_LIMIT = 25;
+const INLINE_DRAIN_DEADLINE_MS = 30_000;
 
 function parseFilters(raw: unknown): BroadcastFilters {
   if (typeof raw !== "string") return {};

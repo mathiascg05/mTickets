@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { processBroadcastBatch } from "@/lib/broadcastProcessor";
 
-// Up to ~5 minutes total budget on Vercel — but we cap each broadcast's drain
-// at ~50s so a single noisy campaign can't starve others on the same tick.
-export const maxDuration = 300;
+// Vercel Hobby caps function duration at 60s. Leave a small buffer for the
+// final counter recompute + response.
+export const maxDuration = 60;
 
-const PER_TICK_DEADLINE_MS = 50_000;
-const PER_RUN_BROADCAST_CAP = 4;
-const PER_BROADCAST_LIMIT = 80;
+const PER_TICK_DEADLINE_MS = 45_000;
+const PER_RUN_BROADCAST_CAP = 3;
+const PER_BROADCAST_LIMIT = 40;
 
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;

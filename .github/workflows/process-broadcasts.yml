@@ -1,0 +1,40 @@
+name: Process broadcast queue
+
+# Vercel Hobby cron jobs are limited to a daily schedule, but the broadcast
+# queue needs to drain in minutes. We use GitHub Actions (free) to ping the
+# cron endpoint every minute instead.
+#
+# Required repository secrets:
+#   - APP_BASE_URL : e.g. https://matickets.ve  (no trailing slash)
+#   - CRON_SECRET  : same value set as the CRON_SECRET env var in Vercel
+
+on:
+  schedule:
+    # GitHub Actions cron has minute granularity but is best-effort: jobs may
+    # be delayed or skipped during high load. Acceptable here because the
+    # processor is idempotent — the next tick picks up whatever was missed.
+    - cron: "* * * * *"
+  workflow_dispatch:
+
+concurrency:
+  # Avoid two workflow runs racing if a previous tick is still going.
+  group: process-broadcasts
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Hit /api/cron/process-broadcasts
+        env:
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_BASE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Missing APP_BASE_URL or CRON_SECRET repo secret." >&2
+            exit 1
+          fi
+          curl --silent --show-error --fail --max-time 90 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_BASE_URL/api/cron/process-broadcasts"

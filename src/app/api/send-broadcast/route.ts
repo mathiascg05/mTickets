@@ -9,9 +9,10 @@ import {
 } from "@/lib/broadcastRecipients";
 import { processBroadcastBatch } from "@/lib/broadcastProcessor";
 
-// Long enough to create rows + drain the first batch inline before handing the
-// rest to the cron worker.
-export const maxDuration = 300;
+// Vercel Hobby caps function duration at 60s. We split work between an inline
+// drain (snappy UX for small campaigns) and the GitHub Actions cron pinger
+// that calls /api/cron/process-broadcasts every minute.
+export const maxDuration = 60;
 
 const SUBJECT_MAX = 200;
 const BODY_MAX = 5000;
@@ -19,10 +20,11 @@ const BODY_MAX = 5000;
 // orders table. There is no hard product cap on a campaign anymore; the cron
 // worker handles whatever volume lands in the queue.
 const MAX_RECIPIENTS = 5000;
-// How many rows to drain inline so a small campaign feels instant. Anything
-// past this lands in the cron queue.
-const INLINE_DRAIN_LIMIT = 50;
-const INLINE_DRAIN_DEADLINE_MS = 60_000;
+// How many rows to drain inline. Resend free is 2 req/s; CHUNK_SIZE=2 with
+// 1.1s between chunks → ~1.8 sends/sec sustained. ~25 rows fits in ~15s of
+// pure send time, leaving room for row creation + counter recompute under 60s.
+const INLINE_DRAIN_LIMIT = 25;
+const INLINE_DRAIN_DEADLINE_MS = 30_000;
 
 export async function POST(req: NextRequest) {
   try {

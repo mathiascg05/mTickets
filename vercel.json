@@ -7,10 +7,6 @@
     {
       "path": "/api/cron/cleanup-reservations",
       "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron/process-broadcasts",
-      "schedule": "* * * * *"
     }
   ]
 }
