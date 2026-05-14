@@ -309,10 +309,12 @@ async function maybeFinaliseBroadcast(broadcastId: string): Promise<void> {
   const counts = await recomputeBroadcastCounters(broadcastId);
   const remaining = counts.pending + counts.inFlight;
 
-  // recipientCount is fixed at create time; we only refresh sent/failed.
-  // suppressedCount also includes any rows that were suppressed at create time
-  // OR were re-suppressed between attempts.
+  // Derive every counter from the live delivery rows so the UI never shows
+  // SENT > RECIPIENTS or similar discrepancies. recipientCount tracks
+  // everything that's actually in the campaign queue (i.e. anything that's
+  // not on the suppression list); suppressedCount is everything that is.
   const update: Record<string, unknown> = {
+    recipientCount: counts.sent + counts.failed + counts.pending + counts.inFlight,
     sentCount: counts.sent,
     failedCount: counts.failed,
     suppressedCount: counts.suppressed,
