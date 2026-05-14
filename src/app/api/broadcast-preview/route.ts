@@ -56,10 +56,24 @@ export async function POST(req: NextRequest) {
 
     const { recipients, suppressedEmails } = await resolveRecipients(concertId, safeFilters);
 
+    // When the preview returns 0 matches, surface the unfiltered order count
+    // for the event so the organizer understands whether the event has any
+    // orders at all vs. their filters are too narrow.
+    let concertTotalOrderCount: number | undefined;
+    if (recipients.length === 0) {
+      const { orders: allOrders = [] } = await adminDb.query({
+        orders: {
+          $: { where: { "ticketType.concert.id": concertId } },
+        },
+      });
+      concertTotalOrderCount = allOrders.length;
+    }
+
     return NextResponse.json({
       totalCount: recipients.length,
       suppressedCount: suppressedEmails.length,
       sample: recipients.slice(0, SAMPLE_SIZE),
+      ...(concertTotalOrderCount !== undefined ? { concertTotalOrderCount } : {}),
     });
   } catch (err) {
     console.error("[broadcast-preview] error:", err);

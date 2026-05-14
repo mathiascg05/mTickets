@@ -625,7 +625,16 @@
       "subjectRequired": "Subject required (max {max} characters).",
       "bodyRequired": "Message required (max {max} characters).",
       "previewError": "Could not load preview.",
-      "sendCampaignError": "Could not send campaign."
+      "sendCampaignError": "Could not send campaign.",
+      "appliedFilters": "Applied filters",
+      "statusLabel": "Status",
+      "ticketTypesLabel": "Ticket types",
+      "paymentMethodsLabel": "Payment methods",
+      "allFilter": "All",
+      "eventTotalOrders": "Your event has {count} order(s) in total.",
+      "eventNoOrders": "Your event has no orders yet.",
+      "relaxFilterHint": "Try removing some filters to broaden the results.",
+      "pmAccountsCount": "{name} ({count} accounts)"
     },
     "timeAgo": {
       "justNow": "just now",

@@ -19,6 +19,7 @@ type PreviewData = {
   totalCount: number;
   suppressedCount: number;
   sample: PreviewRecipient[];
+  concertTotalOrderCount?: number;
 };
 
 type SendResult = {
@@ -105,13 +106,21 @@ export default function BroadcastComposer({
   const availableTicketTypes: TicketType[] = selectedConcert?.ticketTypes ?? [];
   const availablePaymentMethods: PaymentMethod[] = selectedConcert?.paymentMethods ?? [];
 
-  // Deduplicate payment method types (an event may have multiple PM rows of same type)
+  // Deduplicate payment method types (an event may have multiple PM rows of same type).
+  // Track the count so the chip can show "(N accounts)" when a single type covers
+  // multiple PM rows — the filter sends the `type` and the backend expands to all
+  // names of that type, so the organizer should know the chip is plural.
   const paymentMethodOptions = useMemo(() => {
-    const seen = new Map<string, string>();
+    const byType = new Map<string, { name: string; count: number }>();
     for (const pm of availablePaymentMethods) {
-      if (!seen.has(pm.type)) seen.set(pm.type, pm.name || pm.type);
+      const existing = byType.get(pm.type);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        byType.set(pm.type, { name: pm.name || pm.type, count: 1 });
+      }
     }
-    return Array.from(seen, ([type, name]) => ({ type, name }));
+    return Array.from(byType, ([type, { name, count }]) => ({ type, name, count }));
   }, [availablePaymentMethods]);
 
   const hasAnyFilter =
@@ -344,7 +353,9 @@ export default function BroadcastComposer({
                         active={paymentMethodTypes.includes(pm.type)}
                         onClick={() => toggle(paymentMethodTypes, setPaymentMethodTypes)(pm.type)}
                       >
-                        {pm.name}
+                        {pm.count > 1
+                          ? t("admin.broadcast.pmAccountsCount", { name: pm.name, count: pm.count })
+                          : pm.name}
                       </Chip>
                     ))}
                   </div>
@@ -389,9 +400,72 @@ export default function BroadcastComposer({
             </div>
 
             {preview.totalCount === 0 ? (
-              <p className="text-center text-muted text-sm py-4">
-                {t("admin.broadcast.noMatchesForFilters")}
-              </p>
+              <div className="space-y-3 py-2">
+                <p className="text-center text-muted text-sm">
+                  {t("admin.broadcast.noMatchesForFilters")}
+                </p>
+                <div className="bg-surface border border-border rounded-xl p-4">
+                  <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-2">
+                    {t("admin.broadcast.appliedFilters")}
+                  </p>
+                  <dl className="space-y-1.5 text-sm">
+                    <div className="flex gap-2">
+                      <dt className="text-muted min-w-[120px]">{t("admin.broadcast.statusLabel")}:</dt>
+                      <dd>
+                        {orderStatuses.length === 0
+                          ? t("admin.broadcast.allFilter")
+                          : orderStatuses
+                              .map(
+                                (v) =>
+                                  orderStatusOptions.find((o) => o.value === v)?.label ?? v,
+                              )
+                              .join(", ")}
+                      </dd>
+                    </div>
+                    <div className="flex gap-2">
+                      <dt className="text-muted min-w-[120px]">{t("admin.broadcast.ticketTypesLabel")}:</dt>
+                      <dd>
+                        {ticketTypeIds.length === 0
+                          ? t("admin.broadcast.allFilter")
+                          : ticketTypeIds
+                              .map(
+                                (id) =>
+                                  availableTicketTypes.find((tt) => tt.id === id)?.name ?? id,
+                              )
+                              .join(", ")}
+                      </dd>
+                    </div>
+                    <div className="flex gap-2">
+                      <dt className="text-muted min-w-[120px]">{t("admin.broadcast.paymentMethodsLabel")}:</dt>
+                      <dd>
+                        {paymentMethodTypes.length === 0
+                          ? t("admin.broadcast.allFilter")
+                          : paymentMethodTypes
+                              .map(
+                                (type) =>
+                                  paymentMethodOptions.find((pm) => pm.type === type)?.name ?? type,
+                              )
+                              .join(", ")}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+                {preview.concertTotalOrderCount !== undefined && (
+                  <p className="text-center text-xs text-muted">
+                    {preview.concertTotalOrderCount === 0
+                      ? t("admin.broadcast.eventNoOrders")
+                      : t("admin.broadcast.eventTotalOrders", {
+                          count: preview.concertTotalOrderCount,
+                        })}
+                  </p>
+                )}
+                {preview.concertTotalOrderCount !== undefined &&
+                  preview.concertTotalOrderCount > 0 && (
+                    <p className="text-center text-xs text-muted">
+                      {t("admin.broadcast.relaxFilterHint")}
+                    </p>
+                  )}
+              </div>
             ) : (
               <div>
                 <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-2">

@@ -625,7 +625,16 @@
       "subjectRequired": "Asunto requerido (máx {max} caracteres).",
       "bodyRequired": "Mensaje requerido (máx {max} caracteres).",
       "previewError": "No se pudo cargar la vista previa.",
-      "sendCampaignError": "No se pudo enviar la campaña."
+      "sendCampaignError": "No se pudo enviar la campaña.",
+      "appliedFilters": "Filtros aplicados",
+      "statusLabel": "Estado",
+      "ticketTypesLabel": "Tipos de entrada",
+      "paymentMethodsLabel": "Métodos de pago",
+      "allFilter": "Todos",
+      "eventTotalOrders": "Tu evento tiene {count} orden(es) en total.",
+      "eventNoOrders": "Tu evento aún no tiene órdenes.",
+      "relaxFilterHint": "Intenta quitar algunos filtros para ampliar los resultados.",
+      "pmAccountsCount": "{name} ({count} cuentas)"
     },
     "timeAgo": {
       "justNow": "hace un momento",

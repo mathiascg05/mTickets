@@ -44,7 +44,31 @@ export async function resolveRecipients(
     where.status = { $in: orderStatuses };
   }
   if (paymentMethodTypes && paymentMethodTypes.length > 0) {
-    where.paymentMethod = { $in: paymentMethodTypes };
+    // Orders store the human-readable PM name (see create-order route), not the
+    // PM type. Expand the selected types to all matching PM names of this
+    // concert so chips that cover multiple accounts (e.g. two Pago Móvil
+    // accounts sharing the same type) still match every order.
+    const { paymentMethods: pms = [] } = await adminDb.query({
+      paymentMethods: {
+        $: {
+          where: {
+            "concert.id": concertId,
+            type: { $in: paymentMethodTypes },
+          },
+        },
+      },
+    });
+    const names = Array.from(
+      new Set(
+        pms
+          .map((p) => (p as { name?: string }).name)
+          .filter((n): n is string => Boolean(n)),
+      ),
+    );
+    if (names.length === 0) {
+      return { recipients: [], suppressedEmails: [] };
+    }
+    where.paymentMethod = { $in: names };
   }
   if (ticketTypeIds && ticketTypeIds.length > 0) {
     where["ticketType.id"] = { $in: ticketTypeIds };
