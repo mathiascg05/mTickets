@@ -10,10 +10,13 @@ name: Process broadcast queue
 
 on:
   schedule:
-    # GitHub Actions cron has minute granularity but is best-effort: jobs may
-    # be delayed or skipped during high load. Acceptable here because the
-    # processor is idempotent — the next tick picks up whatever was missed.
-    - cron: "* * * * *"
+    # Every 2 minutes. Private repo on the GH Actions free tier (2000 min/mo)
+    # would burn through its quota with a per-minute schedule (each run is
+    # ~15-30s of billable time). Every-2-min keeps usage under 1500 min/mo
+    # while still draining a typical campaign in a few minutes — the tick
+    # processes up to 200 deliveries (≈ ~25s of send time at Resend Pro's
+    # 8-10 req/s) and the next tick picks up whatever's left.
+    - cron: "*/2 * * * *"
   workflow_dispatch:
 
 concurrency:
