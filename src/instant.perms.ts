@@ -263,6 +263,113 @@ const rules = {
     },
     bind: [],
   },
+  guestListEvents: {
+    allow: {
+      view: "data.status == 'active' || isOwner || isSuperAdmin",
+      create: "auth.email != null",
+      update: "isOwner || isSuperAdmin",
+      delete: "isPrimaryOwner || isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email == data.organizerEmail || auth.email in data.ref('collaborators.email')",
+      "isPrimaryOwner",
+      "auth.email == data.organizerEmail",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+    fields: {
+      scannerPin: "isOwner || isSuperAdmin",
+    },
+  },
+  guestListEntries: {
+    allow: {
+      view: "isOwner || isSuperAdmin",
+      create: "false",
+      update: "isOwner || isSuperAdmin",
+      delete: "isOwner || isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('event.organizerEmail') || auth.email in data.ref('event.collaborators.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
+  guestListOrders: {
+    allow: {
+      view: "isOwner || isSuperAdmin",
+      create: "false",
+      update: "isOwner || isSuperAdmin",
+      delete: "isOwner || isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('entry.event.organizerEmail') || auth.email in data.ref('entry.event.collaborators.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
+  guestListPaymentMethods: {
+    allow: {
+      view: "data.ref('event.status') == ['active'] || isOwner || isSuperAdmin",
+      create: "isOwner || isSuperAdmin",
+      update: "isOwner || isSuperAdmin",
+      delete: "isOwner || isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('event.organizerEmail') || auth.email in data.ref('event.collaborators.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
+  guestListCustomFields: {
+    allow: {
+      view: "true",
+      create: "isOwner || isSuperAdmin",
+      update: "isOwner || isSuperAdmin",
+      delete: "isOwner || isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('event.organizerEmail') || auth.email in data.ref('event.collaborators.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
+  guestListTicketTypes: {
+    allow: {
+      view: "true",
+      create: "isOwner || isSuperAdmin",
+      update: "isOwner || isSuperAdmin",
+      delete: "isOwner || isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('event.organizerEmail') || auth.email in data.ref('event.collaborators.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
+  guestListCollaborators: {
+    allow: {
+      view: "isOwner || isCollaborator || isSuperAdmin",
+      create: "isPrimaryOwner || isSuperAdmin",
+      update: "false",
+      delete: "isPrimaryOwner || isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('event.organizerEmail')",
+      "isCollaborator",
+      "auth.email in data.ref('event.collaborators.email')",
+      "isPrimaryOwner",
+      "auth.email in data.ref('event.organizerEmail')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
   $files: {
     allow: {
       view: `data.path.startsWith('event-assets/') || auth.email == '${SUPER_ADMIN}'`,

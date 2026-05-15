@@ -3,6 +3,7 @@
 import { memo, useMemo } from "react";
 import { db } from "@/lib/db";
 import { useAuthContext } from "@/lib/AuthContext";
+import { useLanguage } from "@/lib/LanguageContext";
 import { getEventRevenue } from "@/lib/order-pricing";
 import Link from "next/link";
 import type { InstaQLEntity } from "@instantdb/react";
@@ -12,6 +13,12 @@ type ConcertWithOrders = InstaQLEntity<
   AppSchema,
   "concerts",
   { ticketTypes: { orders: object } }
+>;
+
+type GuestListEventWithEntries = InstaQLEntity<
+  AppSchema,
+  "guestListEvents",
+  { entries: { order: object } }
 >;
 
 const ConcertOrderRow = memo(function ConcertOrderRow({
@@ -87,8 +94,81 @@ const ConcertOrderRow = memo(function ConcertOrderRow({
   );
 });
 
+const GuestListEventOrderRow = memo(function GuestListEventOrderRow({
+  event,
+}: {
+  event: GuestListEventWithEntries;
+}) {
+  const stats = useMemo(() => {
+    let total = 0;
+    let pending = 0;
+    let approved = 0;
+    let revenue = 0;
+    for (const e of event.entries) {
+      const raw = e.order as unknown;
+      const o = (Array.isArray(raw) ? raw[0] : raw) as
+        | { status: string; pricePaid: number }
+        | undefined;
+      if (!o) continue;
+      total++;
+      if (o.status === "pending") pending++;
+      else if (o.status === "approved") {
+        approved++;
+        revenue += o.pricePaid || 0;
+      }
+    }
+    return { total, pending, approved, revenue };
+  }, [event]);
+
+  return (
+    <Link
+      href={`/admin/orders/guest-list/${event.id}`}
+      className="flex flex-col sm:flex-row sm:items-center justify-between bg-surface border border-border rounded-xl p-5 hover:border-accent/50 transition-colors group"
+    >
+      <div className="mb-3 sm:mb-0">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-lg group-hover:text-accent-light transition-colors">
+            {event.name}
+          </h3>
+          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent/10 text-accent-light border border-accent/30">
+            Lista
+          </span>
+        </div>
+        <p className="text-sm text-muted">
+          {event.venue ? `${event.venue} · ` : ""}
+          {event.date}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-4 text-sm">
+        <div className="text-center">
+          <p className="text-xs text-muted">Total</p>
+          <p className="font-bold text-foreground">{stats.total}</p>
+        </div>
+        {stats.pending > 0 && (
+          <div className="text-center">
+            <p className="text-xs text-muted">Pending</p>
+            <p className="font-bold text-warning">{stats.pending}</p>
+          </div>
+        )}
+        <div className="text-center">
+          <p className="text-xs text-muted">Approved</p>
+          <p className="font-bold text-success">{stats.approved}</p>
+        </div>
+        <div className="text-center">
+          <p className="text-xs text-muted">Revenue</p>
+          <p className="font-bold text-accent-light">
+            ${stats.revenue.toFixed(2)}
+          </p>
+        </div>
+      </div>
+    </Link>
+  );
+});
+
 export default function AdminOrdersPage() {
   const { email, isSuperAdmin } = useAuthContext();
+  const { t } = useLanguage();
 
   const { isLoading, data } = db.useQuery({
     concerts: {
@@ -111,6 +191,16 @@ export default function AdminOrdersPage() {
         },
   );
 
+  const { data: guestListData } = db.useQuery({
+    guestListEvents: {
+      $: {
+        ...(isSuperAdmin ? {} : { where: { organizerEmail: email } }),
+        order: { createdAt: "desc" as const },
+      },
+      entries: { order: {} },
+    },
+  });
+
   const concerts = useMemo(() => {
     if (!data) return [];
     const ownedConcerts = data.concerts;
@@ -127,21 +217,35 @@ export default function AdminOrdersPage() {
       .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
   }, [data, collabData]);
 
+  const guestListEvents = guestListData?.guestListEvents ?? [];
+
   if (isLoading || !data) {
     return <div className="animate-pulse text-muted">Loading...</div>;
   }
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-6">Orders by Event</h1>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold mb-6">Orders by Event</h1>
+        {concerts.length === 0 ? (
+          <p className="text-muted text-center py-12">No events yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {concerts.map((concert) => (
+              <ConcertOrderRow key={concert.id} concert={concert} />
+            ))}
+          </div>
+        )}
+      </div>
 
-      {concerts.length === 0 ? (
-        <p className="text-muted text-center py-12">No events yet.</p>
-      ) : (
-        <div className="space-y-3">
-          {concerts.map((concert) => (
-            <ConcertOrderRow key={concert.id} concert={concert} />
-          ))}
+      {guestListEvents.length > 0 && (
+        <div>
+          <h2 className="text-xl font-bold mb-4">{t("guestList.title")}</h2>
+          <div className="space-y-3">
+            {guestListEvents.map((event) => (
+              <GuestListEventOrderRow key={event.id} event={event} />
+            ))}
+          </div>
         </div>
       )}
     </div>

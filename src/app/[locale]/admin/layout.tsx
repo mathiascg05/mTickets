@@ -389,6 +389,7 @@ export default function AdminLayout({
   const navItems = [
     { href: "/admin", label: t("admin.dashboard") },
     { href: "/admin/concerts", label: t("admin.events") },
+    { href: "/admin/guest-lists", label: t("guestList.title") },
     { href: "/admin/orders", label: t("admin.orders") },
     { href: "/admin/communications", label: t("admin.messages") },
     ...(userIsSuperAdmin
