@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     const { guestListEntries } = await adminDb.query({
       guestListEntries: {
         $: { where: { inviteToken } },
-        event: { paymentMethods: {} },
+        event: { paymentMethods: {}, platformFeeConfig: {} },
         ticketType: {},
       },
     });
@@ -110,9 +110,14 @@ export async function POST(req: NextRequest) {
           paymentMethods?: {
             id: string;
             name: string;
+            convertCurrency?: string;
+            customRate?: number;
             requireScreenshot?: boolean;
             requireReferenceNumber?: boolean;
           }[];
+          platformFeeConfig?:
+            | { feePercent: number; feeFixed: number; billingMode?: string }
+            | { feePercent: number; feeFixed: number; billingMode?: string }[];
         }
       | undefined;
     if (!event) {
@@ -147,17 +152,53 @@ export async function POST(req: NextRequest) {
 
     const rawTicketType = entry.ticketType as unknown;
     const ticketType = (Array.isArray(rawTicketType) ? rawTicketType[0] : rawTicketType) as
-      | { id: string; price: number }
+      | {
+          id: string;
+          price: number;
+          feePercent?: number;
+          feeFixed?: number;
+        }
       | undefined;
+    const hasOverride = typeof entry.priceOverride === "number";
     const basePrice = ticketType ? ticketType.price : event.defaultPrice;
-    const finalPrice =
-      typeof entry.priceOverride === "number"
-        ? entry.priceOverride
-        : basePrice;
+    const feePercentSnapshot = ticketType?.feePercent ?? 0;
+    const feeFixedSnapshot = ticketType?.feeFixed ?? 0;
+    const feeAmountSnapshot = hasOverride
+      ? 0
+      : Math.round(
+          ((basePrice * feePercentSnapshot) / 100 + feeFixedSnapshot) * 100,
+        ) / 100;
+    const finalPrice = hasOverride
+      ? (entry.priceOverride as number)
+      : Math.round((basePrice + feeAmountSnapshot) * 100) / 100;
+
+    const rawPlatformFeeConfig = event.platformFeeConfig as unknown;
+    const platformFeeConfig = (
+      Array.isArray(rawPlatformFeeConfig)
+        ? rawPlatformFeeConfig[0]
+        : rawPlatformFeeConfig
+    ) as { feePercent: number; feeFixed: number } | undefined;
+    const platformFeePercentSnapshot = platformFeeConfig?.feePercent ?? 0;
+    const platformFeeFixedSnapshot = platformFeeConfig?.feeFixed ?? 0;
+    const platformFeeAmountSnapshot = hasOverride
+      ? 0
+      : Math.round(
+          ((basePrice * platformFeePercentSnapshot) / 100 +
+            platformFeeFixedSnapshot) *
+            100,
+        ) / 100;
+
     const isFree = finalPrice === 0;
     const status = isFree ? "approved" : "pending";
 
-    let resolvedPaymentMethod: { id: string; name: string } | undefined;
+    let resolvedPaymentMethod:
+      | {
+          id: string;
+          name: string;
+          convertCurrency?: string;
+          customRate?: number;
+        }
+      | undefined;
     if (!isFree) {
       const methods = event.paymentMethods || [];
       if (paymentMethodId) {
@@ -168,7 +209,12 @@ export async function POST(req: NextRequest) {
             { status: 400 },
           );
         }
-        resolvedPaymentMethod = { id: found.id, name: found.name };
+        resolvedPaymentMethod = {
+          id: found.id,
+          name: found.name,
+          convertCurrency: found.convertCurrency,
+          customRate: found.customRate,
+        };
         if (found.requireScreenshot !== false && !paymentProofPath) {
           return NextResponse.json(
             { error: "Payment proof required" },
@@ -201,6 +247,37 @@ export async function POST(req: NextRequest) {
     const orderToken = generateOrderToken();
     const orderLanguage = detectLocale(req);
 
+    // Resolve exchange rate snapshot for Bs breakdown (mirror concerts behavior)
+    let purchaseRate: number | undefined;
+    let purchaseRateCurrency: string | undefined;
+    let purchaseAmountBs: number | undefined;
+    if (!isFree && resolvedPaymentMethod) {
+      if (typeof resolvedPaymentMethod.customRate === "number") {
+        purchaseRate = resolvedPaymentMethod.customRate;
+        purchaseRateCurrency = "USD";
+      } else if (resolvedPaymentMethod.convertCurrency) {
+        const { exchangeRates } = await adminDb.query({
+          exchangeRates: {
+            $: {
+              where: { currency: resolvedPaymentMethod.convertCurrency },
+              order: { fetchedAt: "desc" as const },
+              limit: 1,
+            },
+          },
+        });
+        const rate = exchangeRates[0] as
+          | { rate: number; currency: string }
+          | undefined;
+        if (rate) {
+          purchaseRate = rate.rate;
+          purchaseRateCurrency = rate.currency;
+        }
+      }
+      if (typeof purchaseRate === "number") {
+        purchaseAmountBs = Math.round(finalPrice * purchaseRate * 100) / 100;
+      }
+    }
+
     const fields: Record<string, unknown> = {
       firstName: entry.firstName || "",
       lastName: entry.lastName || "",
@@ -209,6 +286,13 @@ export async function POST(req: NextRequest) {
       status,
       visited: false,
       pricePaid: finalPrice,
+      priceSnapshot: basePrice,
+      feePercentSnapshot,
+      feeFixedSnapshot,
+      feeAmountSnapshot,
+      platformFeePercentSnapshot,
+      platformFeeFixedSnapshot,
+      platformFeeAmountSnapshot,
       orderToken,
       language: orderLanguage,
       createdAt: Date.now(),
@@ -218,6 +302,13 @@ export async function POST(req: NextRequest) {
       fields.paymentMethodId = resolvedPaymentMethod.id;
     } else if (paymentMethod) {
       fields.paymentMethod = paymentMethod;
+    }
+    if (typeof purchaseRate === "number") {
+      fields.purchaseRate = purchaseRate;
+      fields.purchaseRateCurrency = purchaseRateCurrency;
+      if (typeof purchaseAmountBs === "number") {
+        fields.purchaseAmountBs = purchaseAmountBs;
+      }
     }
     if (referenceNumber) fields.proofReferenceNumber = referenceNumber;
     if (paymentProofPath) fields.paymentProofPath = paymentProofPath;

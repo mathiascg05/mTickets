@@ -67,6 +67,8 @@ export async function GET(
             name: string;
             instructions?: string;
             convertCurrency?: string;
+            customRate?: number;
+            showConversionDetail?: boolean;
             requireScreenshot?: boolean;
             requireReferenceNumber?: boolean;
             zelleEmail?: string;
@@ -99,13 +101,25 @@ export async function GET(
 
     const rawTicketType = entry.ticketType as unknown;
     const ticketType = (Array.isArray(rawTicketType) ? rawTicketType[0] : rawTicketType) as
-      | { id: string; name: string; price: number; description?: string }
+      | {
+          id: string;
+          name: string;
+          price: number;
+          description?: string;
+          feePercent?: number;
+          feeFixed?: number;
+        }
       | undefined;
+    const hasOverride = typeof entry.priceOverride === "number";
     const basePrice = ticketType ? ticketType.price : event.defaultPrice;
-    const finalPrice =
-      typeof entry.priceOverride === "number"
-        ? entry.priceOverride
-        : basePrice;
+    const feePercent = ticketType?.feePercent ?? 0;
+    const feeFixed = ticketType?.feeFixed ?? 0;
+    const feeAmount = hasOverride
+      ? 0
+      : Math.round(((basePrice * feePercent) / 100 + feeFixed) * 100) / 100;
+    const finalPrice = hasOverride
+      ? (entry.priceOverride as number)
+      : Math.round((basePrice + feeAmount) * 100) / 100;
 
     if (entry.status === "registered") {
       const rawOrder = entry.order as unknown;
@@ -127,6 +141,11 @@ export async function GET(
         email: entry.email || "",
         cedula: entry.cedula || "",
         finalPrice,
+        basePrice,
+        feeAmount,
+        feePercent,
+        feeFixed,
+        hasOverride,
         ticketType: ticketType
           ? {
               id: ticketType.id,

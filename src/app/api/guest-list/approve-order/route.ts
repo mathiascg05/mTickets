@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { isSuperAdmin } from "@/lib/authHelpers";
-import { sendGuestListTicketEmail } from "@/lib/guestListTicketSender";
-import { assignGuestListOrderNumber } from "@/lib/guestListOrderNumber";
+import { approveGuestListOrderInternal } from "@/lib/approveGuestListOrder";
 
 type Body = { orderId: string; action: "approve" | "reject" | "cancel" };
 
@@ -63,18 +62,36 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
-      await adminDb.transact([
-        adminDb.tx.guestListOrders[orderId].update({ status: "approved" }),
-      ]);
+      const result = await approveGuestListOrderInternal(orderId, {
+        skipEmail: true,
+        skipAssignNumber: true,
+      });
+      if (!result.success) {
+        return NextResponse.json(
+          {
+            error: result.error || "Approve failed",
+            errorCode: result.errorCode,
+            requiredFee: result.requiredFee,
+            currentBalance: result.currentBalance,
+          },
+          { status: result.errorCode === "INSUFFICIENT_BALANCE" || result.errorCode === "NO_BALANCE" ? 402 : 400 },
+        );
+      }
       after(async () => {
         try {
+          const { assignGuestListOrderNumber } = await import(
+            "@/lib/guestListOrderNumber"
+          );
+          const { sendGuestListTicketEmail } = await import(
+            "@/lib/guestListTicketSender"
+          );
           await assignGuestListOrderNumber(orderId, event.id, event.name);
           await sendGuestListTicketEmail(orderId);
         } catch (err) {
           console.error("[guest-list/approve-order] post-send:", err);
         }
       });
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, platformFee: result.platformFee });
     }
 
     if (action === "reject" || action === "cancel") {

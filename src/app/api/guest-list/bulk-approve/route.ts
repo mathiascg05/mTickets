@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/adminDb";
 import { assertOrganizerCanAccessGuestListOrder } from "@/lib/guestListAuth";
 import { sendGuestListTicketEmail } from "@/lib/guestListTicketSender";
 import { assignGuestListOrderNumber } from "@/lib/guestListOrderNumber";
+import { approveGuestListOrderInternal } from "@/lib/approveGuestListOrder";
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,17 +41,22 @@ export async function POST(req: NextRequest) {
           skipped++;
           continue;
         }
-        const { guestListOrders } = await adminDb.query({
-          guestListOrders: { $: { where: { id: orderId } } },
+        const result = await approveGuestListOrderInternal(orderId, {
+          skipEmail: true,
+          skipAssignNumber: true,
         });
-        const order = guestListOrders[0];
-        if (!order || order.status !== "pending") {
-          skipped++;
+        if (!result.success) {
+          if (
+            result.errorCode === "INVALID_STATUS" ||
+            result.errorCode === "NOT_FOUND"
+          ) {
+            skipped++;
+          } else {
+            failed++;
+            failedIds.push(orderId);
+          }
           continue;
         }
-        await adminDb.transact([
-          adminDb.tx.guestListOrders[orderId].update({ status: "approved" }),
-        ]);
         approved++;
         approvedForEmail.push({
           orderId,

@@ -352,6 +352,20 @@ const rules = {
       `auth.email == '${SUPER_ADMIN}'`,
     ],
   },
+  guestListPlatformFeeConfigs: {
+    allow: {
+      view: "isOwner || isSuperAdmin",
+      create: "isSuperAdmin",
+      update: "isSuperAdmin",
+      delete: "isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('event.organizerEmail') || auth.email in data.ref('event.collaborators.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
   guestListCollaborators: {
     allow: {
       view: "isOwner || isCollaborator || isSuperAdmin",

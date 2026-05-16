@@ -98,6 +98,7 @@ export default function AdminGuestListDetailPage({
         entries: {},
         orders: {},
       },
+      platformFeeConfig: {},
     },
   });
 
@@ -233,6 +234,11 @@ export default function AdminGuestListDetailPage({
         eventId={eventId}
         ticketTypes={(event.ticketTypes || []) as TicketType[]}
         defaultPrice={event.defaultPrice}
+        t={t}
+      />
+
+      <FeesSection
+        ticketTypes={(event.ticketTypes || []) as TicketType[]}
         t={t}
       />
 
@@ -375,6 +381,18 @@ export default function AdminGuestListDetailPage({
         />
       )}
 
+      <PlatformFeeSection
+        eventId={eventId}
+        feeConfig={
+          event.platformFeeConfig as
+            | { id: string; feePercent: number; feeFixed: number; billingMode: string }
+            | undefined
+        }
+        isSuperAdmin={isSuperAdmin}
+        isDemo={!!event.isDemo}
+        t={t}
+      />
+
       <DangerZone onDelete={() => setShowDelete(true)} t={t} />
 
       {showDelete && (
@@ -433,6 +451,8 @@ type TicketType = {
   price: number;
   quantity?: number;
   description?: string;
+  feePercent?: number;
+  feeFixed?: number;
   sortOrder: number;
   entries?: { id: string; status: string }[];
   orders?: { id: string; status: string }[];
@@ -2570,6 +2590,336 @@ function ManualEntryModal({
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function FeesSection({
+  ticketTypes,
+  t,
+}: {
+  ticketTypes: TicketType[];
+  t: (key: string, vars?: Record<string, string | number>) => string;
+}) {
+  if (ticketTypes.length === 0) {
+    return (
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h2 className="text-xl font-semibold mb-2">{t("admin.serviceFees")}</h2>
+        <p className="text-muted text-sm text-center py-6">
+          {t("admin.addTicketTypesFirst")}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <h2 className="text-xl font-semibold mb-1">{t("admin.serviceFees")}</h2>
+      <p className="text-muted text-xs mb-4">{t("admin.feeDescription")}</p>
+      <div className="space-y-3">
+        {ticketTypes.map((tt) => (
+          <FeeRow key={tt.id} tt={tt} t={t} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FeeRow({
+  tt,
+  t,
+}: {
+  tt: TicketType;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+}) {
+  const currentPrice = tt.price;
+  const feePercent = tt.feePercent ?? 0;
+  const feeFixed = tt.feeFixed ?? 0;
+  const calculatedFee = (currentPrice * feePercent) / 100 + feeFixed;
+
+  function updateFee(field: "feePercent" | "feeFixed", value: string) {
+    const num = parseFloat(value);
+    db.transact(
+      db.tx.guestListTicketTypes[tt.id].update({
+        [field]: isNaN(num) ? 0 : num,
+      }),
+    );
+  }
+
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-3">
+      <div>
+        <p className="font-medium text-sm">{tt.name}</p>
+        <p className="text-xs text-muted mt-0.5">
+          {t("admin.basePrice")}: ${tt.price.toFixed(2)}
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium mb-1">
+            {t("admin.feePercent")}
+          </label>
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            defaultValue={feePercent || ""}
+            onBlur={(e) => updateFee("feePercent", e.target.value)}
+            className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+            placeholder="0"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">
+            {t("admin.feeFixed")}
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            defaultValue={feeFixed || ""}
+            onBlur={(e) => updateFee("feeFixed", e.target.value)}
+            className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+            placeholder="0.00"
+          />
+        </div>
+      </div>
+      {(feePercent > 0 || feeFixed > 0) && (
+        <p className="text-xs text-muted">
+          {t("admin.onTicket", { price: currentPrice.toFixed(2) })}:{" "}
+          {feePercent > 0 && (
+            <span>
+              {t("admin.feeCalcPercent", {
+                amount: ((currentPrice * feePercent) / 100).toFixed(2),
+                percent: feePercent,
+              })}
+            </span>
+          )}
+          {feePercent > 0 && feeFixed > 0 && " + "}
+          {feeFixed > 0 && (
+            <span>
+              {t("admin.feeCalcFixed", { amount: feeFixed.toFixed(2) })}
+            </span>
+          )}
+          {" = "}
+          <span className="font-medium text-foreground">
+            {t("admin.feeCalcTotal", { amount: calculatedFee.toFixed(2) })}
+          </span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PlatformFeeSection({
+  eventId,
+  feeConfig,
+  isSuperAdmin,
+  isDemo,
+  t,
+}: {
+  eventId: string;
+  feeConfig:
+    | { id: string; feePercent: number; feeFixed: number; billingMode: string }
+    | undefined;
+  isSuperAdmin: boolean;
+  isDemo: boolean;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+}) {
+  const [feePercent, setFeePercent] = useState(
+    feeConfig?.feePercent?.toString() || "5",
+  );
+  const [feeFixed, setFeeFixed] = useState(
+    feeConfig?.feeFixed?.toString() || "0",
+  );
+  const [billingMode, setBillingMode] = useState(
+    feeConfig?.billingMode || "prepaid",
+  );
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const previewPrice = 10;
+  const pPercent = parseFloat(feePercent) || 0;
+  const pFixed = parseFloat(feeFixed) || 0;
+  const calculatedFee = previewPrice * (pPercent / 100) + pFixed;
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const data = {
+        feePercent: parseFloat(feePercent) || 0,
+        feeFixed: parseFloat(feeFixed) || 0,
+        billingMode,
+        updatedAt: Date.now(),
+      };
+      if (feeConfig) {
+        await db.transact([
+          db.tx.guestListPlatformFeeConfigs[feeConfig.id].update(data),
+        ]);
+      } else {
+        const newId = genId();
+        await db.transact([
+          db.tx.guestListPlatformFeeConfigs[newId]
+            .update(data)
+            .link({ event: eventId }),
+        ]);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      console.error("Failed to save fee config:", err);
+      toast.error(t("admin.communications.feeConfigSaveError"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!isSuperAdmin) {
+    if (!feeConfig) return null;
+    return (
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h2 className="text-lg font-bold mb-4">
+          {t("admin.platformFeeConfig")}
+        </h2>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <p className="text-sm text-muted">{t("admin.pFeePercent")}</p>
+            <p className="text-lg font-semibold">{feeConfig.feePercent}%</p>
+          </div>
+          <div>
+            <p className="text-sm text-muted">{t("admin.pFeeFixed")}</p>
+            <p className="text-lg font-semibold">
+              ${feeConfig.feeFixed.toFixed(2)}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-muted">{t("admin.billingMode")}</p>
+            <p className="text-lg font-semibold">
+              {t(
+                feeConfig.billingMode === "postpaid"
+                  ? "admin.postpaid"
+                  : "admin.prepaid",
+              )}
+            </p>
+          </div>
+        </div>
+        <p className="text-sm text-muted mt-3">
+          {t("admin.pFeePreview", {
+            price: previewPrice.toFixed(2),
+            fee: (
+              (feeConfig.feePercent / 100) * previewPrice +
+              feeConfig.feeFixed
+            ).toFixed(2),
+          })}
+        </p>
+      </div>
+    );
+  }
+
+  function toggleDemo() {
+    db.transact(
+      db.tx.guestListEvents[eventId].update({ isDemo: !isDemo }),
+    );
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <h2 className="text-lg font-bold mb-4">{t("admin.platformFeeConfig")}</h2>
+      <div
+        className={`mb-4 p-3 rounded-lg border ${isDemo ? "bg-accent/5 border-accent/30" : "bg-background border-border"}`}
+      >
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isDemo}
+            onChange={toggleDemo}
+            className="mt-1 accent-accent"
+          />
+          <div>
+            <p className="font-medium text-sm">{t("admin.demoEvent")}</p>
+            <p className="text-xs text-muted mt-0.5">
+              {t("admin.demoEventDesc")}
+            </p>
+          </div>
+        </label>
+      </div>
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="block text-sm font-medium mb-1.5">
+            {t("admin.pFeePercent")}
+          </label>
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            max="100"
+            value={feePercent}
+            onChange={(e) => setFeePercent(e.target.value)}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">
+            {t("admin.pFeeFixed")}
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={feeFixed}
+            onChange={(e) => setFeeFixed(e.target.value)}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30"
+          />
+        </div>
+      </div>
+      <p className="text-sm text-muted mb-4">
+        {t("admin.pFeePreview", {
+          price: previewPrice.toFixed(2),
+          fee: calculatedFee.toFixed(2),
+        })}
+      </p>
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-1.5">
+          {t("admin.billingMode")}
+        </label>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => setBillingMode("prepaid")}
+            className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+              billingMode === "prepaid"
+                ? "bg-accent/10 border-accent text-accent"
+                : "bg-background border-border text-muted hover:border-accent-light"
+            }`}
+          >
+            <div>{t("admin.prepaid")}</div>
+            <div className="text-xs font-normal mt-0.5 opacity-70">
+              {t("admin.prepaidDesc")}
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setBillingMode("postpaid")}
+            className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+              billingMode === "postpaid"
+                ? "bg-warning/10 border-warning text-warning"
+                : "bg-background border-border text-muted hover:border-warning"
+            }`}
+          >
+            <div>{t("admin.postpaid")}</div>
+            <div className="text-xs font-normal mt-0.5 opacity-70">
+              {t("admin.postpaidDesc")}
+            </div>
+          </button>
+        </div>
+      </div>
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="px-6 py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
+      >
+        {saving ? "..." : saved ? t("common.saved") : t("common.saveChanges")}
+      </button>
     </div>
   );
 }

@@ -22,6 +22,9 @@ type GuestOrder = {
   paymentProofPath?: string;
   proofReferenceNumber?: string;
   pricePaid: number;
+  purchaseRate?: number;
+  purchaseRateCurrency?: string;
+  purchaseAmountBs?: number;
   orderNumber?: string;
   createdAt: number;
   ticketType?: { id: string; name: string }[] | { id: string; name: string };
@@ -196,6 +199,17 @@ export default function GuestListOrdersPage({
     new Set(allOrders.map((o) => o.paymentMethod || "").filter(Boolean)),
   );
 
+  // Map payment method name → convertCurrency for Bs/$ split in CSV
+  const pmCurrencyMap: Record<string, string> = {};
+  for (const pm of (event.paymentMethods || []) as {
+    name: string;
+    convertCurrency?: string;
+  }[]) {
+    if (pm.convertCurrency) {
+      pmCurrencyMap[pm.name] = pm.convertCurrency;
+    }
+  }
+
   const filteredOrders = allOrders.filter((o) => {
     if (filter !== "all" && o.status !== filter) return false;
     if (paymentMethodFilter !== "all" && (o.paymentMethod || "") !== paymentMethodFilter)
@@ -356,6 +370,7 @@ export default function GuestListOrdersPage({
       t("guestList.paymentMethod"),
       t("guestList.referenceNumber"),
       "Amount ($)",
+      "Amount (Bs)",
       t("common.status"),
       t("common.date"),
       t("guestList.colVisited"),
@@ -363,6 +378,17 @@ export default function GuestListOrdersPage({
     const sorted = [...allOrders].sort((a, b) => a.createdAt - b.createdAt);
     const rows = sorted.map((o) => {
       const tt = getOrderTicketType(o);
+      const effectivePrice = o.pricePaid;
+      const currency = pmCurrencyMap[o.paymentMethod || ""];
+      const rate = o.purchaseRate ?? null;
+      const amountUsd = currency ? "" : effectivePrice.toFixed(2);
+      const amountBs = currency
+        ? o.purchaseAmountBs != null
+          ? o.purchaseAmountBs.toFixed(2)
+          : rate != null
+            ? (effectivePrice * rate).toFixed(2)
+            : ""
+        : "";
       return [
         escapeCsv(o.orderNumber || "---"),
         escapeCsv(o.firstName),
@@ -372,7 +398,8 @@ export default function GuestListOrdersPage({
         escapeCsv(tt?.name || ""),
         escapeCsv(o.paymentMethod || ""),
         escapeCsv(o.proofReferenceNumber || ""),
-        o.pricePaid.toFixed(2),
+        amountUsd,
+        amountBs,
         o.status,
         escapeCsv(new Date(o.createdAt).toLocaleString()),
         o.visited ? "yes" : "no",
@@ -744,7 +771,29 @@ export default function GuestListOrdersPage({
                     )}
                   </Td>
                   <Td className="text-right font-medium">
-                    {o.pricePaid === 0 ? t("guestList.cortesia") : `$${o.pricePaid.toFixed(2)}`}
+                    {o.pricePaid === 0 ? (
+                      t("guestList.cortesia")
+                    ) : (
+                      <>
+                        ${o.pricePaid.toFixed(2)}
+                        {(() => {
+                          const rate = o.purchaseRate ?? null;
+                          const bsAmt =
+                            o.purchaseAmountBs ??
+                            (rate != null ? o.pricePaid * rate : null);
+                          return bsAmt != null ? (
+                            <span className="text-accent-light font-medium">
+                              {" / "}
+                              {bsAmt.toLocaleString("es-VE", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}{" "}
+                              Bs
+                            </span>
+                          ) : null;
+                        })()}
+                      </>
+                    )}
                   </Td>
                   <Td className="text-xs text-muted">
                     {new Date(o.createdAt).toLocaleString()}
@@ -856,7 +905,7 @@ function Td({
   return <td className={`px-3 py-2 ${className || ""}`}>{children}</td>;
 }
 
-type RevenueCell = { count: number; amount: number };
+type RevenueCell = { count: number; amount: number; amountBs: number };
 
 const STATUSES = [
   { key: "approved", labelKey: "common.approved", color: "text-success", headerBg: "bg-success/10 border-success/30" },
@@ -869,16 +918,21 @@ function buildBreakdown(orders: GuestOrder[], pmNames: string[]) {
   for (const s of STATUSES) {
     cells[s.key] = {};
     for (const pm of pmNames) {
-      cells[s.key][pm] = { count: 0, amount: 0 };
+      cells[s.key][pm] = { count: 0, amount: 0, amountBs: 0 };
     }
   }
   for (const o of orders) {
     const s = o.status;
     const pm = o.paymentMethod || "—";
     if (!cells[s]) continue;
-    if (!cells[s][pm]) cells[s][pm] = { count: 0, amount: 0 };
+    if (!cells[s][pm]) cells[s][pm] = { count: 0, amount: 0, amountBs: 0 };
+    const amount = o.pricePaid || 0;
+    const bsAmount =
+      o.purchaseAmountBs ??
+      (typeof o.purchaseRate === "number" ? amount * o.purchaseRate : 0);
     cells[s][pm].count += 1;
-    cells[s][pm].amount += o.pricePaid || 0;
+    cells[s][pm].amount += amount;
+    cells[s][pm].amountBs += bsAmount;
   }
   const statusTotals = STATUSES.map((s) => {
     const vals = Object.values(cells[s.key]);
@@ -886,6 +940,7 @@ function buildBreakdown(orders: GuestOrder[], pmNames: string[]) {
       key: s.key,
       count: vals.reduce((a, v) => a + v.count, 0),
       amount: vals.reduce((a, v) => a + v.amount, 0),
+      amountBs: vals.reduce((a, v) => a + v.amountBs, 0),
     };
   });
   return { cells, statusTotals };
@@ -944,7 +999,8 @@ function RevenueBreakdownTable({
             <tr className="border-b border-border/50">
               {STATUSES.map((s) =>
                 pmNames.map((pm) => {
-                  const cell = cells[s.key][pm] || { count: 0, amount: 0 };
+                  const cell =
+                    cells[s.key][pm] || { count: 0, amount: 0, amountBs: 0 };
                   return (
                     <td
                       key={`${s.key}-${pm}-count`}
@@ -960,13 +1016,23 @@ function RevenueBreakdownTable({
             <tr className="border-b border-border/50">
               {STATUSES.map((s) =>
                 pmNames.map((pm) => {
-                  const cell = cells[s.key][pm] || { count: 0, amount: 0 };
+                  const cell =
+                    cells[s.key][pm] || { count: 0, amount: 0, amountBs: 0 };
                   return (
                     <td
                       key={`${s.key}-${pm}-amount`}
                       className="text-center py-2 px-2 text-muted"
                     >
                       ${cell.amount.toFixed(2)}
+                      {cell.amountBs > 0 && (
+                        <div className="text-xs text-muted">
+                          {cell.amountBs.toLocaleString("es-VE", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          Bs
+                        </div>
+                      )}
                     </td>
                   );
                 }),
@@ -984,6 +1050,16 @@ function RevenueBreakdownTable({
                     className={`text-center py-2.5 px-2 font-semibold ${st.color}`}
                   >
                     {t("common.total")} {t(st.labelKey)}: ${total.amount.toFixed(2)}
+                    {total.amountBs > 0 && (
+                      <span className="ml-2 text-sm font-normal text-accent-light">
+                        /{" "}
+                        {total.amountBs.toLocaleString("es-VE", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}{" "}
+                        Bs
+                      </span>
+                    )}
                   </td>
                 );
               })}

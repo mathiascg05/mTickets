@@ -27,6 +27,8 @@ type PaymentMethodPublic = {
   name: string;
   instructions?: string;
   convertCurrency?: string;
+  customRate?: number;
+  showConversionDetail?: boolean;
   requireScreenshot?: boolean;
   requireReferenceNumber?: boolean;
   zelleEmail?: string;
@@ -56,6 +58,11 @@ type RedeemData = {
     email: string;
     cedula: string;
     finalPrice: number;
+    basePrice?: number;
+    feeAmount?: number;
+    feePercent?: number;
+    feeFixed?: number;
+    hasOverride?: boolean;
     ticketType?: { id: string; name: string; description?: string } | null;
   };
   event?: {
@@ -309,6 +316,16 @@ export default function InvitePage({
             <p className="text-3xl font-bold mt-1" style={{ color: primary }}>
               {isFree ? t("guestList.cortesia") : `$${entry.finalPrice.toFixed(2)}`}
             </p>
+            {!isFree &&
+              !entry.hasOverride &&
+              (entry.feeAmount ?? 0) > 0 &&
+              typeof entry.basePrice === "number" && (
+                <p className="text-xs text-muted mt-1">
+                  ${entry.basePrice.toFixed(2)} + $
+                  {(entry.feeAmount ?? 0).toFixed(2)}{" "}
+                  {t("admin.serviceFees").toLowerCase()}
+                </p>
+              )}
           </div>
         </div>
 
