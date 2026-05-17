@@ -6,6 +6,8 @@ import { sendGuestListTicketEmail } from "@/lib/guestListTicketSender";
 import { assignGuestListOrderNumber } from "@/lib/guestListOrderNumber";
 import { approveGuestListOrderInternal } from "@/lib/approveGuestListOrder";
 
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest) {
   try {
     const authToken = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -78,6 +80,8 @@ export async function POST(req: NextRequest) {
         } catch (err) {
           console.error(`[bulk-approve] post-send error for ${item.orderId}:`, err);
         }
+        // Throttle to ~2 req/s for Resend free tier
+        await new Promise((r) => setTimeout(r, 600));
       }
     });
 
