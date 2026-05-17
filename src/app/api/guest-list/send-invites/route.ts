@@ -11,6 +11,9 @@ import { buildMailHeaders } from "@/lib/emailHeaders";
 import { resolveEmailLang } from "@/lib/serverLocale";
 import { formatEventDate } from "@/lib/formatters";
 import { getTranslations } from "next-intl/server";
+import { autoRedeemFreeEntry } from "@/lib/guestListAutoRedeem";
+
+export const maxDuration = 60;
 
 const MAX_INLINE = 200;
 
@@ -38,11 +41,14 @@ export async function POST(req: NextRequest) {
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
-    const event = auth.data;
+    const event = auth.data as typeof auth.data & {
+      orderNumberPrefix?: string;
+    };
 
     const { guestListEntries } = await adminDb.query({
       guestListEntries: {
         $: { where: { "event.id": eventId, status: "invited" } },
+        ticketType: {},
       },
     });
     const entries = guestListEntries as {
@@ -50,9 +56,11 @@ export async function POST(req: NextRequest) {
       email?: string;
       firstName?: string;
       lastName?: string;
+      cedula?: string;
       priceOverride?: number;
       inviteToken: string;
       inviteSentAt?: number;
+      ticketType?: unknown;
     }[];
 
     const recipients = entries.filter((e) => {
@@ -77,7 +85,8 @@ export async function POST(req: NextRequest) {
       namespace: "emails.guestInvite",
     });
 
-    let sent = 0;
+    let invitesSent = 0;
+    let ticketsSent = 0;
     let suppressed = 0;
     let failed = 0;
     const failedDetails: { email: string; reason: string }[] = [];
@@ -85,59 +94,92 @@ export async function POST(req: NextRequest) {
     for (const entry of recipients) {
       const email = entry.email!;
       try {
-        if (await isEmailSuppressed(email)) {
-          suppressed++;
-          continue;
-        }
-        const inviteUrl = `${appUrl}/${emailLang}/invite/${entry.inviteToken}`;
         const finalPrice =
           typeof entry.priceOverride === "number"
             ? entry.priceOverride
             : event.defaultPrice;
-        const priceLabel =
-          finalPrice === 0 ? tEmail("freeLabel") : `$${finalPrice.toFixed(2)}`;
 
-        const html = await buildGuestInviteEmailHtml({
-          firstName: entry.firstName,
-          eventName: event.name,
-          eventDate: formatEventDate(event.date, emailLang),
-          venue: event.venue || "",
-          priceLabel,
-          inviteUrl,
-          organizerEmail: event.organizerEmail,
-          primaryColor: event.primaryColor,
-          lang: emailLang,
-        });
-        const text = await buildGuestInviteEmailText({
-          firstName: entry.firstName,
-          eventName: event.name,
-          eventDate: formatEventDate(event.date, emailLang),
-          venue: event.venue || "",
-          priceLabel,
-          inviteUrl,
-          organizerEmail: event.organizerEmail,
-          lang: emailLang,
-        });
+        if (finalPrice === 0) {
+          const result = await autoRedeemFreeEntry(
+            {
+              id: entry.id,
+              email: entry.email,
+              firstName: entry.firstName,
+              lastName: entry.lastName,
+              cedula: entry.cedula,
+              priceOverride: entry.priceOverride,
+              ticketType: entry.ticketType,
+            },
+            {
+              id: event.id,
+              name: event.name,
+              defaultPrice: event.defaultPrice,
+              defaultLanguage: event.defaultLanguage,
+              orderNumberPrefix: event.orderNumberPrefix,
+            },
+          );
+          if ("success" in result) {
+            ticketsSent++;
+          } else if (result.error === "suppressed") {
+            suppressed++;
+          } else {
+            failed++;
+            failedDetails.push({ email, reason: result.error });
+            console.warn(
+              `[guest-list/send-invites] auto-redeem failed for ${email}:`,
+              result.error,
+            );
+          }
+        } else {
+          if (await isEmailSuppressed(email)) {
+            suppressed++;
+            continue;
+          }
+          const inviteUrl = `${appUrl}/${emailLang}/invite/${entry.inviteToken}`;
+          const priceLabel = `$${finalPrice.toFixed(2)}`;
 
-        await transporter.sendMail({
-          from: `"maTickets" <${EMAIL_FROM}>`,
-          replyTo: event.organizerEmail,
-          to: email,
-          subject: tEmail("subject", { eventName: event.name }),
-          html,
-          text,
-          messageId: generateMessageId(),
-          date: new Date(),
-          envelope: { from: EMAIL_FROM, to: email },
-          headers: buildMailHeaders(email),
-        });
+          const html = await buildGuestInviteEmailHtml({
+            firstName: entry.firstName,
+            eventName: event.name,
+            eventDate: formatEventDate(event.date, emailLang),
+            venue: event.venue || "",
+            priceLabel,
+            inviteUrl,
+            organizerEmail: event.organizerEmail,
+            primaryColor: event.primaryColor,
+            lang: emailLang,
+          });
+          const text = await buildGuestInviteEmailText({
+            firstName: entry.firstName,
+            eventName: event.name,
+            eventDate: formatEventDate(event.date, emailLang),
+            venue: event.venue || "",
+            priceLabel,
+            inviteUrl,
+            organizerEmail: event.organizerEmail,
+            lang: emailLang,
+          });
 
-        await adminDb.transact([
-          adminDb.tx.guestListEntries[entry.id].update({
-            inviteSentAt: Date.now(),
-          }),
-        ]);
-        sent++;
+          await transporter.sendMail({
+            from: `"maTickets" <${EMAIL_FROM}>`,
+            replyTo: event.organizerEmail,
+            to: email,
+            subject: tEmail("subject", { eventName: event.name }),
+            html,
+            text,
+            messageId: generateMessageId(),
+            date: new Date(),
+            envelope: { from: EMAIL_FROM, to: email },
+            headers: buildMailHeaders(email),
+          });
+
+          await adminDb.transact([
+            adminDb.tx.guestListEntries[entry.id].update({
+              inviteSentAt: Date.now(),
+            }),
+          ]);
+          invitesSent++;
+        }
       } catch (err) {
         failed++;
         const reason = err instanceof Error ? err.message : String(err);
@@ -150,7 +192,9 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      sent,
+      sent: invitesSent + ticketsSent,
+      invitesSent,
+      ticketsSent,
       suppressed,
       failed,
       failedDetails: failedDetails.slice(0, 50),

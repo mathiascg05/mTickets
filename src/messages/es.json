@@ -1188,6 +1188,6 @@
     "addManualTitle": "Agregar invitado",
     "add": "Agregar",
     "sendError": "Error enviando",
-    "sendDone": "Enviadas {sent} · Fallidas {failed} · Suprimidas {suppressed}"
+    "sendDone": "Invitaciones (link): {invites} · Entradas directas (QR): {tickets} · Fallidas {failed} · Suprimidas {suppressed}"
   }
 }

@@ -1188,6 +1188,6 @@
     "addManualTitle": "Add guest",
     "add": "Add",
     "sendError": "Send error",
-    "sendDone": "Sent {sent} · Failed {failed} · Suppressed {suppressed}"
+    "sendDone": "Invites (link): {invites} · Direct tickets (QR): {tickets} · Failed {failed} · Suppressed {suppressed}"
   }
 }

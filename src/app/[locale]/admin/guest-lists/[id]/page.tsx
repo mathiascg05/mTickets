@@ -183,7 +183,8 @@ export default function AdminGuestListDetailPage({
       } else {
         setSendResult(
           t("guestList.sendDone", {
-            sent: body.sent,
+            invites: body.invitesSent ?? 0,
+            tickets: body.ticketsSent ?? 0,
             failed: body.failed,
             suppressed: body.suppressed,
           }),
