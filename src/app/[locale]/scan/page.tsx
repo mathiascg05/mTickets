@@ -128,7 +128,7 @@ function EventSelection({
       {guestListEvents.map((g) => (
         <Link
           key={g.id}
-          href={`/admin/guest-lists/${g.id}/scan`}
+          href={`/scan/guest-list/${g.id}`}
           className="block w-full text-left bg-surface border border-border rounded-xl p-4 hover:border-accent/50 hover:bg-surface-hover transition-colors"
         >
           <div className="flex items-center justify-between gap-2">
