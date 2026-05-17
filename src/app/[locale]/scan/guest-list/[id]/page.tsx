@@ -255,11 +255,28 @@ function PinEntry({
 
 // ── Camera ──────────────────────────────────────────────────────────────────
 
+// html5-qrcode's stop() throws synchronously when the scanner is not
+// running (instead of returning a rejected promise). Wrap both the
+// sync throw and async rejection so a failed start (denied camera, in-
+// app webview without getUserMedia, etc.) doesn't bubble up.
+function safeStopScanner(
+  sc: import("html5-qrcode").Html5Qrcode | null,
+): void {
+  if (!sc) return;
+  try {
+    const p = sc.stop();
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch {
+    // ignore — scanner was never running
+  }
+}
+
 function CameraScanner({ onScan }: { onScan: (id: string) => void }) {
   const { t } = useLanguage();
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const scannerRef = useRef<import("html5-qrcode").Html5Qrcode | null>(null);
+  const startedRef = useRef(false);
   const onScanRef = useRef(onScan);
   onScanRef.current = onScan;
 
@@ -267,9 +284,10 @@ function CameraScanner({ onScan }: { onScan: (id: string) => void }) {
     if (scannerRef.current) return;
     setStarting(true);
     setError(null);
+    let sc: import("html5-qrcode").Html5Qrcode | null = null;
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
-      const sc = new Html5Qrcode("gl-deep-qr-reader");
+      sc = new Html5Qrcode("gl-deep-qr-reader");
       scannerRef.current = sc;
       await sc.start(
         { facingMode: "environment" },
@@ -277,16 +295,23 @@ function CameraScanner({ onScan }: { onScan: (id: string) => void }) {
         (decoded) => {
           const id = extractOrderId(decoded);
           if (id) {
-            sc.stop().catch(() => {});
+            safeStopScanner(scannerRef.current);
             scannerRef.current = null;
+            startedRef.current = false;
             onScanRef.current(id);
           }
         },
         () => {},
       );
+      startedRef.current = true;
     } catch (err) {
+      if (typeof console !== "undefined") console.error("[camera start]", err);
       setError(err instanceof Error ? err.message : t("scan.failedCamera"));
+      // Only attempt to stop if start actually succeeded — otherwise
+      // html5-qrcode throws synchronously and we'd lose the real error.
+      if (startedRef.current) safeStopScanner(sc);
       scannerRef.current = null;
+      startedRef.current = false;
     } finally {
       setStarting(false);
     }
@@ -296,8 +321,10 @@ function CameraScanner({ onScan }: { onScan: (id: string) => void }) {
     start();
     return () => {
       const sc = scannerRef.current;
+      const wasStarted = startedRef.current;
       scannerRef.current = null;
-      if (sc) sc.stop().catch(() => {});
+      startedRef.current = false;
+      if (wasStarted) safeStopScanner(sc);
     };
   }, [start]);
 
