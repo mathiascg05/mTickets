@@ -1036,6 +1036,7 @@
   },
   "guestList": {
     "title": "Guest List Events",
+    "badgeList": "List",
     "newEvent": "New guest list event",
     "intro": "Create an event where only pre-approved people can register. Upload a list with email/ID and a preferential price; each guest gets a magic email link to confirm their spot.",
     "defaultPrice": "Default price",

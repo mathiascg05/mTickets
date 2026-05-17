@@ -1036,6 +1036,7 @@
   },
   "guestList": {
     "title": "Eventos por lista",
+    "badgeList": "Lista",
     "newEvent": "Nuevo evento por lista",
     "intro": "Crea un evento donde solo personas pre-aprobadas puedan registrarse. Sube una lista con email/cédula y precio preferencial; cada invitado recibe un enlace mágico por correo para confirmar su entrada.",
     "defaultPrice": "Precio por defecto",

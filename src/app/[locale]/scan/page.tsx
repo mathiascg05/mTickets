@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { useLanguage } from "@/lib/LanguageContext";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import Link from "next/link";
 
 const STORAGE_TOKEN_KEY = "scannerToken";
 const STORAGE_CONCERT_KEY = "scannerConcert";
@@ -86,6 +87,9 @@ function EventSelection({
     concerts: {
       $: { where: { status: "active" }, order: { createdAt: "desc" } },
     },
+    guestListEvents: {
+      $: { where: { status: "active" }, order: { createdAt: "desc" } },
+    },
   });
 
   if (isLoading || !data) {
@@ -93,8 +97,9 @@ function EventSelection({
   }
 
   const concerts = data.concerts ?? [];
+  const guestListEvents = data.guestListEvents ?? [];
 
-  if (concerts.length === 0) {
+  if (concerts.length === 0 && guestListEvents.length === 0) {
     return (
       <div className="text-center py-8">
         <p className="text-muted">{t("scan.noActiveEvents")}</p>
@@ -119,6 +124,26 @@ function EventSelection({
             {c.venue ? ` · ${c.venue}` : ""}
           </p>
         </button>
+      ))}
+      {guestListEvents.map((g) => (
+        <Link
+          key={g.id}
+          href={`/admin/guest-lists/${g.id}/scan`}
+          className="block w-full text-left bg-surface border border-border rounded-xl p-4 hover:border-accent/50 hover:bg-surface-hover transition-colors"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="font-semibold truncate">{g.name}</p>
+              <p className="text-sm text-muted mt-1 truncate">
+                {g.date}
+                {g.venue ? ` · ${g.venue}` : ""}
+              </p>
+            </div>
+            <span className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full bg-accent/15 text-accent-light uppercase tracking-wider">
+              {t("guestList.badgeList")}
+            </span>
+          </div>
+        </Link>
       ))}
     </div>
   );
