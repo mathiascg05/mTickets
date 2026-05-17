@@ -3,13 +3,24 @@
 import { db } from "@/lib/db";
 import { useLanguage } from "@/lib/LanguageContext";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import Link from "next/link";
 
 const STORAGE_TOKEN_KEY = "scannerToken";
-const STORAGE_CONCERT_KEY = "scannerConcert";
+const STORAGE_EVENT_KEY = "scannerEvent";
 
-function extractOrderId(text: string): string | null {
+function extractConcertOrderId(text: string): string | null {
   const urlMatch = text.match(/\/ticket\/([a-zA-Z0-9-]+)/);
+  if (urlMatch) return urlMatch[1];
+  const uuidMatch = text.match(
+    /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,
+  );
+  if (uuidMatch) return uuidMatch[0];
+  return null;
+}
+
+function extractGuestOrderId(text: string): string | null {
+  const glMatch = text.match(/^gl:([a-f0-9-]{36})$/i);
+  if (glMatch) return glMatch[1];
+  const urlMatch = text.match(/\/guest-ticket\/([A-Za-z0-9_-]+)/);
   if (urlMatch) return urlMatch[1];
   const uuidMatch = text.match(
     /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,
@@ -52,7 +63,6 @@ function playFeedback(kind: "success" | "error") {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
     osc.start();
     osc.stop(ctx.currentTime + 0.25);
-    // Second tone for error (descending pattern)
     if (kind === "error") {
       const osc2 = ctx.createOscillator();
       const gain2 = ctx.createGain();
@@ -68,11 +78,12 @@ function playFeedback(kind: "success" | "error") {
   } catch {}
 }
 
-type ConcertInfo = {
+type EventInfo = {
   id: string;
   name: string;
   date: string;
   venue?: string;
+  kind: "concert" | "guestList";
 };
 
 // ── State 1: Event Selection ────────────────────────────────────────────────
@@ -80,7 +91,7 @@ type ConcertInfo = {
 function EventSelection({
   onSelect,
 }: {
-  onSelect: (concert: ConcertInfo) => void;
+  onSelect: (event: EventInfo) => void;
 }) {
   const { t } = useLanguage();
   const { isLoading, data } = db.useQuery({
@@ -114,7 +125,7 @@ function EventSelection({
         <button
           key={c.id}
           onClick={() =>
-            onSelect({ id: c.id, name: c.name, date: c.date, venue: c.venue })
+            onSelect({ id: c.id, name: c.name, date: c.date, venue: c.venue, kind: "concert" })
           }
           className="w-full text-left bg-surface border border-border rounded-xl p-4 hover:border-accent/50 hover:bg-surface-hover transition-colors"
         >
@@ -126,10 +137,12 @@ function EventSelection({
         </button>
       ))}
       {guestListEvents.map((g) => (
-        <Link
+        <button
           key={g.id}
-          href={`/scan/guest-list/${g.id}`}
-          className="block w-full text-left bg-surface border border-border rounded-xl p-4 hover:border-accent/50 hover:bg-surface-hover transition-colors"
+          onClick={() =>
+            onSelect({ id: g.id, name: g.name, date: g.date, venue: g.venue, kind: "guestList" })
+          }
+          className="w-full text-left bg-surface border border-border rounded-xl p-4 hover:border-accent/50 hover:bg-surface-hover transition-colors"
         >
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
@@ -143,7 +156,7 @@ function EventSelection({
               {t("guestList.badgeList")}
             </span>
           </div>
-        </Link>
+        </button>
       ))}
     </div>
   );
@@ -152,12 +165,12 @@ function EventSelection({
 // ── State 2: PIN Entry ──────────────────────────────────────────────────────
 
 function PinEntry({
-  concert,
+  event,
   onAuthenticated,
   onBack,
 }: {
-  concert: ConcertInfo;
-  onAuthenticated: (token: string, concert: ConcertInfo) => void;
+  event: EventInfo;
+  onAuthenticated: (token: string, event: EventInfo) => void;
   onBack: () => void;
 }) {
   const { t } = useLanguage();
@@ -178,10 +191,19 @@ function PinEntry({
     setError(null);
 
     try {
-      const res = await fetch("/api/verify-scanner-pin", {
+      const endpoint =
+        event.kind === "concert"
+          ? "/api/verify-scanner-pin"
+          : "/api/guest-list/verify-pin";
+      const body =
+        event.kind === "concert"
+          ? { concertId: event.id, pin }
+          : { eventId: event.id, pin };
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ concertId: concert.id, pin }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -193,9 +215,16 @@ function PinEntry({
       }
 
       const data = await res.json();
+      const eventInfo: EventInfo = {
+        id: event.id,
+        name: data.concert?.name ?? data.event?.name ?? event.name,
+        date: data.concert?.date ?? data.event?.date ?? event.date,
+        venue: data.concert?.venue ?? data.event?.venue ?? event.venue,
+        kind: event.kind,
+      };
       localStorage.setItem(STORAGE_TOKEN_KEY, data.token);
-      localStorage.setItem(STORAGE_CONCERT_KEY, JSON.stringify(data.concert));
-      onAuthenticated(data.token, data.concert);
+      localStorage.setItem(STORAGE_EVENT_KEY, JSON.stringify(eventInfo));
+      onAuthenticated(data.token, eventInfo);
     } catch {
       setError(t("scan.connectionError"));
     } finally {
@@ -206,10 +235,10 @@ function PinEntry({
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-lg font-semibold">{concert.name}</h2>
+        <h2 className="text-lg font-semibold">{event.name}</h2>
         <p className="text-sm text-muted mt-1">
-          {concert.date}
-          {concert.venue ? ` · ${concert.venue}` : ""}
+          {event.date}
+          {event.venue ? ` · ${event.venue}` : ""}
         </p>
       </div>
 
@@ -258,7 +287,7 @@ function PinEntry({
 
 // ── Scanner View (QR camera) ────────────────────────────────────────────────
 
-function ScannerView({ onScan }: { onScan: (orderId: string) => void }) {
+function ScannerView({ onScan }: { onScan: (text: string) => void }) {
   const { t } = useLanguage();
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrCodeRef = useRef<import("html5-qrcode").Html5Qrcode | null>(null);
@@ -280,12 +309,9 @@ function ScannerView({ onScan }: { onScan: (orderId: string) => void }) {
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 250 } },
         (decodedText) => {
-          const orderId = extractOrderId(decodedText);
-          if (orderId) {
-            scanner.stop().catch(() => {});
-            html5QrCodeRef.current = null;
-            onScanRef.current(orderId);
-          }
+          scanner.stop().catch(() => {});
+          html5QrCodeRef.current = null;
+          onScanRef.current(decodedText);
         },
         () => {},
       );
@@ -301,7 +327,6 @@ function ScannerView({ onScan }: { onScan: (orderId: string) => void }) {
     }
   }, [t]);
 
-  // Auto-start scanner on mount
   useEffect(() => {
     startScanner();
     return () => {
@@ -340,9 +365,9 @@ function ScannerView({ onScan }: { onScan: (orderId: string) => void }) {
   );
 }
 
-// ── Ticket Info (scanned result) ────────────────────────────────────────────
+// ── Concert Ticket Info (uses db.useQuery — orders are publicly viewable) ──
 
-function TicketInfo({
+function ConcertTicketInfo({
   orderId,
   onReset,
   scannerToken,
@@ -550,7 +575,7 @@ function TicketInfo({
   );
 }
 
-// ── Manual Search ───────────────────────────────────────────────────────────
+// ── Concert Manual Search ───────────────────────────────────────────────────
 
 type SearchableOrder = {
   id: string;
@@ -570,7 +595,7 @@ function normalize(s: string): string {
     .replace(/[̀-ͯ]/g, "");
 }
 
-function ManualSearch({
+function ConcertManualSearch({
   concertId,
   onSelect,
 }: {
@@ -609,8 +634,7 @@ function ManualSearch({
   const trimmed = query.trim();
   const results: SearchableOrder[] = useMemo(() => {
     if (!trimmed) return [];
-    // First, allow direct UUID/URL lookup as before
-    const direct = extractOrderId(trimmed);
+    const direct = extractConcertOrderId(trimmed);
     if (direct) {
       const hit = allOrders.find((o) => o.id === direct);
       if (hit) return [hit];
@@ -633,14 +657,43 @@ function ManualSearch({
       setQuery("");
       return;
     }
-    // If query is a raw UUID/URL but not in list, still let it through
-    const direct = extractOrderId(trimmed) || (/^[a-f0-9-]{6,}$/i.test(trimmed) ? trimmed : null);
+    const direct = extractConcertOrderId(trimmed) || (/^[a-f0-9-]{6,}$/i.test(trimmed) ? trimmed : null);
     if (direct && results.length === 0) {
       onSelect(direct);
       setQuery("");
     }
   }
 
+  return (
+    <SearchUI
+      query={query}
+      setQuery={setQuery}
+      handleSubmit={handleSubmit}
+      results={results}
+      trimmed={trimmed}
+      onSelect={onSelect}
+      t={t}
+    />
+  );
+}
+
+function SearchUI({
+  query,
+  setQuery,
+  handleSubmit,
+  results,
+  trimmed,
+  onSelect,
+  t,
+}: {
+  query: string;
+  setQuery: (s: string) => void;
+  handleSubmit: (e: React.FormEvent) => void;
+  results: SearchableOrder[];
+  trimmed: string;
+  onSelect: (orderId: string) => void;
+  t: (k: string, p?: Record<string, string | number>) => string;
+}) {
   return (
     <div className="space-y-3">
       <form onSubmit={handleSubmit} className="flex gap-2">
@@ -682,7 +735,8 @@ function ManualSearch({
                     {o.firstName} {o.lastName}
                   </p>
                   <p className="text-xs text-muted truncate">
-                    {o.cedula} · {o.ticketTypeName}
+                    {o.cedula}
+                    {o.ticketTypeName ? ` · ${o.ticketTypeName}` : ""}
                     {o.orderNumber ? ` · ${o.orderNumber}` : ""}
                   </p>
                 </div>
@@ -707,24 +761,21 @@ function ManualSearch({
   );
 }
 
-// ── State 3: Authenticated Scanner ──────────────────────────────────────────
+// ── Concert Authenticated Scanner ───────────────────────────────────────────
 
-function AuthenticatedScanner({
-  concert,
+function ConcertAuthenticatedScanner({
+  event,
   scannerToken,
-  onSwitchEvent,
 }: {
-  concert: ConcertInfo;
+  event: EventInfo;
   scannerToken: string;
-  onSwitchEvent: () => void;
 }) {
   const { t } = useLanguage();
   const [scannedOrderId, setScannedOrderId] = useState<string | null>(null);
 
-  // Real-time counter: approved tickets / scanned
   const { data: countData } = db.useQuery({
     orders: {
-      $: { where: { "ticketType.concert.id": concert.id } },
+      $: { where: { "ticketType.concert.id": event.id } },
     },
   });
   const counts = useMemo(() => {
@@ -735,13 +786,422 @@ function AuthenticatedScanner({
   }, [countData]);
 
   return (
+    <ScannerShell
+      event={event}
+      counts={counts}
+      scannedContent={
+        scannedOrderId ? (
+          <ConcertTicketInfo
+            orderId={scannedOrderId}
+            onReset={() => setScannedOrderId(null)}
+            scannerToken={scannerToken}
+            scopedConcertId={event.id}
+          />
+        ) : null
+      }
+      onScannerRead={(decoded) => {
+        const id = extractConcertOrderId(decoded);
+        if (id) setScannedOrderId(id);
+      }}
+      manualSearch={<ConcertManualSearch concertId={event.id} onSelect={setScannedOrderId} />}
+    />
+  );
+}
+
+// ── Guest List Ticket Info ──────────────────────────────────────────────────
+
+type GuestOrder = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  cedula: string;
+  status: string;
+  visited: boolean;
+  visitedAt: number | null;
+  orderNumber: string | null;
+  ticketType: { id: string; name: string } | null;
+};
+
+function GuestListTicketInfo({
+  order,
+  onReset,
+  scannerToken,
+  onMarked,
+}: {
+  order: GuestOrder | undefined;
+  onReset: () => void;
+  scannerToken: string;
+  onMarked: () => void;
+}) {
+  const { t } = useLanguage();
+  const [marking, setMarking] = useState(false);
+  const [markError, setMarkError] = useState<string | null>(null);
+  const [markSuccess, setMarkSuccess] = useState(false);
+
+  if (!order) {
+    return (
+      <div className="bg-danger/10 border border-danger/30 rounded-xl p-6 text-center">
+        <p className="text-danger font-semibold text-lg">
+          {t("scan.ticketNotFound")}
+        </p>
+        <p className="text-muted text-sm mt-2">
+          {t("scan.ticketNotFoundDesc")}
+        </p>
+        <button
+          onClick={onReset}
+          className="mt-4 px-6 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors"
+        >
+          {t("scan.scanAgain")}
+        </button>
+      </div>
+    );
+  }
+
+  async function markVisited() {
+    if (!order) return;
+    setMarking(true);
+    setMarkError(null);
+    try {
+      const res = await fetch("/api/guest-list/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: order.id, scannerToken }),
+      });
+      if (!res.ok) {
+        let msg = t("scan.markFailed");
+        try {
+          const body = await res.json();
+          if (body.error === "ALREADY_SCANNED") {
+            msg = t("scan.alreadyScanned");
+          } else if (body.error === "TICKET_NOT_APPROVED") {
+            msg = t("scan.notApproved");
+          } else if (body.error === "Wrong event") {
+            msg = t("guestList.scanWrongEvent");
+          } else if (body.error) {
+            msg = body.error;
+          }
+        } catch {}
+        setMarkError(msg);
+        playFeedback("error");
+        return;
+      }
+      setMarkSuccess(true);
+      playFeedback("success");
+      onMarked();
+    } catch {
+      setMarkError(t("scan.offline"));
+      playFeedback("error");
+    } finally {
+      setMarking(false);
+    }
+  }
+
+  const isApproved = order.status === "approved";
+  const isVisited = order.visited;
+  const showMarkButton = isApproved && !isVisited && !markSuccess;
+  const scanAgainPrimary = !showMarkButton;
+
+  return (
+    <div className="space-y-4">
+      {!isApproved && (
+        <div className="bg-danger/10 border border-danger/30 rounded-xl p-4 text-center">
+          <p className="text-danger font-semibold">{t("scan.notApproved")}</p>
+          <p className="text-sm text-muted mt-1">
+            {t("scan.notApprovedDescBefore")}
+            <strong>{order.status}</strong>
+          </p>
+        </div>
+      )}
+
+      {isVisited && !markSuccess && (
+        <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 text-center">
+          <p className="text-warning font-semibold">
+            {t("scan.alreadyScanned")}
+          </p>
+          <p className="text-sm text-muted mt-1">
+            {t("scan.alreadyScannedDesc")}
+          </p>
+        </div>
+      )}
+
+      {markError && (
+        <div className="bg-danger/10 border border-danger/30 rounded-xl p-4 text-center">
+          <p className="text-danger font-semibold text-sm">{markError}</p>
+        </div>
+      )}
+
+      {markSuccess && (
+        <div className="bg-success/10 border border-success/30 rounded-xl p-4 text-center">
+          <p className="text-success font-semibold">{t("scan.entrySuccess")}</p>
+          <p className="text-sm text-muted mt-1">
+            {order.firstName} {order.lastName}
+            {order.ticketType?.name ? ` · ${order.ticketType.name}` : ""}
+          </p>
+        </div>
+      )}
+
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <div className="text-center mb-4">
+          {(isApproved && !isVisited) || markSuccess ? (
+            <div className="text-5xl mb-2 text-success">{"✓"}</div>
+          ) : null}
+          {order.orderNumber && (
+            <p className="text-sm font-mono font-bold text-accent-light tracking-wide mb-1">
+              {order.orderNumber}
+            </p>
+          )}
+          {order.ticketType?.name && (
+            <p className="text-muted">{order.ticketType.name}</p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 text-sm border-t border-border pt-4">
+          <div>
+            <p className="text-muted">{t("scan.fieldName")}</p>
+            <p className="font-medium">
+              {order.firstName} {order.lastName}
+            </p>
+          </div>
+          <div>
+            <p className="text-muted">{t("scan.fieldEmail")}</p>
+            <p className="font-medium">{order.email}</p>
+          </div>
+          {order.cedula && (
+            <div>
+              <p className="text-muted">{t("scan.fieldCedula")}</p>
+              <p className="font-medium">{order.cedula}</p>
+            </div>
+          )}
+          <div>
+            <p className="text-muted">{t("scan.fieldStatus")}</p>
+            <p
+              className={`font-medium ${isApproved ? "text-success" : "text-danger"}`}
+            >
+              {order.status}
+            </p>
+          </div>
+          <div>
+            <p className="text-muted">{t("scan.fieldVisited")}</p>
+            <p className="font-medium">
+              {isVisited || markSuccess ? t("scan.yes") : t("scan.no")}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        {showMarkButton && (
+          <button
+            onClick={markVisited}
+            disabled={marking}
+            className="flex-1 py-3 bg-success hover:bg-success/80 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+          >
+            {marking ? t("scan.marking") : t("scan.markVisited")}
+          </button>
+        )}
+        <button
+          onClick={onReset}
+          className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
+            scanAgainPrimary
+              ? "bg-accent hover:bg-accent-dark text-white"
+              : "border border-border hover:bg-surface-hover"
+          }`}
+        >
+          {t("scan.scanAgain")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Guest List Manual Search ────────────────────────────────────────────────
+
+function GuestListManualSearch({
+  orders,
+  onSelect,
+}: {
+  orders: GuestOrder[];
+  onSelect: (orderId: string) => void;
+}) {
+  const { t } = useLanguage();
+  const [query, setQuery] = useState("");
+
+  const trimmed = query.trim();
+  const results: SearchableOrder[] = useMemo(() => {
+    if (!trimmed) return [];
+    const direct = extractGuestOrderId(trimmed);
+    if (direct) {
+      const hit = orders.find((o) => o.id === direct);
+      if (hit) {
+        return [{
+          id: hit.id,
+          firstName: hit.firstName,
+          lastName: hit.lastName,
+          cedula: hit.cedula,
+          orderNumber: hit.orderNumber ?? undefined,
+          status: hit.status,
+          visited: hit.visited,
+          ticketTypeName: hit.ticketType?.name,
+        }];
+      }
+    }
+    const q = normalize(trimmed);
+    return orders
+      .filter((o) => {
+        const name = normalize(`${o.firstName ?? ""} ${o.lastName ?? ""}`);
+        const cedula = normalize(o.cedula ?? "");
+        const orderNum = normalize(o.orderNumber ?? "");
+        return name.includes(q) || cedula.includes(q) || orderNum.includes(q);
+      })
+      .slice(0, 10)
+      .map((o) => ({
+        id: o.id,
+        firstName: o.firstName,
+        lastName: o.lastName,
+        cedula: o.cedula,
+        orderNumber: o.orderNumber ?? undefined,
+        status: o.status,
+        visited: o.visited,
+        ticketTypeName: o.ticketType?.name,
+      }));
+  }, [orders, trimmed]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (results.length === 1) {
+      onSelect(results[0].id);
+      setQuery("");
+      return;
+    }
+    const direct =
+      extractGuestOrderId(trimmed) ||
+      (/^[a-f0-9-]{6,}$/i.test(trimmed) ? trimmed : null);
+    if (direct && results.length === 0) {
+      onSelect(direct);
+      setQuery("");
+    }
+  }
+
+  return (
+    <SearchUI
+      query={query}
+      setQuery={setQuery}
+      handleSubmit={handleSubmit}
+      results={results}
+      trimmed={trimmed}
+      onSelect={onSelect}
+      t={t}
+    />
+  );
+}
+
+// ── Guest List Authenticated Scanner ────────────────────────────────────────
+
+function GuestListAuthenticatedScanner({
+  event,
+  scannerToken,
+  onUnauthorized,
+}: {
+  event: EventInfo;
+  scannerToken: string;
+  onUnauthorized: () => void;
+}) {
+  const { t } = useLanguage();
+  const [scannedOrderId, setScannedOrderId] = useState<string | null>(null);
+  const [orders, setOrders] = useState<GuestOrder[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch("/api/guest-list/scan/data", {
+        headers: { Authorization: `Bearer ${scannerToken}` },
+      });
+      if (!res.ok) {
+        if (res.status === 401) {
+          onUnauthorized();
+          return;
+        }
+        setLoadError(t("scan.connectionError"));
+        return;
+      }
+      const body = await res.json();
+      setOrders(body.orders ?? []);
+      setLoadError(null);
+    } catch {
+      setLoadError(t("scan.connectionError"));
+    }
+  }, [scannerToken, onUnauthorized, t]);
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  const counts = useMemo(() => {
+    const approved = orders.filter((o) => o.status === "approved");
+    const scanned = approved.filter((o) => o.visited);
+    return { scanned: scanned.length, total: approved.length };
+  }, [orders]);
+
+  const selectedOrder = scannedOrderId
+    ? orders.find((o) => o.id === scannedOrderId)
+    : undefined;
+
+  return (
+    <ScannerShell
+      event={event}
+      counts={counts}
+      loadError={loadError}
+      scannedContent={
+        scannedOrderId ? (
+          <GuestListTicketInfo
+            order={selectedOrder}
+            onReset={() => setScannedOrderId(null)}
+            scannerToken={scannerToken}
+            onMarked={() => {
+              fetchData();
+            }}
+          />
+        ) : null
+      }
+      onScannerRead={(decoded) => {
+        const id = extractGuestOrderId(decoded);
+        if (id) setScannedOrderId(id);
+      }}
+      manualSearch={<GuestListManualSearch orders={orders} onSelect={setScannedOrderId} />}
+    />
+  );
+}
+
+// ── Shared Scanner Shell (header + camera + manual search) ──────────────────
+
+function ScannerShell({
+  event,
+  counts,
+  scannedContent,
+  onScannerRead,
+  manualSearch,
+  loadError,
+}: {
+  event: EventInfo;
+  counts: { scanned: number; total: number };
+  scannedContent: React.ReactNode;
+  onScannerRead: (decoded: string) => void;
+  manualSearch: React.ReactNode;
+  loadError?: string | null;
+}) {
+  const { t } = useLanguage();
+
+  return (
     <div>
-      <div className="bg-surface/50 border-b border-border px-4 py-3 flex items-center justify-between mb-6">
+      <div className="bg-surface/50 border-b border-border px-4 py-3 flex items-center justify-between mb-6 rounded-xl">
         <div className="min-w-0">
-          <p className="font-semibold text-sm truncate">{concert.name}</p>
+          <p className="font-semibold text-sm truncate">{event.name}</p>
           <p className="text-xs text-muted truncate">
-            {concert.date}
-            {concert.venue ? ` · ${concert.venue}` : ""}
+            {event.date}
+            {event.venue ? ` · ${event.venue}` : ""}
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
@@ -754,29 +1214,24 @@ function AuthenticatedScanner({
               {t("scan.headerEntered")}
             </p>
           </div>
-          <button
-            onClick={onSwitchEvent}
-            className="text-xs text-accent-light hover:underline"
-          >
-            {t("scan.headerSwitch")}
-          </button>
         </div>
       </div>
+
+      {loadError && (
+        <div className="text-danger text-sm bg-danger/10 border border-danger/30 rounded-lg p-3 text-center mb-4">
+          {loadError}
+        </div>
+      )}
 
       <h1 className="text-2xl font-bold text-center mb-6">
         {t("scan.scanTicket")}
       </h1>
 
-      {scannedOrderId ? (
-        <TicketInfo
-          orderId={scannedOrderId}
-          onReset={() => setScannedOrderId(null)}
-          scannerToken={scannerToken}
-          scopedConcertId={concert.id}
-        />
+      {scannedContent ? (
+        scannedContent
       ) : (
         <div className="space-y-6">
-          <ScannerView onScan={setScannedOrderId} />
+          <ScannerView onScan={onScannerRead} />
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
@@ -789,7 +1244,7 @@ function AuthenticatedScanner({
             </div>
           </div>
 
-          <ManualSearch concertId={concert.id} onSelect={setScannedOrderId} />
+          {manualSearch}
         </div>
       )}
     </div>
@@ -800,72 +1255,90 @@ function AuthenticatedScanner({
 
 export default function ScanPage() {
   const { t } = useLanguage();
-  const [selectedConcert, setSelectedConcert] = useState<ConcertInfo | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<EventInfo | null>(null);
   const [scannerToken, setScannerToken] = useState<string | null>(null);
-  const [authenticatedConcert, setAuthenticatedConcert] = useState<ConcertInfo | null>(null);
+  const [authenticatedEvent, setAuthenticatedEvent] = useState<EventInfo | null>(null);
 
   // Restore session on mount (localStorage + TTL validation)
   useEffect(() => {
     const token = localStorage.getItem(STORAGE_TOKEN_KEY);
-    const concertStr = localStorage.getItem(STORAGE_CONCERT_KEY);
-    if (!token || !concertStr) return;
+    const eventStr = localStorage.getItem(STORAGE_EVENT_KEY);
+    if (!token || !eventStr) return;
 
     const exp = decodeTokenExp(token);
     if (!exp || exp < Date.now()) {
       localStorage.removeItem(STORAGE_TOKEN_KEY);
-      localStorage.removeItem(STORAGE_CONCERT_KEY);
+      localStorage.removeItem(STORAGE_EVENT_KEY);
       return;
     }
 
     try {
-      const concert = JSON.parse(concertStr) as ConcertInfo;
+      const event = JSON.parse(eventStr) as EventInfo;
+      if (!event.kind) return;
       setScannerToken(token);
-      setAuthenticatedConcert(concert);
+      setAuthenticatedEvent(event);
     } catch {
       localStorage.removeItem(STORAGE_TOKEN_KEY);
-      localStorage.removeItem(STORAGE_CONCERT_KEY);
+      localStorage.removeItem(STORAGE_EVENT_KEY);
     }
   }, []);
 
-  function handleAuthenticated(token: string, concert: ConcertInfo) {
+  function handleAuthenticated(token: string, event: EventInfo) {
     setScannerToken(token);
-    setAuthenticatedConcert(concert);
+    setAuthenticatedEvent(event);
   }
 
   function handleSwitchEvent() {
     localStorage.removeItem(STORAGE_TOKEN_KEY);
-    localStorage.removeItem(STORAGE_CONCERT_KEY);
+    localStorage.removeItem(STORAGE_EVENT_KEY);
     setScannerToken(null);
-    setAuthenticatedConcert(null);
-    setSelectedConcert(null);
+    setAuthenticatedEvent(null);
+    setSelectedEvent(null);
   }
 
-  const isAuthenticated = scannerToken && authenticatedConcert;
+  const isAuthenticated = scannerToken && authenticatedEvent;
 
   return (
     <div className="min-h-screen">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-md mx-auto px-4 py-4 flex items-center justify-between">
           <span className="text-xl font-bold tracking-wide">ma<span className="text-white/60">Tickets</span></span>
-          <span className="text-sm text-white/60">{t("scan.scannerHeader")}</span>
+          <div className="flex items-center gap-3">
+            {isAuthenticated && (
+              <button
+                onClick={handleSwitchEvent}
+                className="text-xs text-white/70 hover:text-white underline"
+              >
+                {t("scan.headerSwitch")}
+              </button>
+            )}
+            <span className="text-sm text-white/60">{t("scan.scannerHeader")}</span>
+          </div>
         </div>
       </header>
 
       <main className="max-w-md mx-auto px-4 py-8">
         {isAuthenticated ? (
-          <AuthenticatedScanner
-            concert={authenticatedConcert}
-            scannerToken={scannerToken}
-            onSwitchEvent={handleSwitchEvent}
-          />
-        ) : selectedConcert ? (
+          authenticatedEvent.kind === "concert" ? (
+            <ConcertAuthenticatedScanner
+              event={authenticatedEvent}
+              scannerToken={scannerToken}
+            />
+          ) : (
+            <GuestListAuthenticatedScanner
+              event={authenticatedEvent}
+              scannerToken={scannerToken}
+              onUnauthorized={handleSwitchEvent}
+            />
+          )
+        ) : selectedEvent ? (
           <PinEntry
-            concert={selectedConcert}
+            event={selectedEvent}
             onAuthenticated={handleAuthenticated}
-            onBack={() => setSelectedConcert(null)}
+            onBack={() => setSelectedEvent(null)}
           />
         ) : (
-          <EventSelection onSelect={setSelectedConcert} />
+          <EventSelection onSelect={setSelectedEvent} />
         )}
       </main>
     </div>
