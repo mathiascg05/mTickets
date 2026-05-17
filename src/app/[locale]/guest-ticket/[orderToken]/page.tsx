@@ -83,8 +83,7 @@ export default function GuestTicketPage({
   const { order, event } = data;
   const primary = event.primaryColor;
   const isApproved = order.status === "approved";
-  const qrPayload = `gl:${order.id}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrPayload)}`;
+  const qrUrl = `/api/guest-list/qr/${orderToken}`;
 
   return (
     <div className="min-h-screen bg-background py-6 px-4">
