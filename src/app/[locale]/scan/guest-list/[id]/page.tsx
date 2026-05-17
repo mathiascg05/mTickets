@@ -279,6 +279,14 @@ function CameraScanner({ onScan }: { onScan: (id: string) => void }) {
   const startedRef = useRef(false);
   const onScanRef = useRef(onScan);
   onScanRef.current = onScan;
+  // Capture `t` in a ref so the `start` callback below stays stable
+  // across renders. Without this, `useLanguage` returns a fresh `t`
+  // function on every render, which would invalidate `useCallback`,
+  // which would invalidate the auto-start `useEffect` — turning a
+  // single camera failure into an infinite retry loop (visible as the
+  // error message flickering on and off).
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const start = useCallback(async () => {
     if (scannerRef.current) return;
@@ -306,16 +314,16 @@ function CameraScanner({ onScan }: { onScan: (id: string) => void }) {
       startedRef.current = true;
     } catch (err) {
       if (typeof console !== "undefined") console.error("[camera start]", err);
-      setError(err instanceof Error ? err.message : t("scan.failedCamera"));
-      // Only attempt to stop if start actually succeeded — otherwise
-      // html5-qrcode throws synchronously and we'd lose the real error.
+      setError(
+        err instanceof Error ? err.message : tRef.current("scan.failedCamera"),
+      );
       if (startedRef.current) safeStopScanner(sc);
       scannerRef.current = null;
       startedRef.current = false;
     } finally {
       setStarting(false);
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     start();
