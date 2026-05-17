@@ -772,7 +772,7 @@ function AuthenticatedScanner({
             onClick={onLogout}
             className="text-xs text-accent-light hover:underline"
           >
-            {t("common.logout") || "Logout"}
+            {t("admin.signOut")}
           </button>
         </div>
       </div>
