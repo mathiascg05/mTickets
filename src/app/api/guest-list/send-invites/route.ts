@@ -13,7 +13,7 @@ import { formatEventDate } from "@/lib/formatters";
 import { getTranslations } from "next-intl/server";
 import { autoRedeemFreeEntry } from "@/lib/guestListAutoRedeem";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const MAX_INLINE = 200;
 
