@@ -2,16 +2,86 @@
 
 import { useLanguage } from "@/lib/LanguageContext";
 import {
+  Component,
   use,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
+
+// Local error boundary so a crash inside the scanner shows the real
+// error message instead of bubbling up to the generic "Algo salió mal"
+// page — door staff have no devtools and we need them to copy the
+// message back to us if something does throw on their device.
+class ScannerErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error) {
+    if (typeof console !== "undefined") console.error("[scanner]", error);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="max-w-sm w-full bg-danger/10 border border-danger/30 rounded-xl p-5 text-center space-y-3">
+            <p className="text-danger font-semibold">Scanner error</p>
+            <p className="text-xs text-muted break-words whitespace-pre-wrap">
+              {this.state.error.message || String(this.state.error)}
+            </p>
+            <button
+              onClick={() => this.setState({ error: null })}
+              className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium text-sm"
+            >
+              Reintentar
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const TOKEN_KEY_PREFIX = "glScannerToken:";
 const EVENT_KEY_PREFIX = "glScannerEvent:";
+
+function safeStorageGet(key: string): string | null {
+  try {
+    return typeof window !== "undefined"
+      ? window.localStorage.getItem(key)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeStorageSet(key: string, value: string): void {
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(key, value);
+    }
+  } catch {
+    // ignore — quota exceeded, blocked storage, etc.
+  }
+}
+
+function safeStorageRemove(key: string): void {
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    // ignore
+  }
+}
 
 type EventInfo = { id: string; name: string; date: string; venue?: string };
 
@@ -132,13 +202,11 @@ function PinEntry({
         inputRef.current?.focus();
         return;
       }
-      localStorage.setItem(TOKEN_KEY_PREFIX + eventId, body.token);
-      localStorage.setItem(
-        EVENT_KEY_PREFIX + eventId,
-        JSON.stringify(body.event),
-      );
+      safeStorageSet(TOKEN_KEY_PREFIX + eventId, body.token);
+      safeStorageSet(EVENT_KEY_PREFIX + eventId, JSON.stringify(body.event));
       onAuthenticated(body.token, body.event);
-    } catch {
+    } catch (err) {
+      if (typeof console !== "undefined") console.error("[PIN submit]", err);
       setError(t("scan.connectionError"));
     } finally {
       setLoading(false);
@@ -734,61 +802,66 @@ export default function GuestListDeepLinkScannerPage({
   const [event, setEvent] = useState<EventInfo | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem(TOKEN_KEY_PREFIX + eventId);
-    const ev = localStorage.getItem(EVENT_KEY_PREFIX + eventId);
-    if (!saved || !ev) return;
-    const exp = decodeTokenExp(saved);
-    if (!exp || exp < Date.now()) {
-      localStorage.removeItem(TOKEN_KEY_PREFIX + eventId);
-      localStorage.removeItem(EVENT_KEY_PREFIX + eventId);
-      return;
-    }
     try {
+      const saved = safeStorageGet(TOKEN_KEY_PREFIX + eventId);
+      const ev = safeStorageGet(EVENT_KEY_PREFIX + eventId);
+      if (!saved || !ev) return;
+      const exp = decodeTokenExp(saved);
+      if (!exp || exp < Date.now()) {
+        safeStorageRemove(TOKEN_KEY_PREFIX + eventId);
+        safeStorageRemove(EVENT_KEY_PREFIX + eventId);
+        return;
+      }
       const parsed = JSON.parse(ev) as EventInfo;
-      if (parsed.id === eventId) {
+      if (parsed && parsed.id === eventId) {
         setToken(saved);
         setEvent(parsed);
       }
-    } catch {}
+    } catch (err) {
+      if (typeof console !== "undefined")
+        console.error("[scanner restore]", err);
+    }
   }, [eventId]);
 
   function logout() {
-    localStorage.removeItem(TOKEN_KEY_PREFIX + eventId);
-    localStorage.removeItem(EVENT_KEY_PREFIX + eventId);
+    safeStorageRemove(TOKEN_KEY_PREFIX + eventId);
+    safeStorageRemove(EVENT_KEY_PREFIX + eventId);
     setToken(null);
     setEvent(null);
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
-        <div className="max-w-md mx-auto px-4 py-4 flex items-center justify-between">
-          <span className="text-xl font-bold tracking-wide">
-            ma<span className="text-white/60">Tickets</span>
-          </span>
-          <span className="text-sm text-white/60">
-            {t("scan.scannerHeader")}
-          </span>
-        </div>
-      </header>
+    <ScannerErrorBoundary>
+      <div className="min-h-screen">
+        <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
+          <div className="max-w-md mx-auto px-4 py-4 flex items-center justify-between">
+            <span className="text-xl font-bold tracking-wide">
+              ma<span className="text-white/60">Tickets</span>
+            </span>
+            <span className="text-sm text-white/60">
+              {t("scan.scannerHeader")}
+            </span>
+          </div>
+        </header>
 
-      <main className="max-w-md mx-auto px-4 py-8">
-        {!token || !event ? (
-          <PinEntry
-            eventId={eventId}
-            onAuthenticated={(tok, ev) => {
-              setToken(tok);
-              setEvent(ev);
-            }}
-          />
-        ) : (
-          <AuthenticatedScanner
-            event={event}
-            scannerToken={token}
-            onLogout={logout}
-          />
-        )}
-      </main>
-    </div>
+        <main className="max-w-md mx-auto px-4 py-8">
+          {!token || !event ? (
+            <PinEntry
+              eventId={eventId}
+              onAuthenticated={(tok, ev) => {
+                setToken(tok);
+                setEvent(ev);
+              }}
+            />
+          ) : (
+            <AuthenticatedScanner
+              event={event}
+              scannerToken={token}
+              onLogout={logout}
+            />
+          )}
+        </main>
+      </div>
+    </ScannerErrorBoundary>
   );
 }
