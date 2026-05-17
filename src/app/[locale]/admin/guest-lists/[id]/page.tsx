@@ -220,7 +220,7 @@ export default function AdminGuestListDetailPage({
           </button>
           {event.scannerPin && (
             <Link
-              href="/scan"
+              href={`/scan/guest-list/${event.id}`}
               className="px-3 py-1.5 rounded-full text-xs font-medium border bg-accent/10 text-accent-light border-accent/30 hover:bg-accent/20"
             >
               {t("guestList.openScanner")}
