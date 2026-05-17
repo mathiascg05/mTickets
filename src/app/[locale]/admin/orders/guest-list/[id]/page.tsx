@@ -85,6 +85,10 @@ export default function GuestListOrdersPage({
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkApproving, setBulkApproving] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
 
   const { isLoading, data } = db.useQuery({
     guestListEvents: {
@@ -314,24 +318,44 @@ export default function GuestListOrdersPage({
     if (ids.length === 0) return;
     if (!confirm(t("guestList.bulkConfirm", { count: ids.length }))) return;
     setBulkApproving(true);
+    const CHUNK = 50;
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      chunks.push(ids.slice(i, i + CHUNK));
+    }
+    let totalApproved = 0;
+    let totalSkipped = 0;
+    let totalFailed = 0;
+    let aborted = false;
     try {
-      const res = await fetch("/api/guest-list/bulk-approve", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${refreshToken}`,
-        },
-        body: JSON.stringify({ orderIds: ids }),
-      });
-      const body = await res.json();
-      if (!res.ok) {
-        toast.error(body.error || "Failed");
-      } else {
+      for (let i = 0; i < chunks.length; i++) {
+        if (chunks.length > 1) {
+          setBulkProgress({ done: i, total: chunks.length });
+        }
+        const res = await fetch("/api/guest-list/bulk-approve", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${refreshToken}`,
+          },
+          body: JSON.stringify({ orderIds: chunks[i] }),
+        });
+        const body = await res.json();
+        if (!res.ok) {
+          toast.error(body.error || "Failed");
+          aborted = true;
+          break;
+        }
+        totalApproved += body.approved ?? 0;
+        totalSkipped += body.skipped ?? 0;
+        totalFailed += body.failed ?? 0;
+      }
+      if (!aborted) {
         toast.success(
           t("guestList.bulkResult", {
-            approved: body.approved,
-            skipped: body.skipped,
-            failed: body.failed,
+            approved: totalApproved,
+            skipped: totalSkipped,
+            failed: totalFailed,
           }),
         );
         setSelectedIds(new Set());
@@ -340,6 +364,7 @@ export default function GuestListOrdersPage({
       toast.error(String(err));
     } finally {
       setBulkApproving(false);
+      setBulkProgress(null);
     }
   }
 
@@ -689,7 +714,9 @@ export default function GuestListOrdersPage({
             className="px-3 py-1.5 bg-success hover:bg-success/80 disabled:opacity-50 text-white rounded-lg text-sm font-medium"
           >
             {bulkApproving
-              ? t("common.loading")
+              ? bulkProgress
+                ? `${bulkProgress.done}/${bulkProgress.total}`
+                : t("common.loading")
               : t("guestList.bulkApprove", { count: selectedIds.size })}
           </button>
         )}
