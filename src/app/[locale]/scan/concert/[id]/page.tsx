@@ -1,6 +1,6 @@
 "use client";
 
-import { GuestListAuthenticatedScanner } from "@/components/scanner/guest-list/GuestListAuthenticatedScanner";
+import { ConcertAuthenticatedScanner } from "@/components/scanner/concert/ConcertAuthenticatedScanner";
 import { PinEntry, type ScannerEventInfo } from "@/components/scanner/PinEntry";
 import { ScannerErrorBoundary } from "@/components/scanner/ScannerErrorBoundary";
 import { ScannerPageHeader } from "@/components/scanner/ScannerShell";
@@ -13,19 +13,19 @@ import {
 } from "@/components/scanner/tokenStorage";
 import { use, useEffect, useState } from "react";
 
-export default function GuestListDeepLinkScannerPage({
+export default function ConcertScannerDeepLinkPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id: eventId } = use(params);
+  const { id: concertId } = use(params);
   const [token, setToken] = useState<string | null>(null);
   const [event, setEvent] = useState<ScannerEventInfo | null>(null);
 
   useEffect(() => {
     try {
-      const tokenKey = scannerTokenKey("guestList", eventId);
-      const eventStorageKey = scannerEventKey("guestList", eventId);
+      const tokenKey = scannerTokenKey("concert", concertId);
+      const eventStorageKey = scannerEventKey("concert", concertId);
       const saved = safeStorageGet(tokenKey);
       const ev = safeStorageGet(eventStorageKey);
       if (!saved || !ev) return;
@@ -36,7 +36,7 @@ export default function GuestListDeepLinkScannerPage({
         return;
       }
       const parsed = JSON.parse(ev) as ScannerEventInfo;
-      if (parsed && parsed.id === eventId) {
+      if (parsed && parsed.id === concertId) {
         setToken(saved);
         setEvent(parsed);
       }
@@ -44,11 +44,11 @@ export default function GuestListDeepLinkScannerPage({
       if (typeof console !== "undefined")
         console.error("[scanner restore]", err);
     }
-  }, [eventId]);
+  }, [concertId]);
 
   function logout() {
-    safeStorageRemove(scannerTokenKey("guestList", eventId));
-    safeStorageRemove(scannerEventKey("guestList", eventId));
+    safeStorageRemove(scannerTokenKey("concert", concertId));
+    safeStorageRemove(scannerEventKey("concert", concertId));
     setToken(null);
     setEvent(null);
   }
@@ -60,19 +60,18 @@ export default function GuestListDeepLinkScannerPage({
         <main className="max-w-md mx-auto px-4 py-8">
           {!token || !event ? (
             <PinEntry
-              eventId={eventId}
-              kind="guestList"
+              eventId={concertId}
+              kind="concert"
               onAuthenticated={(tok, ev) => {
                 setToken(tok);
                 setEvent(ev);
               }}
             />
           ) : (
-            <GuestListAuthenticatedScanner
+            <ConcertAuthenticatedScanner
               event={event}
               scannerToken={token}
               onLogout={logout}
-              readerId="gl-deep-qr-reader"
             />
           )}
         </main>
