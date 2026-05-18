@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/adminDb";
 import { assertOrganizerCanAccessGuestListEvent } from "@/lib/guestListAuth";
 import { generateInviteToken } from "@/lib/guestListTokens";
 import { isValidEmail, isValidCedula, isValidName } from "@/lib/validation";
+import { personKey } from "@/lib/guestListDedup";
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,14 +59,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid price" }, { status: 400 });
     }
 
-    // Dedup
+    // Dedup: email may repeat as long as firstName + lastName differ;
+    // cedula remains globally unique within the list.
     const { guestListEntries: existing } = await adminDb.query({
       guestListEntries: { $: { where: { "event.id": eventId } } },
     });
-    for (const e of existing as { email?: string; cedula?: string }[]) {
-      if (email && e.email && e.email.toLowerCase() === email) {
+    const newKey = personKey(email, firstName, lastName);
+    for (const e of existing as {
+      email?: string;
+      cedula?: string;
+      firstName?: string;
+      lastName?: string;
+    }[]) {
+      if (
+        newKey &&
+        personKey(e.email, e.firstName, e.lastName) === newKey
+      ) {
         return NextResponse.json(
-          { error: "Email already in list" },
+          { error: "Email + name already in list" },
           { status: 409 },
         );
       }

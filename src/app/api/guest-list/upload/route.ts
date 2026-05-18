@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/adminDb";
 import { assertOrganizerCanAccessGuestListEvent } from "@/lib/guestListAuth";
 import { generateInviteToken } from "@/lib/guestListTokens";
 import { isValidEmail, isValidCedula } from "@/lib/validation";
+import { personKey } from "@/lib/guestListDedup";
 
 type UploadEntry = {
   email?: string;
@@ -74,14 +75,20 @@ export async function POST(req: NextRequest) {
       defaultTicketTypeId && ticketTypes.find((t) => t.id === defaultTicketTypeId)
         ? defaultTicketTypeId
         : ticketTypes[0]?.id;
-    const existingEmails = new Set<string>();
+    const existingKeys = new Set<string>();
     const existingCedulas = new Set<string>();
-    for (const e of existing as { email?: string; cedula?: string }[]) {
-      if (e.email) existingEmails.add(e.email.toLowerCase());
+    for (const e of existing as {
+      email?: string;
+      cedula?: string;
+      firstName?: string;
+      lastName?: string;
+    }[]) {
+      const k = personKey(e.email, e.firstName, e.lastName);
+      if (k) existingKeys.add(k);
       if (e.cedula) existingCedulas.add(e.cedula);
     }
 
-    const seenEmails = new Set<string>();
+    const seenKeys = new Set<string>();
     const seenCedulas = new Set<string>();
     const skipped: { reason: string; entry: UploadEntry }[] = [];
     const txns = [];
@@ -102,8 +109,9 @@ export async function POST(req: NextRequest) {
         skipped.push({ reason: "invalid_cedula", entry: raw });
         continue;
       }
-      if (email && (existingEmails.has(email) || seenEmails.has(email))) {
-        skipped.push({ reason: "duplicate_email", entry: raw });
+      const key = personKey(email, raw.firstName, raw.lastName);
+      if (key && (existingKeys.has(key) || seenKeys.has(key))) {
+        skipped.push({ reason: "duplicate_person", entry: raw });
         continue;
       }
       if (cedula && (existingCedulas.has(cedula) || seenCedulas.has(cedula))) {
@@ -118,7 +126,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      if (email) seenEmails.add(email);
+      if (key) seenKeys.add(key);
       if (cedula) seenCedulas.add(cedula);
 
       // Resolve ticket type: explicit name → fallback default
