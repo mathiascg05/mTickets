@@ -683,7 +683,7 @@ export default function BuyPage() {
                           applyCoupon();
                         }
                       }}
-                      className="flex-1 px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors uppercase"
+                      className="flex-1 px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors uppercase"
                       placeholder={t("checkout.enterCoupon")}
                     />
                     <button
@@ -722,7 +722,7 @@ export default function BuyPage() {
                       required
                       value={attendee.firstName}
                       onChange={(e) => updateAttendee(i, "firstName", e.target.value)}
-                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                      className="w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                       placeholder={t("checkout.firstNamePlaceholder")}
                     />
                   </div>
@@ -735,7 +735,7 @@ export default function BuyPage() {
                       required
                       value={attendee.lastName}
                       onChange={(e) => updateAttendee(i, "lastName", e.target.value)}
-                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                      className="w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                       placeholder={t("checkout.lastNamePlaceholder")}
                     />
                   </div>
@@ -765,7 +765,7 @@ export default function BuyPage() {
                         setEmailSuggestions((prev) => ({ ...prev, [i]: result.full }));
                       }
                     }}
-                    className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                    className="w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                     placeholder={t("checkout.emailPlaceholder")}
                   />
                   {emailSuggestions[i] && (
@@ -797,7 +797,7 @@ export default function BuyPage() {
                     required
                     value={attendee.cedula}
                     onChange={(e) => updateAttendee(i, "cedula", e.target.value.replace(/\D/g, ""))}
-                    className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                    className="w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                     placeholder={t("checkout.idPlaceholder")}
                   />
                 </div>
@@ -825,7 +825,7 @@ export default function BuyPage() {
                       required={cf.required}
                       value={val}
                       onChange={(e) => setCustomFieldValues((p) => ({ ...p, [fieldId]: e.target.value }))}
-                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                      className="w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                     />
                   )}
                   {cf.fieldType === "number" && (
@@ -834,7 +834,7 @@ export default function BuyPage() {
                       required={cf.required}
                       value={val}
                       onChange={(e) => setCustomFieldValues((p) => ({ ...p, [fieldId]: e.target.value }))}
-                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                      className="w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                     />
                   )}
                   {cf.fieldType === "email" && (
@@ -843,7 +843,7 @@ export default function BuyPage() {
                       required={cf.required}
                       value={val}
                       onChange={(e) => setCustomFieldValues((p) => ({ ...p, [fieldId]: e.target.value }))}
-                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                      className="w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                     />
                   )}
                   {cf.fieldType === "date" && (
@@ -852,7 +852,7 @@ export default function BuyPage() {
                       required={cf.required}
                       value={val}
                       onChange={(e) => setCustomFieldValues((p) => ({ ...p, [fieldId]: e.target.value }))}
-                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                      className="w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                     />
                   )}
                   {cf.fieldType === "checkbox" && (
@@ -871,7 +871,7 @@ export default function BuyPage() {
                       required={cf.required}
                       value={val}
                       onChange={(e) => setCustomFieldValues((p) => ({ ...p, [fieldId]: e.target.value }))}
-                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                      className="w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                     >
                       <option value="">{t("common.select")}</option>
                       {sortedOptions.map((opt) => (
@@ -1079,7 +1079,7 @@ export default function BuyPage() {
                         setFileError(null);
                         setFile(selected);
                       }}
-                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-accent/20 file:text-accent-light file:font-medium file:cursor-pointer"
+                      className="w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-accent/20 file:text-accent-light file:font-medium file:cursor-pointer"
                     />
                     {fileError && (
                       <p className="text-danger text-sm mt-1.5">{fileError}</p>
@@ -1103,7 +1103,7 @@ export default function BuyPage() {
                         setReferenceNumber(val);
                       }}
                       inputMode={(selectedPm as { type?: string }).type === "pago_movil" ? "numeric" : undefined}
-                      className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+                      className="w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                       placeholder={(selectedPm as { type?: string }).type === "pago_movil"
                         ? t("checkout.refLast4Placeholder")
                         : t("checkout.refPlaceholder")}

@@ -6,7 +6,9 @@ import { dateLocale } from "@/lib/i18n";
 import { getActivePhase, getTodayString } from "@/lib/phases";
 import type { Phase } from "@/lib/phases";
 import { id } from "@instantdb/react";
-import { extractDominantColor } from "@/lib/colorExtract";
+import { extractDominantColor, extractPalette, mapPaletteToTheme } from "@/lib/colorExtract";
+import { serializeThemeColors } from "@/lib/themeColors";
+import PaletteEditor from "@/components/admin/PaletteEditor";
 import { useParams } from "next/navigation";
 import { useRef, useState } from "react";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
@@ -94,6 +96,8 @@ export default function AdminConcertEditPage() {
             flyerPath={concert.flyerPath}
             logoPath={concert.logoPath}
             primaryColor={concert.primaryColor}
+            themeColors={concert.themeColors}
+            paletteRefPath={concert.paletteRefPath}
           />
           <PlatformFeeSection
             concertId={concertId}
@@ -2278,19 +2282,89 @@ function BrandingSection({
   flyerPath,
   logoPath,
   primaryColor,
+  themeColors,
+  paletteRefPath,
 }: {
   concertId: string;
   flyerPath?: string;
   logoPath?: string;
   primaryColor?: string;
+  themeColors?: string;
+  paletteRefPath?: string;
 }) {
   const { t } = useLanguage();
   const [uploadingFlyer, setUploadingFlyer] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingPaletteRef, setUploadingPaletteRef] = useState(false);
+  const [generatingPalette, setGeneratingPalette] = useState(false);
   const flyerInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const flyerUrl = useStorageUrl(flyerPath);
   const logoUrl = useStorageUrl(logoPath);
+
+  async function handlePaletteRefUpload(file: File) {
+    setUploadingPaletteRef(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `event-assets/${concertId}/palette-ref.${ext}`;
+      try {
+        const { data: { $files: oldFiles } } = await db.queryOnce({
+          $files: { $: { where: { path: { $like: `event-assets/${concertId}/palette-ref%` } } } },
+        });
+        if (oldFiles.length > 0) {
+          await db.transact(oldFiles.map((f) => db.tx.$files[f.id].delete()));
+        }
+      } catch {
+        /* ignore */
+      }
+      await db.storage.upload(path, file);
+      const { data: { $files } } = await db.queryOnce({ $files: { $: { where: { path } } } });
+      const uploadedUrl = $files[0]?.url;
+      await db.transact(
+        db.tx.concerts[concertId].update({
+          paletteRefPath: path,
+          paletteRefUrl: uploadedUrl || "",
+        }),
+      );
+    } catch (err) {
+      console.error("Palette ref upload failed:", err);
+    }
+    setUploadingPaletteRef(false);
+  }
+
+  async function handleRemovePaletteRef() {
+    try {
+      const { data: { $files: oldFiles } } = await db.queryOnce({
+        $files: { $: { where: { path: { $like: `event-assets/${concertId}/palette-ref%` } } } },
+      });
+      if (oldFiles.length > 0) {
+        await db.transact(oldFiles.map((f) => db.tx.$files[f.id].delete()));
+      }
+    } catch {
+      /* ignore */
+    }
+    db.transact(
+      db.tx.concerts[concertId].update({ paletteRefPath: "", paletteRefUrl: "" }),
+    );
+  }
+
+  async function handleGeneratePalette(refUrl: string) {
+    setGeneratingPalette(true);
+    try {
+      const colors = await extractPalette(refUrl, 6);
+      const theme = mapPaletteToTheme(colors);
+      await db.transact(
+        db.tx.concerts[concertId].update({ themeColors: serializeThemeColors(theme) }),
+      );
+    } catch (err) {
+      console.error("Palette generation failed:", err);
+    }
+    setGeneratingPalette(false);
+  }
+
+  function handleChangeThemeColors(json: string) {
+    db.transact(db.tx.concerts[concertId].update({ themeColors: json }));
+  }
 
   async function handleFlyerUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -2518,6 +2592,19 @@ function BrandingSection({
           </div>
         )}
       </div>
+
+      <PaletteEditor
+        themeColors={themeColors}
+        paletteRefPath={paletteRefPath}
+        primaryColor={primaryColor}
+        uploadingRef={uploadingPaletteRef}
+        generating={generatingPalette}
+        onChangeThemeColors={handleChangeThemeColors}
+        onUploadRef={handlePaletteRefUpload}
+        onRemoveRef={handleRemovePaletteRef}
+        onGeneratePalette={handleGeneratePalette}
+        t={t}
+      />
     </div>
   );
 }

@@ -9,6 +9,7 @@
   --accent-glow: #3b5998;
   --surface: #ffffff;
   --surface-hover: #f0f2f5;
+  --field: #f5f7fa;
   --border: #d8dde6;
   --muted: #7a8599;
   --success: #2d8a5e;
@@ -25,6 +26,7 @@
   --color-accent-glow: var(--accent-glow);
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
+  --color-field: var(--field);
   --color-border: var(--border);
   --color-muted: var(--muted);
   --color-success: var(--success);

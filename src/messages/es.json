@@ -747,7 +747,24 @@
       "clickToEditEmail": "Click para editar email"
     },
     "promoterPlaceholder": "ej., Promotor",
-    "depositNotePlaceholder": "ej. Depósito Zelle"
+    "depositNotePlaceholder": "ej. Depósito Zelle",
+    "customPalette": "Personalizar paleta",
+    "accent": "Color de acento",
+    "background": "Fondo",
+    "foreground": "Texto",
+    "surface": "Superficie (tarjetas)",
+    "field": "Campos (inputs y selectores)",
+    "resetField": "Restablecer",
+    "resetAll": "Restablecer toda la paleta",
+    "lowContrastWarning": "Contraste bajo: el texto puede ser difícil de leer sobre el fondo o las tarjetas.",
+    "palettePreview": "Vista previa",
+    "previewHeading": "Tu evento",
+    "previewCardText": "Así se verán las tarjetas y el texto en tu página.",
+    "previewButton": "Comprar entrada",
+    "paletteRefImage": "Imagen de referencia",
+    "paletteRefImageHelp": "Sube una imagen con la estética que quieres (mood board, foto del local, screenshot). Esta imagen no se publica — solo se usa para extraer colores.",
+    "generatePaletteFromImage": "Generar paleta desde la imagen",
+    "removePaletteRefImage": "Quitar imagen"
   },
   "seo": {
     "root": {

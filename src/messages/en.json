@@ -747,7 +747,24 @@
       "clickToEditEmail": "Click to edit email"
     },
     "promoterPlaceholder": "e.g., Promoter",
-    "depositNotePlaceholder": "e.g. Zelle deposit"
+    "depositNotePlaceholder": "e.g. Zelle deposit",
+    "customPalette": "Customize palette",
+    "accent": "Accent color",
+    "background": "Background",
+    "foreground": "Text",
+    "surface": "Surface (cards)",
+    "field": "Fields (inputs and selects)",
+    "resetField": "Reset",
+    "resetAll": "Reset entire palette",
+    "lowContrastWarning": "Low contrast: text may be hard to read against the background or cards.",
+    "palettePreview": "Preview",
+    "previewHeading": "Your event",
+    "previewCardText": "This is how cards and text will look on your page.",
+    "previewButton": "Buy ticket",
+    "paletteRefImage": "Reference image",
+    "paletteRefImageHelp": "Upload an image with the aesthetic you want (mood board, venue photo, screenshot). This image won't be published — it's only used to extract colors.",
+    "generatePaletteFromImage": "Generate palette from image",
+    "removePaletteRefImage": "Remove image"
   },
   "seo": {
     "root": {

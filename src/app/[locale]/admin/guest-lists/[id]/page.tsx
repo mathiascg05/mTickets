@@ -4,7 +4,9 @@ import { db } from "@/lib/db";
 import { useAuthContext } from "@/lib/AuthContext";
 import { useLanguage } from "@/lib/LanguageContext";
 import { useStorageUrl } from "@/lib/useStorageUrl";
-import { extractDominantColor } from "@/lib/colorExtract";
+import { extractDominantColor, extractPalette, mapPaletteToTheme } from "@/lib/colorExtract";
+import { serializeThemeColors } from "@/lib/themeColors";
+import PaletteEditor from "@/components/admin/PaletteEditor";
 import { getFieldTypeLabel } from "@/lib/i18n";
 import { id as genId } from "@instantdb/react";
 import { toast } from "sonner";
@@ -249,6 +251,8 @@ export default function AdminGuestListDetailPage({
           flyerPath={event.flyerPath}
           logoPath={event.logoPath}
           primaryColor={event.primaryColor}
+          themeColors={event.themeColors}
+          paletteRefPath={event.paletteRefPath}
           t={t}
         />
         <PaymentMethodsSection
@@ -734,16 +738,22 @@ function BrandingSection({
   flyerPath,
   logoPath,
   primaryColor,
+  themeColors,
+  paletteRefPath,
   t,
 }: {
   eventId: string;
   flyerPath?: string;
   logoPath?: string;
   primaryColor?: string;
+  themeColors?: string;
+  paletteRefPath?: string;
   t: (key: string, vars?: Record<string, string | number>) => string;
 }) {
   const [uploadingFlyer, setUploadingFlyer] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingPaletteRef, setUploadingPaletteRef] = useState(false);
+  const [generatingPalette, setGeneratingPalette] = useState(false);
   const flyerInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const flyerUrl = useStorageUrl(flyerPath);
@@ -760,6 +770,57 @@ function BrandingSection({
     } catch {
       /* ignore */
     }
+  }
+
+  async function handlePaletteRefUpload(file: File) {
+    setUploadingPaletteRef(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `event-assets/${eventId}/palette-ref.${ext}`;
+      await deleteOldFiles(`event-assets/${eventId}/palette-ref%`);
+      await db.storage.upload(path, file);
+      const { data: { $files } } = await db.queryOnce({
+        $files: { $: { where: { path } } },
+      });
+      const uploadedUrl = $files[0]?.url;
+      await db.transact(
+        db.tx.guestListEvents[eventId].update({
+          paletteRefPath: path,
+          paletteRefUrl: uploadedUrl || "",
+        }),
+      );
+    } catch (err) {
+      console.error("Palette ref upload failed:", err);
+    }
+    setUploadingPaletteRef(false);
+  }
+
+  async function handleRemovePaletteRef() {
+    await deleteOldFiles(`event-assets/${eventId}/palette-ref%`);
+    db.transact(
+      db.tx.guestListEvents[eventId].update({
+        paletteRefPath: "",
+        paletteRefUrl: "",
+      }),
+    );
+  }
+
+  async function handleGeneratePalette(refUrl: string) {
+    setGeneratingPalette(true);
+    try {
+      const colors = await extractPalette(refUrl, 6);
+      const theme = mapPaletteToTheme(colors);
+      await db.transact(
+        db.tx.guestListEvents[eventId].update({ themeColors: serializeThemeColors(theme) }),
+      );
+    } catch (err) {
+      console.error("Palette generation failed:", err);
+    }
+    setGeneratingPalette(false);
+  }
+
+  function handleChangeThemeColors(json: string) {
+    db.transact(db.tx.guestListEvents[eventId].update({ themeColors: json }));
   }
 
   async function handleFlyerUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -913,6 +974,19 @@ function BrandingSection({
           <p className="text-xs text-muted mt-1 animate-pulse">{t("common.loading")}</p>
         )}
       </div>
+
+      <PaletteEditor
+        themeColors={themeColors}
+        paletteRefPath={paletteRefPath}
+        primaryColor={primaryColor}
+        uploadingRef={uploadingPaletteRef}
+        generating={generatingPalette}
+        onChangeThemeColors={handleChangeThemeColors}
+        onUploadRef={handlePaletteRefUpload}
+        onRemoveRef={handleRemovePaletteRef}
+        onGeneratePalette={handleGeneratePalette}
+        t={t}
+      />
     </div>
   );
 }

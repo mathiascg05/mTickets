@@ -302,7 +302,7 @@ function TicketTypeRow({
             <select
               value={qty}
               onChange={(e) => setQty(Number(e.target.value))}
-              className="px-3 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
+              className="px-3 py-2.5 bg-field border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
             >
               {Array.from({ length: maxQty }, (_, i) => i + 1).map((n) => (
                 <option key={n} value={n}>
@@ -432,7 +432,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
               }
             }}
             onKeyDown={(e) => e.key === "Enter" && handleLookup()}
-            className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
+            className="w-full px-4 py-2.5 bg-field border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
           />
           {emailSuggestion && (
             <button
@@ -605,7 +605,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
                   type="text"
                   value={form.firstName}
                   onChange={(e) => handleChange("firstName", e.target.value)}
-                  className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  className="w-full px-4 py-2.5 bg-field border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
                   placeholder={t("event.firstNamePlaceholder")}
                 />
               </div>
@@ -617,7 +617,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
                   type="text"
                   value={form.lastName}
                   onChange={(e) => handleChange("lastName", e.target.value)}
-                  className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
+                  className="w-full px-4 py-2.5 bg-field border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
                   placeholder={t("event.lastNamePlaceholder")}
                 />
               </div>
@@ -640,7 +640,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
                     setEmailSuggestion(result.full);
                   }
                 }}
-                className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
+                className="w-full px-4 py-2.5 bg-field border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
                 placeholder={t("event.emailPlaceholder")}
               />
               {emailSuggestion && (
@@ -665,7 +665,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
                 value={form.subject}
                 onChange={(e) => handleChange("subject", e.target.value)}
                 maxLength={200}
-                className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
+                className="w-full px-4 py-2.5 bg-field border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
                 placeholder={t("event.subjectPlaceholder")}
               />
             </div>
@@ -678,7 +678,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
                 onChange={(e) => handleChange("body", e.target.value)}
                 maxLength={2000}
                 rows={4}
-                className="w-full px-4 py-2.5 bg-background border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm resize-none"
+                className="w-full px-4 py-2.5 bg-field border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm resize-none"
                 placeholder={t("event.messagePlaceholder")}
               />
               <p className="text-right text-xs text-muted mt-1">{form.body.length}/2000</p>
