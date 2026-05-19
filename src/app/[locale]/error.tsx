@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/LanguageContext";
 
@@ -18,6 +18,7 @@ export default function Error({
   const { t } = useLanguage();
   const isChunkError =
     CHUNK_ERROR_REGEX.test(error.message) || CHUNK_ERROR_REGEX.test(error.name);
+  const [reloading, setReloading] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -25,12 +26,20 @@ export default function Error({
       sessionStorage.removeItem(RELOAD_FLAG);
       return;
     }
-    if (sessionStorage.getItem(RELOAD_FLAG)) return;
+    if (sessionStorage.getItem(RELOAD_FLAG)) {
+      // Already attempted in this session — fall through to the cartel below
+      // so the user can manually retry instead of getting stuck on a spinner.
+      return;
+    }
     sessionStorage.setItem(RELOAD_FLAG, "1");
-    window.location.reload();
+    setReloading(true);
+    // Cache-bust to force fresh HTML/chunks; reload() can be served from cache.
+    const url = new URL(window.location.href);
+    url.searchParams.set("_r", Date.now().toString(36));
+    window.location.replace(url.toString());
   }, [isChunkError]);
 
-  if (isChunkError) {
+  if (reloading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted">{t("common.loading")}</div>
