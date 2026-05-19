@@ -813,7 +813,8 @@
     "tryAgain": "Intentar de Nuevo",
     "backHome": "Volver al Inicio",
     "notFound": "Página no encontrada",
-    "notFoundDesc": "La página que buscas no existe o ha sido movida."
+    "notFoundDesc": "La página que buscas no existe o ha sido movida.",
+    "clearCache": "Limpiar caché completamente"
   },
   "auth": {
     "login": "Iniciar Sesión",

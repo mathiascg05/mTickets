@@ -813,7 +813,8 @@
     "tryAgain": "Try Again",
     "backHome": "Back to Home",
     "notFound": "Page not found",
-    "notFoundDesc": "The page you're looking for doesn't exist or has been moved."
+    "notFoundDesc": "The page you're looking for doesn't exist or has been moved.",
+    "clearCache": "Clear cache completely"
   },
   "auth": {
     "login": "Log In",
