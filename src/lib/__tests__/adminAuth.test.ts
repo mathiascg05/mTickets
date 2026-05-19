@@ -167,6 +167,9 @@ describe("PUT /api/admin-auth", () => {
   });
 
   it("register creates account and returns token", async () => {
+    const { TERMS_VERSION, ORGANIZER_TERMS_VERSION, PRIVACY_VERSION } =
+      await import("@/lib/legalVersions");
+
     mockQuery
       .mockResolvedValueOnce({ $users: [] }) // check user doesn't exist
       .mockResolvedValueOnce({ $users: [{ id: "new-user-1", email: "new@example.com" }] }); // get new user
@@ -177,6 +180,9 @@ describe("PUT /api/admin-auth", () => {
         password: "NewPass123",
         confirmPassword: "NewPass123",
         action: "register",
+        acceptedTermsVersion: TERMS_VERSION,
+        acceptedOrganizerTermsVersion: ORGANIZER_TERMS_VERSION,
+        acceptedPrivacyVersion: PRIVACY_VERSION,
       }, "PUT"),
     );
     expect(res.status).toBe(200);
