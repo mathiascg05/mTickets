@@ -37,6 +37,7 @@
     "other": "Other",
     "all": "All",
     "draft": "Draft",
+    "finalized": "Finalized",
     "copied": "Copied!",
     "copyLink": "Copy Link",
     "saved": "Saved!",
@@ -122,7 +123,16 @@
     "backToEvent": "← Back to event",
     "unavailableTitle": "Event unavailable",
     "unavailableBody": "This event is not accepting sales right now.",
-    "draftPreview": "Preview — this event is in draft and not visible to buyers."
+    "draftPreview": "Preview — this event is in draft and not visible to buyers.",
+    "finalizedPreview": "Preview — this event is finalized. Buyers see the event-concluded page."
+  },
+  "public": {
+    "eventConcluded": {
+      "badge": "Concluded",
+      "title": "This event has concluded",
+      "body": "Thanks to everyone who attended. If you organize events, you can create yours on maTickets.",
+      "cta": "Browse other events"
+    }
   },
   "checkout": {
     "title": "Purchase Tickets",
@@ -250,6 +260,13 @@
     "deleteEvent": "Delete Event",
     "deleteEventConfirm": "Delete this event? This cannot be undone.",
     "clickToToggle": "- Click to toggle",
+    "finalizationTitle": "Event finalization",
+    "markFinalized": "Mark as finalized",
+    "markFinalizedConfirm": "Ticket sales and QR scanning will be disabled for this event. Continue?",
+    "markFinalizedFutureWarning": "This event hasn't happened yet (date: {date}). Finalizing it will close sales and the public page will show the event-concluded screen. Are you sure?",
+    "finalizedOn": "Finalized on {date}",
+    "reopenEvent": "Reopen event",
+    "reopenEventConfirm": "Reopen this event? It will become active again and sales will resume.",
     "venuePlaceholder": "Venue name and address",
     "descPlaceholder": "Event description",
     "ticketType": "ticket type",

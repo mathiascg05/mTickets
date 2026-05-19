@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { id } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { isValidUUID } from "@/lib/validation";
@@ -195,31 +196,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Best-effort inline drain. For small campaigns this delivers the whole
-    //    batch before the request returns; for large ones it gives the user
-    //    immediate feedback and the cron picks up the tail.
-    let inlineResult = {
-      claimed: 0,
-      sent: 0,
-      failed: 0,
-      retryable: 0,
-      drained: false,
-    };
-    try {
-      inlineResult = await processBroadcastBatch(broadcastId, {
-        limit: INLINE_DRAIN_LIMIT,
-        deadlineMs: Date.now() + INLINE_DRAIN_DEADLINE_MS,
-      });
-    } catch (err) {
-      console.error("[send-broadcast] Inline drain error (cron will retry):", err);
-    }
+    // 3. Drain the first batch in the background via after(). The response
+    //    returns immediately so the composer modal can close — the organizer
+    //    watches progress live in the reactive recipients list (InstantDB).
+    //    The cron picks up whatever doesn't fit in this background batch.
+    after(async () => {
+      try {
+        await processBroadcastBatch(broadcastId, {
+          limit: INLINE_DRAIN_LIMIT,
+          deadlineMs: Date.now() + INLINE_DRAIN_DEADLINE_MS,
+        });
+      } catch (err) {
+        console.error("[send-broadcast] Background drain error (cron will retry):", err);
+      }
+    });
 
     return NextResponse.json({
       success: true,
       broadcastId,
       recipientCount: recipients.length,
       suppressedCount: suppressedEmails.length,
-      inline: inlineResult,
+      queued: true,
     });
   } catch (err) {
     console.error("[send-broadcast] error:", err);

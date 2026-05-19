@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState, useCallback } from "react";
 import emailSpellChecker from "@zootools/email-spell-checker";
+import EventConcluded from "./EventConcluded";
 
 function formatDate(dateStr: string, lang: Lang) {
   const d = new Date(dateStr);
@@ -94,7 +95,12 @@ export default function EventDetailClient() {
         collaborators: concert.collaborators,
       })
     : false;
+  const isFinalized = concert.status === "finalized";
   const isDraft = concert.status !== "active";
+
+  if (isFinalized && !isAuthorized) {
+    return <EventConcluded concert={concert} />;
+  }
 
   if (isDraft && !isAuthorized) {
     return (
@@ -112,8 +118,14 @@ export default function EventDetailClient() {
     <EventPresence concertId={concert.id} />
     <div className="min-h-screen">
       {isDraft && isAuthorized && (
-        <div className="bg-yellow-100 border-b border-yellow-300 text-yellow-900 text-sm px-4 py-2 text-center">
-          {t("event.draftPreview")}
+        <div
+          className={`border-b text-sm px-4 py-2 text-center ${
+            isFinalized
+              ? "bg-blue-100 border-blue-300 text-blue-900"
+              : "bg-yellow-100 border-yellow-300 text-yellow-900"
+          }`}
+        >
+          {isFinalized ? t("event.finalizedPreview") : t("event.draftPreview")}
         </div>
       )}
       <header className="bg-accent/95 backdrop-blur-sm text-white sticky top-0 z-10 border-b border-white/10">
@@ -243,7 +255,7 @@ function TicketTypeRow({
     (r) => r.expiresAt > now,
   );
   const availability = getAvailability(ticketType, ticketType.phases || [], ticketType.orders, today, activeReservations);
-  const { price, available, totalCapacity, activePhase } = availability;
+  const { price, available, totalCapacity, activePhase, displayPhase } = availability;
   const soldOut = ticketType.visibility === "soldOutOverride" || availability.soldOut;
   const maxQty = Math.min(available, 5);
 
@@ -269,9 +281,9 @@ function TicketTypeRow({
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 border border-border rounded-lg hover:border-accent/30 hover:shadow-sm transition-all">
       <div className="flex-1">
         <h3 className="font-semibold text-lg">{ticketType.name}</h3>
-        {activePhase && (
+        {displayPhase && (
           <p className="text-xs font-medium text-accent-light mt-0.5">
-            {activePhase.name}
+            {displayPhase.name}
           </p>
         )}
         {ticketType.description && (

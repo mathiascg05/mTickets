@@ -55,8 +55,25 @@ export type Availability = {
   available: number;
   totalCapacity: number;
   activePhase: Phase | null;
+  displayPhase: Phase | null;
   soldOut: boolean;
 };
+
+function getLastSoldPhase(
+  phases: Phase[],
+  allOrders: OrderForPhase[],
+): Phase | null {
+  if (phases.length === 0) return null;
+  const sortedDesc = [...phases].sort((a, b) => b.sortOrder - a.sortOrder);
+  const withSales = sortedDesc.find((p) =>
+    allOrders.some(
+      (o) =>
+        o.phaseId === p.id &&
+        (o.status === "approved" || o.status === "pending"),
+    ),
+  );
+  return withSales ?? sortedDesc[0];
+}
 
 export function getAvailability(
   ticketType: { price: number; quantity: number },
@@ -76,17 +93,20 @@ export function getAvailability(
       available,
       totalCapacity: ticketType.quantity,
       activePhase: null,
+      displayPhase: null,
       soldOut: available <= 0,
     };
   }
 
   const activePhase = getActivePhase(phases, allOrders, today, reservations);
   if (!activePhase) {
+    const lastSold = getLastSoldPhase(phases, allOrders);
     return {
-      price: ticketType.price,
+      price: lastSold?.price ?? ticketType.price,
       available: 0,
       totalCapacity: phases.reduce((s, p) => s + p.quantity, 0),
       activePhase: null,
+      displayPhase: lastSold,
       soldOut: true,
     };
   }
@@ -103,6 +123,7 @@ export function getAvailability(
     available: activePhase.quantity - sold - reserved,
     totalCapacity: phases.reduce((s, p) => s + p.quantity, 0),
     activePhase,
+    displayPhase: activePhase,
     soldOut: false,
   };
 }

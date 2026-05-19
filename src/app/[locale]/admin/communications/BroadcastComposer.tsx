@@ -22,13 +22,6 @@ type PreviewData = {
   concertTotalOrderCount?: number;
 };
 
-type SendResult = {
-  sentCount: number;
-  failedCount: number;
-  suppressedCount: number;
-  recipientCount: number;
-};
-
 type Concert = {
   id: string;
   name: string;
@@ -36,7 +29,7 @@ type Concert = {
   paymentMethods?: PaymentMethod[];
 };
 
-type Step = "compose" | "preview" | "result";
+type Step = "compose" | "preview";
 
 const SUBJECT_MAX = 200;
 const BODY_MAX = 5000;
@@ -96,7 +89,6 @@ export default function BroadcastComposer({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<PreviewData | null>(null);
-  const [result, setResult] = useState<SendResult | null>(null);
 
   const selectedConcert = useMemo(
     () => concerts.find((c) => c.id === concertId),
@@ -200,19 +192,13 @@ export default function BroadcastComposer({
         setError(data.error || t("admin.broadcast.sendCampaignError"));
         return;
       }
-      setResult({
-        sentCount: data.sentCount,
-        failedCount: data.failedCount,
-        suppressedCount: data.suppressedCount,
-        recipientCount: data.recipientCount,
-      });
-      setStep("result");
+      onClose();
     } catch {
       setError(t("admin.broadcast.sendError"));
     } finally {
       setLoading(false);
     }
-  }, [concertId, subject, body, ticketTypeIds, paymentMethodTypes, orderStatuses, refreshToken, t]);
+  }, [concertId, subject, body, ticketTypeIds, paymentMethodTypes, orderStatuses, refreshToken, t, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 overflow-y-auto">
@@ -222,7 +208,6 @@ export default function BroadcastComposer({
           <h2 className="text-lg font-semibold">
             {step === "compose" && t("admin.broadcast.newCampaign")}
             {step === "preview" && t("admin.broadcast.confirmRecipients")}
-            {step === "result" && t("admin.broadcast.campaignSent")}
           </h2>
           <button
             onClick={onClose}
@@ -517,37 +502,6 @@ export default function BroadcastComposer({
           </div>
         )}
 
-        {/* Step 3: Result */}
-        {step === "result" && result && (
-          <div className="p-6 space-y-5">
-            <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
-              <div className="text-4xl mb-2">✓</div>
-              <p className="text-lg font-semibold text-green-800">{t("admin.broadcast.campaignSent")}</p>
-              <p className="text-sm text-green-700 mt-2">
-                {t("admin.broadcast.deliveredOf", { sent: result.sentCount, total: result.recipientCount })}
-              </p>
-              {result.failedCount > 0 && (
-                <p className="text-sm text-red-600 mt-2">
-                  {t("admin.broadcast.failedCount", { count: result.failedCount })}
-                </p>
-              )}
-              {result.suppressedCount > 0 && (
-                <p className="text-xs text-yellow-700 mt-2">
-                  {t("admin.broadcast.suppressedNote", { count: result.suppressedCount })}
-                </p>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-border">
-              <button
-                onClick={onClose}
-                className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium transition-colors text-sm uppercase tracking-wider"
-              >
-                {t("common.close")}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

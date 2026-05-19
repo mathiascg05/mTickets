@@ -154,6 +154,7 @@ type ConcertData = {
   description?: string;
   status: string;
   defaultLanguage?: string;
+  finalizedAt?: number;
 };
 
 function ConcertEditForm({ concert, isSuperAdmin }: { concert: ConcertData; isSuperAdmin: boolean }) {
@@ -192,20 +193,61 @@ function ConcertEditForm({ concert, isSuperAdmin }: { concert: ConcertData; isSu
     }
   }
 
+  function finalizeConcert() {
+    const isPast = concert.date < getTodayString();
+    const message = isPast
+      ? t("admin.markFinalizedConfirm")
+      : t("admin.markFinalizedFutureWarning", { date: concert.date });
+    if (!confirm(message)) return;
+    db.transact(
+      db.tx.concerts[concert.id].update({
+        status: "finalized",
+        finalizedAt: Date.now(),
+      }),
+    );
+  }
+
+  function reopenConcert() {
+    if (!confirm(t("admin.reopenEventConfirm"))) return;
+    db.transact(
+      db.tx.concerts[concert.id].update({
+        status: "active",
+        finalizedAt: undefined,
+      }),
+    );
+  }
+
+  function formatFinalizedAt(ts: number | undefined): string {
+    if (!ts) return "";
+    return new Date(ts).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  }
+
+  const isFinalized = concert.status === "finalized";
+
   return (
     <div className="bg-surface border border-border rounded-xl p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold">{t("admin.eventDetails")}</h2>
-        <button
-          onClick={toggleStatus}
-          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-            concert.status === "active"
-              ? "bg-success/10 text-success border-success/30 hover:bg-success/20"
-              : "bg-muted/10 text-muted border-muted/30 hover:bg-muted/20"
-          }`}
-        >
-          {concert.status === "active" ? t("common.active") : t("common.draft")} {t("admin.clickToToggle")}
-        </button>
+        {isFinalized ? (
+          <span className="px-3 py-1.5 rounded-lg text-sm font-medium border bg-blue-100 text-blue-800 border-blue-300">
+            {t("common.finalized")}
+          </span>
+        ) : (
+          <button
+            onClick={toggleStatus}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+              concert.status === "active"
+                ? "bg-success/10 text-success border-success/30 hover:bg-success/20"
+                : "bg-muted/10 text-muted border-muted/30 hover:bg-muted/20"
+            }`}
+          >
+            {concert.status === "active" ? t("common.active") : t("common.draft")} {t("admin.clickToToggle")}
+          </button>
+        )}
       </div>
 
       <form onSubmit={handleSave} className="space-y-4">
@@ -297,6 +339,45 @@ function ConcertEditForm({ concert, isSuperAdmin }: { concert: ConcertData; isSu
           )}
         </div>
       </form>
+
+      <div className="mt-6 pt-6 border-t border-border">
+        <h3 className="text-sm font-semibold uppercase tracking-widest text-muted mb-3">
+          {t("admin.finalizationTitle")}
+        </h3>
+        {isFinalized ? (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-sm">
+              <span className="inline-flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-300">
+                  {t("common.finalized")}
+                </span>
+                {concert.finalizedAt && (
+                  <span className="text-muted">
+                    {t("admin.finalizedOn", { date: formatFinalizedAt(concert.finalizedAt) })}
+                  </span>
+                )}
+              </span>
+            </div>
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={reopenConcert}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-border hover:border-accent/50 text-muted hover:text-accent-light transition-colors"
+              >
+                {t("admin.reopenEvent")}
+              </button>
+            )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={finalizeConcert}
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 transition-colors"
+          >
+            {t("admin.markFinalized")}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

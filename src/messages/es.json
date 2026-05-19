@@ -37,6 +37,7 @@
     "other": "Otro",
     "all": "Todos",
     "draft": "Borrador",
+    "finalized": "Finalizado",
     "copied": "¡Copiado!",
     "copyLink": "Copiar enlace",
     "saved": "¡Guardado!",
@@ -122,7 +123,16 @@
     "backToEvent": "← Volver al evento",
     "unavailableTitle": "Evento no disponible",
     "unavailableBody": "Este evento no está aceptando ventas en este momento.",
-    "draftPreview": "Vista previa — este evento está en borrador y no es público para los compradores."
+    "draftPreview": "Vista previa — este evento está en borrador y no es público para los compradores.",
+    "finalizedPreview": "Vista previa — este evento está finalizado. Los compradores ven el cartel de evento concluido."
+  },
+  "public": {
+    "eventConcluded": {
+      "badge": "Concluido",
+      "title": "Este evento ya concluyó",
+      "body": "Gracias a quienes asistieron. Si organizas eventos, puedes crear el tuyo en maTickets.",
+      "cta": "Ver otros eventos"
+    }
   },
   "checkout": {
     "title": "Comprar Entradas",
@@ -250,6 +260,13 @@
     "deleteEvent": "Eliminar Evento",
     "deleteEventConfirm": "¿Eliminar este evento? Esta acción no se puede deshacer.",
     "clickToToggle": "- Click para cambiar",
+    "finalizationTitle": "Finalización del evento",
+    "markFinalized": "Marcar como finalizado",
+    "markFinalizedConfirm": "Ya no se podrán vender entradas ni escanear QR para este evento. ¿Continuar?",
+    "markFinalizedFutureWarning": "Este evento todavía no ocurrió (fecha: {date}). Si lo finalizas, se cerrarán las ventas y la página pública mostrará el cartel de evento concluido. ¿Estás seguro?",
+    "finalizedOn": "Finalizado el {date}",
+    "reopenEvent": "Reabrir evento",
+    "reopenEventConfirm": "¿Reabrir este evento? Volverá a estar activo y se podrán vender entradas de nuevo.",
     "venuePlaceholder": "Nombre y dirección del lugar",
     "descPlaceholder": "Descripción del evento",
     "ticketType": "tipo de entrada",

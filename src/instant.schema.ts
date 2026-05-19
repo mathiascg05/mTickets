@@ -39,6 +39,7 @@ const _schema = i.schema({
       organizerEmail: i.string().indexed(),
       defaultLanguage: i.string().optional(),
       isDemo: i.boolean().optional().indexed(),
+      finalizedAt: i.number().optional().indexed(),
       createdAt: i.number().indexed(),
     }),
     ticketTypes: i.entity({

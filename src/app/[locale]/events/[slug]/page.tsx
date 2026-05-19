@@ -22,7 +22,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       concerts: { $: { where: { slug } } },
     });
     const concert = concerts[0];
-    if (!concert || concert.status !== "active") {
+    if (!concert) {
+      return { title: t("notFound") };
+    }
+    if (concert.status === "finalized") {
+      return {
+        title: concert.name,
+        robots: { index: false, follow: false },
+      };
+    }
+    if (concert.status !== "active") {
       return { title: t("notFound") };
     }
 
