@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { parseRows, type ParsedEntry, type ParseResult } from "@/lib/guestListCsvParser";
+import { getTodayString } from "@/lib/phases";
 
 const BASE_METHODS = [
   { type: "efectivo", name: "Efectivo" },
@@ -167,6 +168,41 @@ export default function AdminGuestListDetailPage({
     db.transact(db.tx.guestListEvents[eventId].update({ status: newStatus }));
   }
 
+  function finalizeEvent() {
+    const isPast = event.date < getTodayString();
+    const message = isPast
+      ? t("admin.markFinalizedConfirm")
+      : t("admin.markFinalizedFutureWarning", { date: event.date });
+    if (!confirm(message)) return;
+    db.transact(
+      db.tx.guestListEvents[eventId].update({
+        status: "finalized",
+        finalizedAt: Date.now(),
+      }),
+    );
+  }
+
+  function reopenEvent() {
+    if (!confirm(t("admin.reopenEventConfirm"))) return;
+    db.transact(
+      db.tx.guestListEvents[eventId].update({
+        status: "active",
+        finalizedAt: undefined,
+      }),
+    );
+  }
+
+  function formatFinalizedAt(ts: number | undefined): string {
+    if (!ts) return "";
+    return new Date(ts).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  }
+
+  const isFinalized = event.status === "finalized";
+
   async function sendInvites(mode: "all" | "pending") {
     setSending(true);
     setSendResult(null);
@@ -210,16 +246,22 @@ export default function AdminGuestListDetailPage({
           <p className="text-sm text-muted">{event.date} {event.venue ? `· ${event.venue}` : ""}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={toggleStatus}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-              event.status === "active"
-                ? "bg-success/10 text-success border-success/30 hover:bg-success/20"
-                : "bg-muted/10 text-muted border-muted/30 hover:bg-muted/20"
-            }`}
-          >
-            {event.status === "active" ? t("common.active") : t("common.draft")}
-          </button>
+          {isFinalized ? (
+            <span className="px-3 py-1.5 rounded-full text-xs font-medium border bg-blue-100 text-blue-800 border-blue-300">
+              {t("common.finalized")}
+            </span>
+          ) : (
+            <button
+              onClick={toggleStatus}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                event.status === "active"
+                  ? "bg-success/10 text-success border-success/30 hover:bg-success/20"
+                  : "bg-muted/10 text-muted border-muted/30 hover:bg-muted/20"
+              }`}
+            >
+              {event.status === "active" ? t("common.active") : t("common.draft")}
+            </button>
+          )}
           {event.scannerPin && (
             <Link
               href={`/scan/guest-list/${event.id}`}
@@ -397,6 +439,45 @@ export default function AdminGuestListDetailPage({
         isDemo={!!event.isDemo}
         t={t}
       />
+
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <h3 className="text-sm font-semibold uppercase tracking-widest text-muted mb-3">
+          {t("admin.finalizationTitle")}
+        </h3>
+        {isFinalized ? (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-sm">
+              <span className="inline-flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-300">
+                  {t("common.finalized")}
+                </span>
+                {event.finalizedAt && (
+                  <span className="text-muted">
+                    {t("admin.finalizedOn", { date: formatFinalizedAt(event.finalizedAt) })}
+                  </span>
+                )}
+              </span>
+            </div>
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={reopenEvent}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-border hover:border-accent/50 text-muted hover:text-accent-light transition-colors"
+              >
+                {t("admin.reopenEvent")}
+              </button>
+            )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={finalizeEvent}
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 transition-colors"
+          >
+            {t("admin.markFinalized")}
+          </button>
+        )}
+      </div>
 
       <DangerZone onDelete={() => setShowDelete(true)} t={t} />
 

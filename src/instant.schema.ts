@@ -260,6 +260,7 @@ const _schema = i.schema({
       lastOrderSeq: i.number().optional().indexed(),
       orderNumberPrefix: i.string().optional().indexed(),
       isDemo: i.boolean().optional().indexed(),
+      finalizedAt: i.number().optional().indexed(),
       createdAt: i.number().indexed(),
     }),
     guestListEntries: i.entity({

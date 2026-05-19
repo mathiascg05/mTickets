@@ -186,10 +186,16 @@ export default function AdminGuestListsPage() {
                     className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
                       ev.status === "active"
                         ? "bg-success/10 text-success border-success/30"
-                        : "bg-muted/10 text-muted border-muted/30"
+                        : ev.status === "finalized"
+                          ? "bg-blue-100 text-blue-800 border-blue-300"
+                          : "bg-muted/10 text-muted border-muted/30"
                     }`}
                   >
-                    {ev.status === "active" ? t("common.active") : t("common.draft")}
+                    {ev.status === "active"
+                      ? t("common.active")
+                      : ev.status === "finalized"
+                        ? t("common.finalized")
+                        : t("common.draft")}
                   </span>
                   <span className="text-muted text-sm">
                     {total} {total === 1 ? t("guestList.guest") : t("guestList.guests")}
