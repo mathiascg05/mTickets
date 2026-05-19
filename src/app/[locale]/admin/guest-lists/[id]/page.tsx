@@ -129,24 +129,10 @@ export default function AdminGuestListDetailPage({
   const totalRegistered = entries.filter((e) => e.status === "registered").length;
   const totalRevoked = entries.filter((e) => e.status === "revoked").length;
 
-  let revenue = 0;
-  let pendingOrders = 0;
   let approvedOrders = 0;
-  let visitedCount = 0;
-  let outstandingPending = 0;
   for (const e of entries) {
-    const o = getOrder(e) as
-      | { status: string; pricePaid: number; visited: boolean }
-      | undefined;
-    if (!o) continue;
-    if (o.status === "approved") {
-      approvedOrders++;
-      revenue += o.pricePaid || 0;
-      if (o.visited) visitedCount++;
-    } else if (o.status === "pending") {
-      pendingOrders++;
-      outstandingPending += o.pricePaid || 0;
-    }
+    const o = getOrder(e) as { status: string } | undefined;
+    if (o?.status === "approved") approvedOrders++;
   }
   const filtered = entries.filter((e) => {
     if (statusFilter !== "all" && e.status !== statusFilter) return false;
@@ -157,51 +143,6 @@ export default function AdminGuestListDetailPage({
     }
     return true;
   });
-
-  function updateField(field: string, value: unknown) {
-    const updates: Record<string, unknown> = { [field]: value };
-    db.transact(db.tx.guestListEvents[eventId].update(updates));
-  }
-
-  function toggleStatus() {
-    const newStatus = event.status === "active" ? "draft" : "active";
-    db.transact(db.tx.guestListEvents[eventId].update({ status: newStatus }));
-  }
-
-  function finalizeEvent() {
-    const isPast = event.date < getTodayString();
-    const message = isPast
-      ? t("admin.markFinalizedConfirm")
-      : t("admin.markFinalizedFutureWarning", { date: event.date });
-    if (!confirm(message)) return;
-    db.transact(
-      db.tx.guestListEvents[eventId].update({
-        status: "finalized",
-        finalizedAt: Date.now(),
-      }),
-    );
-  }
-
-  function reopenEvent() {
-    if (!confirm(t("admin.reopenEventConfirm"))) return;
-    db.transact(
-      db.tx.guestListEvents[eventId].update({
-        status: "active",
-        finalizedAt: undefined,
-      }),
-    );
-  }
-
-  function formatFinalizedAt(ts: number | undefined): string {
-    if (!ts) return "";
-    return new Date(ts).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  }
-
-  const isFinalized = event.status === "finalized";
 
   async function sendInvites(mode: "all" | "pending") {
     setSending(true);
@@ -236,178 +177,173 @@ export default function AdminGuestListDetailPage({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <Link href="/admin/guest-lists" className="text-sm text-accent-light hover:underline">
-            ← {t("common.back")}
-          </Link>
-          <h1 className="text-3xl font-bold mt-2">{event.name}</h1>
-          <p className="text-sm text-muted">{event.date} {event.venue ? `· ${event.venue}` : ""}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isFinalized ? (
-            <span className="px-3 py-1.5 rounded-full text-xs font-medium border bg-blue-100 text-blue-800 border-blue-300">
-              {t("common.finalized")}
-            </span>
-          ) : (
-            <button
-              onClick={toggleStatus}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                event.status === "active"
-                  ? "bg-success/10 text-success border-success/30 hover:bg-success/20"
-                  : "bg-muted/10 text-muted border-muted/30 hover:bg-muted/20"
-              }`}
-            >
-              {event.status === "active" ? t("common.active") : t("common.draft")}
-            </button>
-          )}
-          {event.scannerPin && (
-            <Link
-              href={`/scan/guest-list/${event.id}`}
-              className="px-3 py-1.5 rounded-full text-xs font-medium border bg-accent/10 text-accent-light border-accent/30 hover:bg-accent/20"
-            >
-              {t("guestList.openScanner")}
-            </Link>
-          )}
-        </div>
-      </div>
+    <div>
+      <Link
+        href="/admin/guest-lists"
+        className="text-sm text-accent-light hover:underline inline-block mb-2"
+      >
+        ← {t("common.back")}
+      </Link>
+      <h1 className="text-3xl font-bold mb-2">{event.name}</h1>
 
-      <EventForm event={event} onUpdate={updateField} t={t} />
-
-      <TicketTypesSection
-        eventId={eventId}
-        ticketTypes={(event.ticketTypes || []) as TicketType[]}
-        defaultPrice={event.defaultPrice}
-        t={t}
-      />
-
-      <FeesSection
-        ticketTypes={(event.ticketTypes || []) as TicketType[]}
-        t={t}
-      />
-
-      <div className="grid lg:grid-cols-2 gap-4">
-        <BrandingSection
-          eventId={eventId}
-          flyerPath={event.flyerPath}
-          logoPath={event.logoPath}
-          primaryColor={event.primaryColor}
-          themeColors={event.themeColors}
-          paletteRefPath={event.paletteRefPath}
-          t={t}
-        />
-        <PaymentMethodsSection
-          eventId={eventId}
-          methods={(event.paymentMethods || []) as PaymentMethod[]}
-          t={t}
-        />
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-4">
-        <CustomFieldsSection
-          eventId={eventId}
-          fields={(event.customFields || []) as CustomField[]}
-          t={t}
-        />
-        <CollaboratorsSection
-          eventId={eventId}
-          collaborators={(event.collaborators || []) as Collaborator[]}
-          ownerEmail={email}
-          isPrimaryOwner={event.organizerEmail === email}
-          t={t}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Stat label={t("guestList.statTotal")} value={entries.length} />
-        <Stat label={t("guestList.statInvited")} value={totalInvited} accent="text-accent-light" />
-        <Stat label={t("guestList.statRegistered")} value={totalRegistered} accent="text-success" />
-        <Stat label={t("guestList.statRevoked")} value={totalRevoked} accent="text-muted" />
-      </div>
-
-      <div className="flex border-b border-border">
-        <TabButton active={tab === "entries"} onClick={() => setTab("entries")}>
-          {t("guestList.tabEntries")} ({entries.length})
-        </TabButton>
-        <TabButton active={tab === "orders"} onClick={() => setTab("orders")}>
-          {t("guestList.tabOrders")} ({totalRegistered})
-        </TabButton>
-      </div>
-
-      {tab === "entries" && (
-        <>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => setShowUpload(true)}
-              className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium"
-            >
-              {t("guestList.uploadCsv")}
-            </button>
-            <button
-              onClick={() => setShowManual(true)}
-              className="px-4 py-2 bg-surface border border-border hover:border-accent/50 rounded-lg text-sm font-medium"
-            >
-              {t("guestList.addManual")}
-            </button>
-            <button
-              onClick={() => sendInvites("pending")}
-              disabled={sending || totalInvited === 0}
-              className="px-4 py-2 bg-surface border border-border hover:border-accent/50 disabled:opacity-50 rounded-lg text-sm font-medium"
-            >
-              {sending ? t("common.loading") : t("guestList.sendPending")}
-            </button>
-            <button
-              onClick={() => sendInvites("all")}
-              disabled={sending || totalInvited === 0}
-              className="px-4 py-2 bg-surface border border-border hover:border-accent/50 disabled:opacity-50 rounded-lg text-sm font-medium"
-            >
-              {t("guestList.resendAll")}
-            </button>
-          </div>
-          {sendResult && <p className="text-sm text-muted">{sendResult}</p>}
-
-          <div className="flex flex-wrap items-center gap-3">
-            <input
-              type="search"
-              placeholder={t("guestList.searchPlaceholder")}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 min-w-[200px] px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light"
-            />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-              className="px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light"
-            >
-              <option value="all">{t("guestList.filterAll")}</option>
-              <option value="invited">{t("guestList.statInvited")}</option>
-              <option value="registered">{t("guestList.statRegistered")}</option>
-              <option value="revoked">{t("guestList.statRevoked")}</option>
-            </select>
-          </div>
-
-          <EntriesTable
-            entries={filtered}
-            defaultPrice={event.defaultPrice}
-            ticketTypes={(event.ticketTypes || []) as TicketType[]}
-            refreshToken={refreshToken}
+      <div className="grid lg:grid-cols-2 gap-6 mt-6">
+        <div className="space-y-6">
+          <EventForm
+            event={event}
+            eventId={eventId}
+            isSuperAdmin={isSuperAdmin}
+            onDelete={() => setShowDelete(true)}
             t={t}
           />
-        </>
-      )}
-
-      {tab === "orders" && (
-        <div className="bg-surface border border-border rounded-xl p-8 text-center space-y-4">
-          <p className="text-muted">{t("guestList.ordersTabHint")}</p>
-          <Link
-            href={`/admin/orders/guest-list/${eventId}`}
-            className="inline-block px-5 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-semibold"
-          >
-            {t("guestList.openOrders")}
-          </Link>
+          <PaymentMethodsSection
+            eventId={eventId}
+            methods={(event.paymentMethods || []) as PaymentMethod[]}
+            t={t}
+          />
+          <CustomFieldsSection
+            eventId={eventId}
+            fields={(event.customFields || []) as CustomField[]}
+            t={t}
+          />
+          <ScannerPinSection
+            eventId={eventId}
+            currentPin={event.scannerPin}
+            t={t}
+          />
+          <CollaboratorsSection
+            eventId={eventId}
+            collaborators={(event.collaborators || []) as Collaborator[]}
+            ownerEmail={email}
+            isPrimaryOwner={event.organizerEmail === email}
+            t={t}
+          />
+          <BrandingSection
+            eventId={eventId}
+            flyerPath={event.flyerPath}
+            logoPath={event.logoPath}
+            primaryColor={event.primaryColor}
+            themeColors={event.themeColors}
+            paletteRefPath={event.paletteRefPath}
+            t={t}
+          />
+          <PlatformFeeSection
+            eventId={eventId}
+            feeConfig={
+              event.platformFeeConfig as
+                | { id: string; feePercent: number; feeFixed: number; billingMode: string }
+                | undefined
+            }
+            isSuperAdmin={isSuperAdmin}
+            isDemo={!!event.isDemo}
+            t={t}
+          />
         </div>
-      )}
+        <div className="space-y-6">
+          <TicketTypesSection
+            eventId={eventId}
+            ticketTypes={(event.ticketTypes || []) as TicketType[]}
+            defaultPrice={event.defaultPrice}
+            t={t}
+          />
+          <FeesSection
+            ticketTypes={(event.ticketTypes || []) as TicketType[]}
+            t={t}
+          />
+        </div>
+      </div>
+
+      {/* === Guest-list-specific zone: invitados / entradas / órdenes === */}
+      <div className="mt-8 space-y-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Stat label={t("guestList.statTotal")} value={entries.length} />
+          <Stat label={t("guestList.statInvited")} value={totalInvited} accent="text-accent-light" />
+          <Stat label={t("guestList.statRegistered")} value={totalRegistered} accent="text-success" />
+          <Stat label={t("guestList.statRevoked")} value={totalRevoked} accent="text-muted" />
+        </div>
+
+        <div className="flex border-b border-border">
+          <TabButton active={tab === "entries"} onClick={() => setTab("entries")}>
+            {t("guestList.tabEntries")} ({entries.length})
+          </TabButton>
+          <TabButton active={tab === "orders"} onClick={() => setTab("orders")}>
+            {t("guestList.tabOrders")} ({totalRegistered})
+          </TabButton>
+        </div>
+
+        {tab === "entries" && (
+          <>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => setShowUpload(true)}
+                className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium"
+              >
+                {t("guestList.uploadCsv")}
+              </button>
+              <button
+                onClick={() => setShowManual(true)}
+                className="px-4 py-2 bg-surface border border-border hover:border-accent/50 rounded-lg text-sm font-medium"
+              >
+                {t("guestList.addManual")}
+              </button>
+              <button
+                onClick={() => sendInvites("pending")}
+                disabled={sending || totalInvited === 0}
+                className="px-4 py-2 bg-surface border border-border hover:border-accent/50 disabled:opacity-50 rounded-lg text-sm font-medium"
+              >
+                {sending ? t("common.loading") : t("guestList.sendPending")}
+              </button>
+              <button
+                onClick={() => sendInvites("all")}
+                disabled={sending || totalInvited === 0}
+                className="px-4 py-2 bg-surface border border-border hover:border-accent/50 disabled:opacity-50 rounded-lg text-sm font-medium"
+              >
+                {t("guestList.resendAll")}
+              </button>
+            </div>
+            {sendResult && <p className="text-sm text-muted">{sendResult}</p>}
+
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="search"
+                placeholder={t("guestList.searchPlaceholder")}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="flex-1 min-w-[200px] px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light"
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                className="px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light"
+              >
+                <option value="all">{t("guestList.filterAll")}</option>
+                <option value="invited">{t("guestList.statInvited")}</option>
+                <option value="registered">{t("guestList.statRegistered")}</option>
+                <option value="revoked">{t("guestList.statRevoked")}</option>
+              </select>
+            </div>
+
+            <EntriesTable
+              entries={filtered}
+              defaultPrice={event.defaultPrice}
+              ticketTypes={(event.ticketTypes || []) as TicketType[]}
+              refreshToken={refreshToken}
+              t={t}
+            />
+          </>
+        )}
+
+        {tab === "orders" && (
+          <div className="bg-surface border border-border rounded-xl p-8 text-center space-y-4">
+            <p className="text-muted">{t("guestList.ordersTabHint")}</p>
+            <Link
+              href={`/admin/orders/guest-list/${eventId}`}
+              className="inline-block px-5 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-semibold"
+            >
+              {t("guestList.openOrders")}
+            </Link>
+          </div>
+        )}
+      </div>
 
       {showUpload && (
         <UploadModal
@@ -427,60 +363,6 @@ export default function AdminGuestListDetailPage({
           t={t}
         />
       )}
-
-      <PlatformFeeSection
-        eventId={eventId}
-        feeConfig={
-          event.platformFeeConfig as
-            | { id: string; feePercent: number; feeFixed: number; billingMode: string }
-            | undefined
-        }
-        isSuperAdmin={isSuperAdmin}
-        isDemo={!!event.isDemo}
-        t={t}
-      />
-
-      <div className="bg-surface border border-border rounded-xl p-6">
-        <h3 className="text-sm font-semibold uppercase tracking-widest text-muted mb-3">
-          {t("admin.finalizationTitle")}
-        </h3>
-        {isFinalized ? (
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-sm">
-              <span className="inline-flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-300">
-                  {t("common.finalized")}
-                </span>
-                {event.finalizedAt && (
-                  <span className="text-muted">
-                    {t("admin.finalizedOn", { date: formatFinalizedAt(event.finalizedAt) })}
-                  </span>
-                )}
-              </span>
-            </div>
-            {isSuperAdmin && (
-              <button
-                type="button"
-                onClick={reopenEvent}
-                className="px-4 py-2 text-sm font-medium rounded-lg border border-border hover:border-accent/50 text-muted hover:text-accent-light transition-colors"
-              >
-                {t("admin.reopenEvent")}
-              </button>
-            )}
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={finalizeEvent}
-            className="px-4 py-2 text-sm font-medium rounded-lg border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 transition-colors"
-          >
-            {t("admin.markFinalized")}
-          </button>
-        )}
-      </div>
-
-      <DangerZone onDelete={() => setShowDelete(true)} t={t} />
-
       {showDelete && (
         <DeleteEventModal
           eventId={eventId}
@@ -977,8 +859,12 @@ function BrandingSection({
     );
   }
 
+  function handlePrimaryColorChange(value: string) {
+    db.transact(db.tx.guestListEvents[eventId].update({ primaryColor: value }));
+  }
+
   return (
-    <div className="bg-surface border border-border rounded-xl p-5">
+    <div className="bg-surface border border-border rounded-xl p-6">
       <h3 className="text-base font-semibold mb-4">{t("guestList.brandingTitle")}</h3>
       <div className="mb-5">
         <label className="block text-xs font-medium text-muted uppercase mb-2">
@@ -1054,6 +940,26 @@ function BrandingSection({
         {uploadingLogo && (
           <p className="text-xs text-muted mt-1 animate-pulse">{t("common.loading")}</p>
         )}
+      </div>
+
+      <div className="mt-5">
+        <label className="block text-xs font-medium text-muted uppercase mb-2">
+          {t("guestList.primaryColor")}
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="color"
+            value={primaryColor || "#1a2b4a"}
+            onChange={(e) => handlePrimaryColorChange(e.target.value)}
+            className="h-10 w-16 rounded-lg cursor-pointer"
+          />
+          <input
+            value={primaryColor || ""}
+            onChange={(e) => handlePrimaryColorChange(e.target.value)}
+            placeholder="#1a2b4a"
+            className="flex-1 px-3 py-2 bg-background border border-border rounded-lg font-mono text-sm"
+          />
+        </div>
       </div>
 
       <PaletteEditor
@@ -1875,25 +1781,6 @@ function CollaboratorsSection({
   );
 }
 
-function DangerZone({
-  onDelete,
-  t,
-}: {
-  onDelete: () => void;
-  t: (key: string, vars?: Record<string, string | number>) => string;
-}) {
-  return (
-    <div className="mt-12 pt-6 border-t border-border flex justify-end">
-      <button
-        onClick={onDelete}
-        className="text-xs text-muted hover:text-danger transition-colors"
-      >
-        {t("guestList.deleteEvent")}
-      </button>
-    </div>
-  );
-}
-
 function DeleteEventModal({
   eventId,
   eventName,
@@ -2026,9 +1913,100 @@ function TabButton({
   );
 }
 
+function ScannerPinSection({
+  eventId,
+  currentPin,
+  t,
+}: {
+  eventId: string;
+  currentPin?: string;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+}) {
+  const [pin, setPin] = useState(currentPin || "");
+  const [saved, setSaved] = useState(false);
+
+  function generatePin() {
+    const random = Math.floor(1000 + Math.random() * 9000).toString();
+    setPin(random);
+  }
+
+  function handleSave() {
+    if (pin && (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin))) return;
+    db.transact(
+      db.tx.guestListEvents[eventId].update({ scannerPin: pin || "" }),
+    );
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  function handleClear() {
+    setPin("");
+    db.transact(
+      db.tx.guestListEvents[eventId].update({ scannerPin: "" }),
+    );
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <h2 className="text-lg font-semibold mb-4">{t("admin.doorScannerPin")}</h2>
+      <p className="text-sm text-muted mb-4">
+        {t("admin.sharePinDesc")}{" "}
+        <code className="text-accent-light">/scan</code>.
+      </p>
+      <div className="flex gap-2 mb-3">
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={6}
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          placeholder={t("admin.pinPlaceholder")}
+          className="flex-1 px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-center font-mono text-xl tracking-[0.3em]"
+        />
+        <button
+          onClick={generatePin}
+          className="px-3 py-2.5 border border-border rounded-lg hover:bg-surface-hover transition-colors text-sm font-medium"
+        >
+          {t("admin.generatePin")}
+        </button>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={handleSave}
+          disabled={!pin || pin.length < 4}
+          className="flex-1 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
+        >
+          {saved ? t("common.saved") : t("admin.savePIN")}
+        </button>
+        {currentPin && (
+          <button
+            onClick={handleClear}
+            className="px-4 py-2.5 border border-danger/30 text-danger rounded-lg hover:bg-danger/10 transition-colors text-sm font-medium"
+          >
+            {t("admin.clearPIN")}
+          </button>
+        )}
+      </div>
+      {currentPin && (
+        <Link
+          href={`/scan/guest-list/${eventId}`}
+          className="mt-3 inline-block text-sm text-accent-light hover:underline"
+        >
+          {t("guestList.openScanner")}
+        </Link>
+      )}
+    </div>
+  );
+}
+
 function EventForm({
   event,
-  onUpdate,
+  eventId,
+  isSuperAdmin,
+  onDelete,
   t,
 }: {
   event: {
@@ -2036,126 +2014,270 @@ function EventForm({
     name: string;
     date: string;
     venue?: string;
+    venueMapUrl?: string;
     description?: string;
     defaultPrice: number;
     capacity?: number;
-    scannerPin?: string;
-    primaryColor?: string;
+    status: string;
+    defaultLanguage?: string;
+    finalizedAt?: number;
   };
-  onUpdate: (field: string, value: unknown) => void;
+  eventId: string;
+  isSuperAdmin: boolean;
+  onDelete: () => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
 }) {
   const [name, setName] = useState(event.name);
   const [date, setDate] = useState(event.date);
   const [venue, setVenue] = useState(event.venue || "");
+  const [venueMapUrl, setVenueMapUrl] = useState(event.venueMapUrl || "");
   const [description, setDescription] = useState(event.description || "");
   const [defaultPrice, setDefaultPrice] = useState(event.defaultPrice.toString());
   const [capacity, setCapacity] = useState(
     event.capacity != null ? event.capacity.toString() : "",
   );
-  const [pin, setPin] = useState(event.scannerPin || "");
-  const [primary, setPrimary] = useState(event.primaryColor || "#1a2b4a");
+  const [saved, setSaved] = useState(false);
 
-  function commit(field: string, value: unknown) {
-    onUpdate(field, value);
+  const isFinalized = event.status === "finalized";
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    const priceNum = Number(defaultPrice);
+    const capNum = capacity === "" ? null : Number(capacity);
+    db.transact(
+      db.tx.guestListEvents[eventId].update({
+        name,
+        date,
+        venue: venue || undefined,
+        venueMapUrl: venueMapUrl || undefined,
+        description: description || undefined,
+        ...(Number.isFinite(priceNum) && priceNum >= 0 ? { defaultPrice: priceNum } : {}),
+        ...(capNum === null
+          ? { capacity: null as unknown as undefined }
+          : Number.isFinite(capNum) && capNum >= 1
+            ? { capacity: Math.floor(capNum) }
+            : {}),
+      }),
+    );
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  function toggleStatus() {
+    const newStatus = event.status === "active" ? "draft" : "active";
+    db.transact(db.tx.guestListEvents[eventId].update({ status: newStatus }));
+  }
+
+  function finalizeEvent() {
+    const isPast = event.date < getTodayString();
+    const message = isPast
+      ? t("admin.markFinalizedConfirm")
+      : t("admin.markFinalizedFutureWarning", { date: event.date });
+    if (!confirm(message)) return;
+    db.transact(
+      db.tx.guestListEvents[eventId].update({
+        status: "finalized",
+        finalizedAt: Date.now(),
+      }),
+    );
+  }
+
+  function reopenEvent() {
+    if (!confirm(t("admin.reopenEventConfirm"))) return;
+    db.transact(
+      db.tx.guestListEvents[eventId].update({
+        status: "active",
+        finalizedAt: undefined,
+      }),
+    );
+  }
+
+  function formatFinalizedAt(ts: number | undefined): string {
+    if (!ts) return "";
+    return new Date(ts).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
   }
 
   return (
-    <div className="bg-surface border border-border rounded-xl p-5 grid sm:grid-cols-2 gap-4">
-      <Field label={t("common.name")}>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => commit("name", name)}
-          className="w-full px-3 py-2 bg-background border border-border rounded-lg"
-        />
-      </Field>
-      <Field label={t("common.date")}>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          onBlur={() => commit("date", date)}
-          className="w-full px-3 py-2 bg-background border border-border rounded-lg"
-        />
-      </Field>
-      <Field label={t("common.venue")}>
-        <input
-          value={venue}
-          onChange={(e) => setVenue(e.target.value)}
-          onBlur={() => commit("venue", venue)}
-          className="w-full px-3 py-2 bg-background border border-border rounded-lg"
-        />
-      </Field>
-      <Field label={t("guestList.defaultPrice") + " (USD)"}>
-        <input
-          type="number"
-          step="0.01"
-          min="0"
-          value={defaultPrice}
-          onChange={(e) => setDefaultPrice(e.target.value)}
-          onBlur={() => {
-            const n = Number(defaultPrice);
-            if (Number.isFinite(n) && n >= 0) commit("defaultPrice", n);
-          }}
-          className="w-full px-3 py-2 bg-background border border-border rounded-lg"
-        />
-      </Field>
-      <Field label={t("guestList.capacity") + " (" + t("common.optional") + ")"}>
-        <input
-          type="number"
-          min="1"
-          value={capacity}
-          onChange={(e) => setCapacity(e.target.value)}
-          onBlur={() => {
-            if (capacity === "") {
-              commit("capacity", null);
-            } else {
-              const n = Number(capacity);
-              if (Number.isFinite(n) && n >= 1) commit("capacity", Math.floor(n));
-            }
-          }}
-          className="w-full px-3 py-2 bg-background border border-border rounded-lg"
-        />
-      </Field>
-      <Field label={t("guestList.scannerPin") + " (4-6 " + t("guestList.digits") + ")"}>
-        <input
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-          onBlur={() => {
-            if (pin === "" || /^\d{4,6}$/.test(pin)) {
-              commit("scannerPin", pin || null);
-            }
-          }}
-          className="w-full px-3 py-2 bg-background border border-border rounded-lg"
-        />
-      </Field>
-      <Field label={t("guestList.primaryColor")}>
-        <div className="flex gap-2">
+    <div className="bg-surface border border-border rounded-xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">{t("admin.eventDetails")}</h2>
+        {isFinalized ? (
+          <span className="px-3 py-1.5 rounded-lg text-sm font-medium border bg-blue-100 text-blue-800 border-blue-300">
+            {t("common.finalized")}
+          </span>
+        ) : (
+          <button
+            onClick={toggleStatus}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+              event.status === "active"
+                ? "bg-success/10 text-success border-success/30 hover:bg-success/20"
+                : "bg-muted/10 text-muted border-muted/30 hover:bg-muted/20"
+            }`}
+          >
+            {event.status === "active" ? t("common.active") : t("common.draft")} {t("admin.clickToToggle")}
+          </button>
+        )}
+      </div>
+
+      <form onSubmit={handleSave} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1.5">{t("common.name")}</label>
           <input
-            type="color"
-            value={primary}
-            onChange={(e) => setPrimary(e.target.value)}
-            onBlur={() => commit("primaryColor", primary)}
-            className="h-10 w-16 rounded-lg cursor-pointer"
-          />
-          <input
-            value={primary}
-            onChange={(e) => setPrimary(e.target.value)}
-            onBlur={() => commit("primaryColor", primary)}
-            className="flex-1 px-3 py-2 bg-background border border-border rounded-lg font-mono text-sm"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
           />
         </div>
-      </Field>
-      <Field label={t("common.description")}>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          onBlur={() => commit("description", description)}
-          rows={2}
-          className="w-full px-3 py-2 bg-background border border-border rounded-lg resize-none"
-        />
-      </Field>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">{t("common.date")}</label>
+          <input
+            type="date"
+            required
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">{t("common.venue")}</label>
+          <input
+            value={venue}
+            onChange={(e) => setVenue(e.target.value)}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">{t("admin.venueMapUrl")}</label>
+          <input
+            value={venueMapUrl}
+            onChange={(e) => setVenueMapUrl(e.target.value)}
+            placeholder={t("admin.venueMapUrlPlaceholder")}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">
+            {t("common.description")}{" "}
+            <span className="text-muted font-normal">({t("common.optional")})</span>
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors resize-none"
+            placeholder={t("admin.descPlaceholder")}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">{t("admin.eventLanguage")}</label>
+          <select
+            value={event.defaultLanguage || "es"}
+            onChange={(e) =>
+              db.transact(
+                db.tx.guestListEvents[eventId].update({
+                  defaultLanguage: e.target.value,
+                }),
+              )
+            }
+            className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+          >
+            <option value="es">{t("admin.lang.es")}</option>
+            <option value="en">{t("admin.lang.en")}</option>
+          </select>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1.5">
+              {t("guestList.defaultPrice")} (USD)
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={defaultPrice}
+              onChange={(e) => setDefaultPrice(e.target.value)}
+              className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">
+              {t("guestList.capacity")}{" "}
+              <span className="text-muted font-normal">({t("common.optional")})</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={capacity}
+              onChange={(e) => setCapacity(e.target.value)}
+              className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors shadow-lg shadow-accent/20"
+          >
+            {t("common.saveChanges")}
+          </button>
+          {saved && (
+            <span className="text-success text-sm">{"✓"} {t("common.saved")}</span>
+          )}
+          {isSuperAdmin && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="ml-auto px-4 py-2.5 text-danger hover:bg-danger/10 rounded-lg text-sm font-medium transition-colors"
+            >
+              {t("guestList.deleteEvent")}
+            </button>
+          )}
+        </div>
+      </form>
+
+      <div className="mt-6 pt-6 border-t border-border">
+        <h3 className="text-sm font-semibold uppercase tracking-widest text-muted mb-3">
+          {t("admin.finalizationTitle")}
+        </h3>
+        {isFinalized ? (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-sm">
+              <span className="inline-flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-300">
+                  {t("common.finalized")}
+                </span>
+                {event.finalizedAt && (
+                  <span className="text-muted">
+                    {t("admin.finalizedOn", { date: formatFinalizedAt(event.finalizedAt) })}
+                  </span>
+                )}
+              </span>
+            </div>
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={reopenEvent}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-border hover:border-accent/50 text-muted hover:text-accent-light transition-colors"
+              >
+                {t("admin.reopenEvent")}
+              </button>
+            )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={finalizeEvent}
+            className="px-4 py-2 text-sm font-medium rounded-lg border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 transition-colors"
+          >
+            {t("admin.markFinalized")}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

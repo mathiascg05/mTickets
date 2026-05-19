@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { useAuthContext } from "@/lib/AuthContext";
 import { useLanguage } from "@/lib/LanguageContext";
+import { dateLocale } from "@/lib/i18n";
 import Link from "next/link";
 import { use, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -76,10 +77,12 @@ export default function GuestListOrdersPage({
   const { email, isSuperAdmin } = useAuthContext();
   const { user } = db.useAuth();
   const refreshToken = user?.refresh_token || "";
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [filter, setFilter] = useState<FilterStatus>("all");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
+  const [ticketTypeFilter, setTicketTypeFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [scannedSearch, setScannedSearch] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
@@ -149,7 +152,7 @@ export default function GuestListOrdersPage({
     .reduce((s, o) => s + (o.pricePaid || 0), 0);
   const totalScanned = allOrders.filter((o) => o.visited).length;
   const totalGuests = (event.entries || []).length;
-  const ticketTypes = (event.ticketTypes || []) as { id: string; quantity?: number }[];
+  const ticketTypes = (event.ticketTypes || []) as { id: string; name: string; quantity?: number }[];
   const allTypesHaveCapacity =
     ticketTypes.length > 0 && ticketTypes.every((t) => typeof t.quantity === "number");
   const totalCapacity = allTypesHaveCapacity
@@ -217,6 +220,8 @@ export default function GuestListOrdersPage({
   const filteredOrders = allOrders.filter((o) => {
     if (filter !== "all" && o.status !== filter) return false;
     if (paymentMethodFilter !== "all" && (o.paymentMethod || "") !== paymentMethodFilter)
+      return false;
+    if (ticketTypeFilter !== "all" && getOrderTicketType(o)?.name !== ticketTypeFilter)
       return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -657,158 +662,364 @@ export default function GuestListOrdersPage({
         t={t}
       />
 
-      <div className="bg-surface border border-border rounded-xl p-4 mb-4 flex flex-wrap items-center gap-3">
-        <input
-          type="search"
-          placeholder={t("guestList.searchPlaceholder")}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex-1 min-w-[200px] px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light"
-        />
-        <div className="flex gap-1 flex-wrap">
-          {filters.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setFilter(f.value)}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                filter === f.value
-                  ? "bg-accent text-white"
-                  : "bg-background border border-border text-muted hover:text-foreground"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        {uniquePaymentMethods.length > 0 && (
-          <select
-            value={paymentMethodFilter}
-            onChange={(e) => setPaymentMethodFilter(e.target.value)}
-            className="px-3 py-2 bg-background border border-border rounded-lg text-sm"
-          >
-            <option value="all">{t("admin.allPaymentMethods")}</option>
-            {uniquePaymentMethods.map((pm) => (
-              <option key={pm} value={pm}>
-                {pm}
-              </option>
-            ))}
-          </select>
-        )}
-        <button
-          onClick={downloadCsv}
-          disabled={allOrders.length === 0}
-          className="px-3 py-2 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg text-sm font-medium"
-        >
-          {t("admin.downloadCsv")}
-        </button>
-      </div>
+      {/* Scanned Codes */}
+      {(() => {
+        const scannedOrders = allOrders
+          .filter((o) => o.visited)
+          .sort((a, b) => b.createdAt - a.createdAt);
 
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <p className="text-xs text-muted">
-          {t("admin.showing", { shown: filteredOrders.length, total: allOrders.length })}
-        </p>
-        {selectedIds.size > 0 && (
-          <button
-            onClick={bulkApprove}
-            disabled={bulkApproving}
-            className="px-3 py-1.5 bg-success hover:bg-success/80 disabled:opacity-50 text-white rounded-lg text-sm font-medium"
-          >
-            {bulkApproving
-              ? bulkProgress
-                ? `${bulkProgress.done}/${bulkProgress.total}`
-                : t("common.loading")
-              : t("guestList.bulkApprove", { count: selectedIds.size })}
-          </button>
-        )}
-      </div>
+        const filteredScanned = scannedSearch
+          ? scannedOrders.filter((o) => {
+              const q = scannedSearch.toLowerCase();
+              const tt = getOrderTicketType(o);
+              return [
+                o.firstName,
+                o.lastName,
+                `${o.firstName} ${o.lastName}`,
+                o.email,
+                o.cedula,
+                o.orderNumber,
+                tt?.name,
+              ].some((f) => f && f.toLowerCase().includes(q));
+            })
+          : scannedOrders;
 
-      <div className="overflow-x-auto bg-surface border border-border rounded-xl">
-        <table className="w-full text-sm">
-          <thead className="bg-background border-b border-border">
-            <tr>
-              <Th className="w-8">
-                {pendingCount > 0 && (
-                  <input
-                    type="checkbox"
-                    checked={
-                      filteredOrders.filter((o) => o.status === "pending").length > 0 &&
-                      filteredOrders
-                        .filter((o) => o.status === "pending")
-                        .every((o) => selectedIds.has(o.id))
-                    }
-                    onChange={toggleSelectAllPending}
+        return (
+          <div className="bg-surface border border-border rounded-xl p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold">{t("admin.scannedCodes")}</h2>
+                <p className="text-sm text-muted">
+                  {t("admin.scannedOf", { scanned: scannedOrders.length, total: approvedCount })}
+                </p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {ticketTypes.map((tt) => {
+                    const ttApproved = allOrders.filter(
+                      (o) => getOrderTicketType(o)?.id === tt.id && o.status === "approved",
+                    ).length;
+                    const ttScanned = allOrders.filter(
+                      (o) => getOrderTicketType(o)?.id === tt.id && o.visited,
+                    ).length;
+                    return (
+                      <span
+                        key={tt.id}
+                        className="px-2 py-0.5 bg-background border border-border rounded text-xs text-muted"
+                      >
+                        {tt.name}{" "}
+                        <span className="font-medium text-foreground">
+                          {ttScanned}/{ttApproved}
+                        </span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-3xl font-bold text-success">{scannedOrders.length}</p>
+                <p className="text-xs text-muted">{t("admin.scannedLabel")}</p>
+              </div>
+            </div>
+
+            {scannedOrders.length > 0 && (
+              <div className="relative mb-4">
+                <input
+                  type="text"
+                  value={scannedSearch}
+                  onChange={(e) => setScannedSearch(e.target.value)}
+                  placeholder={t("admin.searchScanned")}
+                  className="w-full px-4 py-2.5 pl-10 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent-light transition-colors"
+                />
+                <svg
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                   />
+                </svg>
+                {scannedSearch && (
+                  <button
+                    onClick={() => setScannedSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors"
+                  >
+                    {"✕"}
+                  </button>
                 )}
-              </Th>
-              <Th>{t("admin.orderNumber")}</Th>
-              <Th>{t("common.name")}</Th>
-              <Th>{t("common.email")}</Th>
-              <Th>{t("guestList.colCedula")}</Th>
-              <Th>{t("guestList.colTicketType")}</Th>
-              <Th>{t("guestList.paymentMethod")}</Th>
-              <Th className="text-right">{t("guestList.colPrice")}</Th>
-              <Th>{t("common.date")}</Th>
-              <Th>{t("common.status")}</Th>
-              <Th>{t("guestList.colVisited")}</Th>
-              <Th className="text-right"></Th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredOrders.length === 0 ? (
-              <tr>
-                <td colSpan={12} className="px-3 py-8 text-center text-muted">
-                  {t("guestList.noOrders")}
-                </td>
-              </tr>
+              </div>
+            )}
+
+            {scannedOrders.length === 0 ? (
+              <p className="text-muted text-center py-6 text-sm">
+                {t("admin.noScanned")}
+              </p>
+            ) : filteredScanned.length === 0 ? (
+              <p className="text-muted text-center py-6 text-sm">
+                {t("admin.noScannedMatching", { query: scannedSearch })}
+              </p>
             ) : (
-              filteredOrders.map((o) => {
-                const tt = getOrderTicketType(o);
-                return (
-                <tr key={o.id} className="border-t border-border hover:bg-background/50">
-                  <Td>
-                    {o.status === "pending" && (
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(o.id)}
-                        onChange={() => toggleSelect(o.id)}
-                      />
-                    )}
-                  </Td>
-                  <Td className="font-mono text-xs">{o.orderNumber || "—"}</Td>
-                  <Td>
-                    {o.firstName} {o.lastName}
-                  </Td>
-                  <Td className="font-mono text-xs">{o.email}</Td>
-                  <Td className="font-mono text-xs">{o.cedula}</Td>
-                  <Td>
-                    {tt ? (
-                      <span className="px-2 py-0.5 text-xs rounded-full bg-accent/10 text-accent-light border border-accent/30">
-                        {tt.name}
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {filteredScanned.map((order) => {
+                  const tt = getOrderTicketType(order);
+                  return (
+                    <div
+                      key={order.id}
+                      className="flex items-center justify-between gap-3 p-3 border border-success/20 bg-success/5 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-success text-lg">{"✓"}</span>
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">
+                            <span className="text-xs font-mono text-accent-light mr-2">
+                              {order.orderNumber || "---"}
+                            </span>
+                            {order.firstName} {order.lastName}
+                          </p>
+                          <p className="text-xs text-muted truncate">
+                            {order.email} &middot; {order.cedula}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-medium text-muted">{tt?.name || "—"}</p>
+                        <p className="text-xs text-muted">
+                          {order.visitedAt
+                            ? new Date(order.visitedAt).toLocaleString(dateLocale(lang))
+                            : new Date(order.createdAt).toLocaleDateString(dateLocale(lang))}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Order List */}
+      <div className="bg-surface border border-border rounded-xl p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold">{t("admin.orderList")}</h2>
+            <button
+              onClick={downloadCsv}
+              disabled={allOrders.length === 0}
+              className="px-3 py-1.5 border border-border hover:border-accent/50 text-muted hover:text-accent-light rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+            >
+              {t("admin.downloadCsv")}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex gap-1">
+              {filters.map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setFilter(f.value)}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    filter === f.value
+                      ? "bg-accent/20 text-accent-light"
+                      : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            {ticketTypes.length > 1 && (
+              <div className="flex gap-1 border-l border-border pl-2">
+                <button
+                  onClick={() => setTicketTypeFilter("all")}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    ticketTypeFilter === "all"
+                      ? "bg-accent/20 text-accent-light"
+                      : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  {t("admin.allTypes")}
+                </button>
+                {ticketTypes.map((tt) => (
+                  <button
+                    key={tt.id}
+                    onClick={() => setTicketTypeFilter(tt.name)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                      ticketTypeFilter === tt.name
+                        ? "bg-accent/20 text-accent-light"
+                        : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {tt.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            {uniquePaymentMethods.length > 1 && (
+              <div className="flex gap-1 border-l border-border pl-2">
+                <button
+                  onClick={() => setPaymentMethodFilter("all")}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    paymentMethodFilter === "all"
+                      ? "bg-accent/20 text-accent-light"
+                      : "text-muted hover:text-foreground"
+                  }`}
+                >
+                  {t("admin.filterAll")}
+                </button>
+                {uniquePaymentMethods.map((pm) => (
+                  <button
+                    key={pm}
+                    onClick={() => setPaymentMethodFilter(pm)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                      paymentMethodFilter === pm
+                        ? "bg-accent/20 text-accent-light"
+                        : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {pm}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="relative mb-4">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t("guestList.searchPlaceholder")}
+            className="w-full px-4 py-2.5 pl-10 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent-light transition-colors"
+          />
+          <svg
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
+          </svg>
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors"
+            >
+              {"✕"}
+            </button>
+          )}
+        </div>
+
+        {/* Bulk selection controls (only when filter is "pending") */}
+        {filter === "pending" && filteredOrders.length > 0 && (
+          <div className="flex items-center gap-3 mb-4 p-3 bg-background border border-border rounded-lg">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={
+                  filteredOrders.filter((o) => o.status === "pending").length > 0 &&
+                  filteredOrders
+                    .filter((o) => o.status === "pending")
+                    .every((o) => selectedIds.has(o.id))
+                }
+                onChange={toggleSelectAllPending}
+                className="accent-accent-light"
+              />
+              {t("admin.reconcileSelectAll")}
+            </label>
+            {selectedIds.size > 0 && (
+              <button
+                onClick={bulkApprove}
+                disabled={bulkApproving}
+                className="px-4 py-1.5 bg-success hover:bg-success/80 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-colors shadow-lg shadow-success/20"
+              >
+                {bulkApproving
+                  ? bulkProgress
+                    ? `${bulkProgress.done}/${bulkProgress.total}`
+                    : t("admin.bulkApproving")
+                  : t("admin.bulkApprove", { count: selectedIds.size })}
+              </button>
+            )}
+          </div>
+        )}
+
+        {filteredOrders.length === 0 ? (
+          <p className="text-muted text-center py-8">
+            {t("guestList.noOrders")}
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {filteredOrders.map((order) => {
+              const tt = getOrderTicketType(order);
+              const rate = order.purchaseRate ?? null;
+              const bsAmt =
+                order.purchaseAmountBs ??
+                (rate != null ? order.pricePaid * rate : null);
+              return (
+                <div
+                  key={order.id}
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border rounded-lg hover:border-border transition-colors ${
+                    selectedIds.has(order.id)
+                      ? "border-success/50 bg-success/5"
+                      : "border-border/50"
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      {filter === "pending" && order.status === "pending" && (
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(order.id)}
+                          onChange={() => toggleSelect(order.id)}
+                          className="accent-accent-light"
+                        />
+                      )}
+                      <span className="text-xs font-mono font-bold text-accent-light">
+                        {order.orderNumber || "---"}
                       </span>
-                    ) : (
-                      <span className="text-muted text-xs">—</span>
+                      <StatusBadge status={order.status} t={t} />
+                      {order.visited && (
+                        <span className="text-xs text-success">
+                          {"✓"} {t("admin.visited")}
+                          {order.visitedAt
+                            ? ` ${new Date(order.visitedAt).toLocaleTimeString()}`
+                            : ""}
+                        </span>
+                      )}
+                      {tt && (
+                        <span className="text-xs text-muted">{tt.name}</span>
+                      )}
+                    </div>
+                    <p className="font-medium text-sm">
+                      {order.firstName} {order.lastName}
+                    </p>
+                    <p className="text-xs text-muted">{order.email}</p>
+                    <p className="text-xs text-muted">
+                      {t("common.cedula")}: {order.cedula}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {t("admin.paymentMethodLabel")}: {order.paymentMethod || "—"}
+                    </p>
+                    {order.proofReferenceNumber && (
+                      <p className="text-xs text-muted">
+                        ref: {order.proofReferenceNumber}
+                      </p>
                     )}
-                  </Td>
-                  <Td>
-                    {o.paymentMethod || "—"}
-                    {o.proofReferenceNumber && (
-                      <span className="block text-xs text-muted">
-                        ref: {o.proofReferenceNumber}
-                      </span>
-                    )}
-                  </Td>
-                  <Td className="text-right font-medium">
-                    {o.pricePaid === 0 ? (
-                      t("guestList.cortesia")
-                    ) : (
-                      <>
-                        ${o.pricePaid.toFixed(2)}
-                        {(() => {
-                          const rate = o.purchaseRate ?? null;
-                          const bsAmt =
-                            o.purchaseAmountBs ??
-                            (rate != null ? o.pricePaid * rate : null);
-                          return bsAmt != null ? (
+                    <p className="text-xs text-muted mt-0.5">
+                      {order.pricePaid === 0 ? (
+                        t("guestList.cortesia")
+                      ) : (
+                        <>
+                          ${order.pricePaid.toFixed(2)}
+                          {bsAmt != null && (
                             <span className="text-accent-light font-medium">
                               {" / "}
                               {bsAmt.toLocaleString("es-VE", {
@@ -817,78 +1028,67 @@ export default function GuestListOrdersPage({
                               })}{" "}
                               Bs
                             </span>
-                          ) : null;
-                        })()}
-                      </>
-                    )}
-                  </Td>
-                  <Td className="text-xs text-muted">
-                    {new Date(o.createdAt).toLocaleString()}
-                  </Td>
-                  <Td>
-                    <StatusBadge status={o.status} t={t} />
-                  </Td>
-                  <Td>
-                    {o.visited ? (
-                      <span className="text-success text-xs">
-                        ✓ {o.visitedAt ? new Date(o.visitedAt).toLocaleTimeString() : ""}
-                      </span>
-                    ) : (
-                      <span className="text-muted text-xs">—</span>
-                    )}
-                  </Td>
-                  <Td className="text-right space-x-2 whitespace-nowrap">
-                    {o.paymentProofPath && (
+                          )}
+                        </>
+                      )}
+                      {" "}&middot;{" "}
+                      {new Date(order.createdAt).toLocaleString(dateLocale(lang))}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                    {order.paymentProofPath && (
                       <button
-                        onClick={() => viewProof(o.id)}
-                        className="text-xs text-accent-light hover:underline"
+                        onClick={() => viewProof(order.id)}
+                        className="px-3 py-1.5 text-xs border border-border rounded-lg hover:border-accent/50 transition-colors"
                       >
                         {t("guestList.viewProof")}
                       </button>
                     )}
-                    {o.status === "pending" && (
+                    {order.status === "pending" && (
                       <>
                         <button
-                          onClick={() => action(o.id, "approve")}
-                          disabled={actingId === o.id}
-                          className="text-xs text-success hover:underline disabled:opacity-50"
+                          onClick={() => action(order.id, "approve")}
+                          disabled={actingId === order.id}
+                          className="px-3 py-1.5 text-xs bg-success/10 text-success border border-success/30 rounded-lg hover:bg-success/20 transition-colors font-medium disabled:opacity-50"
                         >
                           {t("guestList.approve")}
                         </button>
                         <button
-                          onClick={() => action(o.id, "reject")}
-                          disabled={actingId === o.id}
-                          className="text-xs text-danger hover:underline disabled:opacity-50"
+                          onClick={() => action(order.id, "reject")}
+                          disabled={actingId === order.id}
+                          className="px-3 py-1.5 text-xs bg-danger/10 text-danger border border-danger/30 rounded-lg hover:bg-danger/20 transition-colors font-medium disabled:opacity-50"
                         >
                           {t("admin.reject")}
                         </button>
                       </>
                     )}
-                    {o.status === "approved" && (
+                    {order.status === "approved" && (
                       <>
                         <button
-                          onClick={() => resendTicket(o.id)}
-                          disabled={resendingId === o.id}
-                          className="text-xs text-accent-light hover:underline disabled:opacity-50"
+                          onClick={() => resendTicket(order.id)}
+                          disabled={resendingId === order.id}
+                          className="px-3 py-1.5 text-xs border border-accent/30 text-accent-light rounded-lg hover:bg-accent/10 transition-colors font-medium disabled:opacity-50"
                         >
-                          {resendingId === o.id ? t("common.loading") : t("guestList.resendTicket")}
+                          {resendingId === order.id
+                            ? t("common.loading")
+                            : t("guestList.resendTicket")}
                         </button>
                         <button
-                          onClick={() => action(o.id, "cancel")}
-                          disabled={actingId === o.id}
-                          className="text-xs text-danger hover:underline disabled:opacity-50"
+                          onClick={() => action(order.id, "cancel")}
+                          disabled={actingId === order.id}
+                          className="px-3 py-1.5 text-xs bg-muted/10 text-muted border border-muted/30 rounded-lg hover:bg-muted/20 transition-colors font-medium disabled:opacity-50"
                         >
                           {t("common.cancel")}
                         </button>
                       </>
                     )}
-                  </Td>
-                </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {previewUrl && (
@@ -905,31 +1105,6 @@ export default function GuestListOrdersPage({
       )}
     </div>
   );
-}
-
-function Th({
-  children,
-  className,
-}: {
-  children?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <th
-      className={`px-3 py-2 text-left text-xs font-medium text-muted uppercase tracking-wide ${className || ""}`}
-    >
-      {children}
-    </th>
-  );
-}
-function Td({
-  children,
-  className,
-}: {
-  children?: React.ReactNode;
-  className?: string;
-}) {
-  return <td className={`px-3 py-2 ${className || ""}`}>{children}</td>;
 }
 
 type RevenueCell = { count: number; amount: number; amountBs: number };
@@ -996,7 +1171,7 @@ function RevenueBreakdownTable({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full table-fixed text-sm">
           <thead>
             <tr>
               {STATUSES.map((s) => (
