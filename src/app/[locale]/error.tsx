@@ -121,7 +121,7 @@ export default function Error({
     try {
       sessionStorage.clear();
     } catch {}
-    window.location.href = "/?_nuclear=" + Date.now();
+    window.location.href = "/api/clear-site-data?t=" + Date.now();
   }
 
   if (reloading) {
