@@ -7,7 +7,7 @@ export async function GET() {
     status: 303,
     headers: {
       Location: "/",
-      "Clear-Site-Data": '"cache", "storage", "executionContexts"',
+      "Clear-Site-Data": '"cache", "storage"',
       "Cache-Control": "no-store",
     },
   });
