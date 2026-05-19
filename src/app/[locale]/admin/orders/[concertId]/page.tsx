@@ -2448,7 +2448,7 @@ export default function ConcertOrdersPage() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full table-fixed text-sm">
                 {/* Status group headers */}
                 <thead>
                   <tr>
@@ -2606,7 +2606,7 @@ export default function ConcertOrdersPage() {
             </p>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full table-fixed text-sm">
                 <thead>
                   <tr>
                     {statuses.map((s) => (
