@@ -70,7 +70,6 @@ export default function AdminConcertEditPage() {
           <PaymentMethodsSection
             concertId={concertId}
             paymentMethods={concert.paymentMethods}
-            feeMode={concert.feeMode}
           />
           <CustomFieldsSection
             concertId={concertId}
@@ -115,6 +114,7 @@ export default function AdminConcertEditPage() {
           <FeesSection
             concertId={concertId}
             ticketTypes={concert.ticketTypes}
+            paymentMethods={concert.paymentMethods}
             feeMode={concert.feeMode}
           />
         </div>
@@ -418,12 +418,10 @@ function PaymentMethodCard({
   concertId,
   base,
   existing,
-  feeMode,
 }: {
   concertId: string;
   base: (typeof BASE_METHODS)[number];
   existing: PaymentMethodData | undefined;
-  feeMode?: string;
 }) {
   const { t } = useLanguage();
   const [instructions, setInstructions] = useState(existing?.instructions || "");
@@ -451,16 +449,6 @@ function PaymentMethodCard({
     existing?.discountValue ? String(existing.discountValue) : "",
   );
   const [discountError, setDiscountError] = useState<string>("");
-  const [feeEnabled, setFeeEnabled] = useState(
-    (existing?.feePercent ?? 0) > 0 || (existing?.feeFixed ?? 0) > 0,
-  );
-  const [feePercent, setFeePercent] = useState<string>(
-    existing?.feePercent ? String(existing.feePercent) : "",
-  );
-  const [feeFixed, setFeeFixed] = useState<string>(
-    existing?.feeFixed ? String(existing.feeFixed) : "",
-  );
-  const [feeError, setFeeError] = useState<string>("");
   const [dirty, setDirty] = useState(false);
 
   const enabled = !!existing;
@@ -508,26 +496,6 @@ function PaymentMethodCard({
       }
       parsedDiscountValue = parsed;
     }
-    let parsedFeePercent: number | null = null;
-    let parsedFeeFixed: number | null = null;
-    if (feeEnabled) {
-      const pct = feePercent === "" ? 0 : parseFloat(feePercent);
-      const fix = feeFixed === "" ? 0 : parseFloat(feeFixed);
-      if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
-        setFeeError(t("admin.pmFeeInvalid"));
-        return;
-      }
-      if (!Number.isFinite(fix) || fix < 0) {
-        setFeeError(t("admin.pmFeeInvalid"));
-        return;
-      }
-      if (pct === 0 && fix === 0) {
-        setFeeError(t("admin.pmFeeInvalid"));
-        return;
-      }
-      parsedFeePercent = pct;
-      parsedFeeFixed = fix;
-    }
     const effectiveConvertCurrency = isCustom
       ? "USD"
       : base.type === "pago_movil"
@@ -544,8 +512,6 @@ function PaymentMethodCard({
         requireReferenceNumber: base.type === "efectivo" ? false : requireReferenceNumber,
         discountType: discountEnabled ? discountType : null,
         discountValue: parsedDiscountValue,
-        feePercent: parsedFeePercent,
-        feeFixed: parsedFeeFixed,
         ...(base.type === "zelle" ? { zelleEmail: zelleEmail || undefined, zelleName: zelleName || undefined } : {}),
         ...(base.type === "pago_movil" ? {
           pmCedula: pmCedula || undefined,
@@ -557,7 +523,6 @@ function PaymentMethodCard({
       }),
     );
     setDiscountError("");
-    setFeeError("");
     setDirty(false);
   }
 
@@ -757,70 +722,6 @@ function PaymentMethodCard({
               )}
             </div>
           </div>
-          {feeMode === "paymentMethod" && (
-            <div className="pt-3 border-t border-border">
-              <label className="flex items-center gap-2 cursor-pointer mb-2">
-                <input
-                  type="checkbox"
-                  checked={feeEnabled}
-                  onChange={(e) => {
-                    setFeeEnabled(e.target.checked);
-                    setFeeError("");
-                    setDirty(true);
-                  }}
-                  className="accent-accent-light"
-                />
-                <span className="text-sm font-medium">{t("admin.pmFeeEnable")}</span>
-              </label>
-              <p className="text-xs text-muted mb-2">{t("admin.pmFeeHelp")}</p>
-              {feeEnabled && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">%</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                      value={feePercent}
-                      onChange={(e) => { setFeePercent(e.target.value); setFeeError(""); setDirty(true); }}
-                      className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">$ USD</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={feeFixed}
-                      onChange={(e) => { setFeeFixed(e.target.value); setFeeError(""); setDirty(true); }}
-                      className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                    />
-                  </div>
-                  {feeError && (
-                    <p className="col-span-2 text-xs text-danger">{feeError}</p>
-                  )}
-                  {!feeError && (() => {
-                    const pct = feePercent === "" ? 0 : parseFloat(feePercent);
-                    const fix = feeFixed === "" ? 0 : parseFloat(feeFixed);
-                    if (!Number.isFinite(pct) || !Number.isFinite(fix)) return null;
-                    if (pct === 0 && fix === 0) return null;
-                    const sample = 50;
-                    const extra = (sample * pct) / 100 + fix;
-                    return (
-                      <p className="col-span-2 text-xs text-muted">
-                        {t("admin.pmFeePreview", {
-                          base: `$${sample.toFixed(2)}`,
-                          extra: `$${extra.toFixed(2)}`,
-                        })}
-                      </p>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-          )}
           <div className="pt-3 border-t border-border">
             <label className="flex items-center gap-2 cursor-pointer mb-2">
               <input
@@ -890,11 +791,9 @@ function PaymentMethodCard({
 function PaymentMethodsSection({
   concertId,
   paymentMethods,
-  feeMode,
 }: {
   concertId: string;
   paymentMethods: PaymentMethodData[];
-  feeMode?: string;
 }) {
   const { t } = useLanguage();
   const [refreshingRate, setRefreshingRate] = useState(false);
@@ -954,7 +853,6 @@ function PaymentMethodsSection({
             existing={paymentMethods.find(
               (pm) => pm.type === base.type || (!pm.type && pm.name.toLowerCase() === base.name.toLowerCase()),
             )}
-            feeMode={feeMode}
           />
         ))}
       </div>
@@ -1525,10 +1423,12 @@ function PhaseManagement({
 function FeesSection({
   concertId,
   ticketTypes,
+  paymentMethods,
   feeMode,
 }: {
   concertId: string;
   ticketTypes: TicketTypeData[];
+  paymentMethods: PaymentMethodData[];
   feeMode?: string;
 }) {
   const { t } = useLanguage();
@@ -1576,9 +1476,22 @@ function FeesSection({
       </div>
 
       {activeMode === "paymentMethod" ? (
-        <p className="text-muted text-sm text-center py-4">
-          {t("admin.feeModeDisabledNotice")}
-        </p>
+        paymentMethods.length === 0 ? (
+          <p className="text-muted text-sm text-center py-4">
+            {t("admin.feeModeNoMethodsEnabled")}
+          </p>
+        ) : (
+          <>
+            <p className="text-muted text-xs mb-3">
+              {t("admin.pmFeeDescription")}
+            </p>
+            <div className="space-y-3">
+              {paymentMethods.map((pm) => (
+                <PMFeeRow key={pm.id} pm={pm} />
+              ))}
+            </div>
+          </>
+        )
       ) : ticketTypes.length === 0 ? (
         <p className="text-muted text-sm text-center py-4">
           {t("admin.addTicketTypesFirst")}
@@ -1594,6 +1507,75 @@ function FeesSection({
             ))}
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+function PMFeeRow({ pm }: { pm: PaymentMethodData }) {
+  const { t } = useLanguage();
+  const feePercent = pm.feePercent ?? 0;
+  const feeFixed = pm.feeFixed ?? 0;
+  const samplePrice = 50;
+  const calculatedFee = (samplePrice * feePercent) / 100 + feeFixed;
+
+  function updateFee(field: "feePercent" | "feeFixed", value: string) {
+    const num = parseFloat(value);
+    db.transact(
+      db.tx.paymentMethods[pm.id].update({
+        [field]: isNaN(num) ? 0 : num,
+      }),
+    );
+  }
+
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-3">
+      <div>
+        <p className="font-medium text-sm">{pm.name}</p>
+        <p className="text-xs text-muted mt-0.5">
+          {t("admin.pmFeeRowHint")}
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium mb-1">{t("admin.feePercent")}</label>
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            max="100"
+            defaultValue={feePercent || ""}
+            onBlur={(e) => updateFee("feePercent", e.target.value)}
+            className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+            placeholder="0"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1">{t("admin.feeFixed")}</label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            defaultValue={feeFixed || ""}
+            onBlur={(e) => updateFee("feeFixed", e.target.value)}
+            className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+            placeholder="0.00"
+          />
+        </div>
+      </div>
+      {(feePercent > 0 || feeFixed > 0) && (
+        <p className="text-xs text-muted">
+          {t("admin.onTicket", { price: samplePrice.toFixed(2) })}:{" "}
+          {feePercent > 0 && (
+            <span>{t("admin.feeCalcPercent", { amount: ((samplePrice * feePercent) / 100).toFixed(2), percent: feePercent })}</span>
+          )}
+          {feePercent > 0 && feeFixed > 0 && " + "}
+          {feeFixed > 0 && <span>{t("admin.feeCalcFixed", { amount: feeFixed.toFixed(2) })}</span>}
+          {" = "}
+          <span className="font-medium text-foreground">
+            {t("admin.feeCalcTotal", { amount: calculatedFee.toFixed(2) })}
+          </span>
+        </p>
       )}
     </div>
   );
