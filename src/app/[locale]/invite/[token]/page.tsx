@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
 import { useLanguage } from "@/lib/LanguageContext";
 import { TERMS_VERSION, PRIVACY_VERSION } from "@/lib/legalVersions";
+import { parseBank, formatBank } from "@/lib/pago-movil";
 import Link from "next/link";
 
 async function uploadWithRetry(path: string, file: File) {
@@ -583,7 +584,7 @@ function PaymentMethodDetails({
           {method.pmBank && (
             <p>
               <span className="text-muted">Banco: </span>
-              <span className="select-all">{method.pmBank}</span>
+              <span className="select-all">{formatBank(parseBank(method.pmBank))}</span>
             </p>
           )}
         </>

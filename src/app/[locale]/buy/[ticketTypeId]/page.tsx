@@ -8,6 +8,7 @@ import { useStorageUrl } from "@/lib/useStorageUrl";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import { getPeoplePerTicket, isAreaTicket } from "@/lib/ticketTypeKind";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
+import { parseBank, formatBank } from "@/lib/pago-movil";
 import { TERMS_VERSION, PRIVACY_VERSION } from "@/lib/legalVersions";
 import { id } from "@instantdb/react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -1028,7 +1029,7 @@ export default function BuyPage() {
                           <p><span className="text-muted">{t("checkout.pmPhoneLabel")}</span> <span className="font-medium select-all">{(selectedPm as { pmPhone?: string }).pmPhone}</span></p>
                         )}
                         {(selectedPm as { pmBank?: string }).pmBank && (
-                          <p><span className="text-muted">{t("checkout.pmBankLabel")}</span> <span className="font-medium">{(selectedPm as { pmBank?: string }).pmBank}</span></p>
+                          <p><span className="text-muted">{t("checkout.pmBankLabel")}</span> <span className="font-medium select-all">{formatBank(parseBank((selectedPm as { pmBank?: string }).pmBank))}</span></p>
                         )}
                       </div>
                     )}

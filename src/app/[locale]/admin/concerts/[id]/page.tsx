@@ -10,6 +10,7 @@ import { id } from "@instantdb/react";
 import { extractDominantColor, extractPalette, mapPaletteToTheme } from "@/lib/colorExtract";
 import { serializeThemeColors } from "@/lib/themeColors";
 import PaletteEditor from "@/components/admin/PaletteEditor";
+import { PagoMovilFields } from "@/components/admin/PagoMovilFields";
 import { useParams } from "next/navigation";
 import { useRef, useState } from "react";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
@@ -175,15 +176,17 @@ function ConcertEditForm({ concert, isSuperAdmin }: { concert: ConcertData; isSu
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    db.transact(
+    db.transact([
       db.tx.concerts[concert.id].update({
         name,
         date,
         venue,
-        venueMapUrl: venueMapUrl || undefined,
         description,
       }),
-    );
+      db.tx.concerts[concert.id].merge({
+        venueMapUrl: venueMapUrl || null,
+      }),
+    ]);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -506,7 +509,7 @@ function PaymentMethodCard({
     if (base.type === "pago_movil" && !convertCurrency) {
       setConvertCurrency("USD");
     }
-    db.transact(
+    db.transact([
       db.tx.paymentMethods[existing.id].update({
         instructions: instructions || "",
         convertCurrency: effectiveConvertCurrency,
@@ -514,16 +517,20 @@ function PaymentMethodCard({
         requireReferenceNumber: base.type === "efectivo" ? false : requireReferenceNumber,
         discountType: discountEnabled ? discountType : null,
         discountValue: parsedDiscountValue,
-        ...(base.type === "zelle" ? { zelleEmail: zelleEmail || undefined, zelleName: zelleName || undefined } : {}),
         ...(base.type === "pago_movil" ? {
-          pmCedula: pmCedula || undefined,
-          pmPhone: pmPhone || undefined,
-          pmBank: pmBank || undefined,
           showConversionDetail,
           customRate: isCustom ? parsedCustomRate : null,
         } : {}),
       }),
-    );
+      db.tx.paymentMethods[existing.id].merge({
+        ...(base.type === "zelle" ? { zelleEmail: zelleEmail || null, zelleName: zelleName || null } : {}),
+        ...(base.type === "pago_movil" ? {
+          pmCedula: pmCedula || null,
+          pmPhone: pmPhone || null,
+          pmBank: pmBank || null,
+        } : {}),
+      }),
+    ]);
     setDiscountError("");
     setDirty(false);
   }
@@ -604,35 +611,14 @@ function PaymentMethodCard({
 
           {/* Pago Movil-specific fields */}
           {base.type === "pago_movil" && (
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">{t("admin.pmCedula")}</label>
-                <input
-                  value={pmCedula}
-                  onChange={(e) => { setPmCedula(e.target.value); setDirty(true); }}
-                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  placeholder={t("admin.placeholders.cedula")}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">{t("admin.pmPhone")}</label>
-                <input
-                  value={pmPhone}
-                  onChange={(e) => { setPmPhone(e.target.value); setDirty(true); }}
-                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  placeholder={t("admin.placeholders.phone")}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">{t("admin.pmBank")}</label>
-                <input
-                  value={pmBank}
-                  onChange={(e) => { setPmBank(e.target.value); setDirty(true); }}
-                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  placeholder={t("admin.placeholders.bank")}
-                />
-              </div>
-            </div>
+            <PagoMovilFields
+              pmCedula={pmCedula}
+              pmPhone={pmPhone}
+              pmBank={pmBank}
+              onCedulaChange={(v) => { setPmCedula(v); setDirty(true); }}
+              onPhoneChange={(v) => { setPmPhone(v); setDirty(true); }}
+              onBankChange={(v) => { setPmBank(v); setDirty(true); }}
+            />
           )}
 
           <div>
@@ -1088,9 +1074,9 @@ function TicketTypeItem({
 
   return (
     <div className="border border-border rounded-lg">
-      <div className="flex items-center justify-between p-4">
-        <div>
-          <div className="flex items-center gap-2">
+      <div className="p-4 space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
             <input
               value={tt.name}
               onChange={(e) =>
@@ -1114,37 +1100,43 @@ function TicketTypeItem({
               </span>
             )}
           </div>
-          <input
-            value={tt.description || ""}
-            onChange={(e) =>
-              db.transact(
-                db.tx.ticketTypes[tt.id].update({
-                  description: e.target.value || undefined,
-                }),
-              )
-            }
-            placeholder={t("admin.addDescription")}
-            className="text-sm text-muted bg-transparent border-b border-transparent hover:border-border focus:border-accent-light focus:outline-none w-full transition-colors py-0.5"
-          />
-          {hasPhases ? (
-            <p className="text-sm text-muted mt-1">
-              {activePhase ? (
-                <>
-                  <span className="text-success font-medium">{activePhase.name}</span>
-                  {" "}@ ${activePhase.price.toFixed(2)} &middot;{" "}
-                </>
-              ) : (
-                <span className="text-danger font-medium">{t("admin.allPhasesExhausted")} &middot; </span>
-              )}
-              {t("admin.soldCountPhases", { sold, total: totalCapacity })}
-            </p>
-          ) : (
-            <p className="text-sm text-muted mt-1">
-              ${tt.price.toFixed(2)} &middot; {t("admin.soldCount", { sold, total: tt.quantity })}
-            </p>
-          )}
+          <button
+            onClick={onDelete}
+            className="text-muted hover:text-danger transition-colors text-sm shrink-0"
+          >
+            {t("common.delete")}
+          </button>
         </div>
-        <div className="flex items-center gap-2">
+        <input
+          value={tt.description || ""}
+          onChange={(e) =>
+            db.transact(
+              db.tx.ticketTypes[tt.id].merge({
+                description: e.target.value || null,
+              }),
+            )
+          }
+          placeholder={t("admin.addDescription")}
+          className="text-sm text-muted bg-transparent border-b border-transparent hover:border-border focus:border-accent-light focus:outline-none w-full transition-colors py-0.5"
+        />
+        {hasPhases ? (
+          <p className="text-sm text-muted">
+            {activePhase ? (
+              <>
+                <span className="text-success font-medium">{activePhase.name}</span>
+                {" — "}${activePhase.price.toFixed(2)} &middot;{" "}
+              </>
+            ) : (
+              <span className="text-danger font-medium">{t("admin.allPhasesExhausted")} &middot; </span>
+            )}
+            {t("admin.soldCountPhases", { sold, total: totalCapacity })}
+          </p>
+        ) : (
+          <p className="text-sm text-muted">
+            ${tt.price.toFixed(2)} &middot; {t("admin.soldCount", { sold, total: tt.quantity })}
+          </p>
+        )}
+        <div className="flex items-center gap-2 flex-wrap pt-1">
           <select
             value={tt.visibility || "visible"}
             onChange={(e) =>
@@ -1160,7 +1152,10 @@ function TicketTypeItem({
             <option value="hidden">{t("common.hidden")}</option>
             <option value="soldOutOverride">{t("admin.showAsSoldOut")}</option>
           </select>
-          <label className="flex items-center gap-1 text-xs text-muted cursor-pointer select-none">
+          <label
+            className="flex items-center gap-1 text-xs text-muted cursor-pointer select-none"
+            title={t("admin.hideAvailabilityHint")}
+          >
             <input
               type="checkbox"
               checked={!tt.hideAvailability}
@@ -1180,12 +1175,6 @@ function TicketTypeItem({
             className="px-3 py-1.5 border border-border hover:border-accent/50 text-muted hover:text-accent-light rounded-lg text-xs font-medium transition-colors"
           >
             {showPhases ? t("admin.hidePhases") : t("admin.managePhases")}
-          </button>
-          <button
-            onClick={onDelete}
-            className="text-muted hover:text-danger transition-colors text-sm"
-          >
-            {t("common.delete")}
           </button>
         </div>
       </div>
@@ -1373,14 +1362,16 @@ function PhaseManagement({
 
   function saveEdit() {
     if (!editingId) return;
-    db.transact(
+    db.transact([
       db.tx.ticketPhases[editingId].update({
         name: editName,
         price: parseFloat(editPrice),
         quantity: parseInt(editQuantity, 10),
-        endDate: editEndDate || undefined,
       }),
-    );
+      db.tx.ticketPhases[editingId].merge({
+        endDate: editEndDate || null,
+      }),
+    ]);
     setEditingId(null);
   }
 

@@ -7,6 +7,7 @@ import { useStorageUrl } from "@/lib/useStorageUrl";
 import { extractDominantColor, extractPalette, mapPaletteToTheme } from "@/lib/colorExtract";
 import { serializeThemeColors } from "@/lib/themeColors";
 import PaletteEditor from "@/components/admin/PaletteEditor";
+import { PagoMovilFields } from "@/components/admin/PagoMovilFields";
 import { getFieldTypeLabel } from "@/lib/i18n";
 import { id as genId } from "@instantdb/react";
 import { toast } from "sonner";
@@ -631,8 +632,8 @@ function GuestListTicketTypeItem({
             value={tt.description || ""}
             onChange={(e) =>
               db.transact(
-                db.tx.guestListTicketTypes[tt.id].update({
-                  description: e.target.value || undefined,
+                db.tx.guestListTicketTypes[tt.id].merge({
+                  description: e.target.value || null,
                 }),
               )
             }
@@ -1075,7 +1076,7 @@ function PaymentMethodCard({
     if (base.type === "pago_movil" && !convertCurrency) {
       setConvertCurrency("USD");
     }
-    db.transact(
+    db.transact([
       db.tx.guestListPaymentMethods[existing.id].update({
         instructions: instructions || "",
         convertCurrency: effectiveConvertCurrency,
@@ -1083,16 +1084,20 @@ function PaymentMethodCard({
         requireReferenceNumber: base.type === "efectivo" ? false : requireReferenceNumber,
         discountType: discountEnabled ? discountType : null,
         discountValue: parsedDiscountValue,
-        ...(base.type === "zelle" ? { zelleEmail: zelleEmail || undefined, zelleName: zelleName || undefined } : {}),
         ...(base.type === "pago_movil" ? {
-          pmCedula: pmCedula || undefined,
-          pmPhone: pmPhone || undefined,
-          pmBank: pmBank || undefined,
           showConversionDetail,
           customRate: isCustom ? parsedCustomRate : null,
         } : {}),
       }),
-    );
+      db.tx.guestListPaymentMethods[existing.id].merge({
+        ...(base.type === "zelle" ? { zelleEmail: zelleEmail || null, zelleName: zelleName || null } : {}),
+        ...(base.type === "pago_movil" ? {
+          pmCedula: pmCedula || null,
+          pmPhone: pmPhone || null,
+          pmBank: pmBank || null,
+        } : {}),
+      }),
+    ]);
     setDiscountError("");
     setDirty(false);
   }
@@ -1171,35 +1176,14 @@ function PaymentMethodCard({
           )}
 
           {base.type === "pago_movil" && (
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">{t("admin.pmCedula")}</label>
-                <input
-                  value={pmCedula}
-                  onChange={(e) => { setPmCedula(e.target.value); setDirty(true); }}
-                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  placeholder={t("admin.placeholders.cedula")}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">{t("admin.pmPhone")}</label>
-                <input
-                  value={pmPhone}
-                  onChange={(e) => { setPmPhone(e.target.value); setDirty(true); }}
-                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  placeholder={t("admin.placeholders.phone")}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">{t("admin.pmBank")}</label>
-                <input
-                  value={pmBank}
-                  onChange={(e) => { setPmBank(e.target.value); setDirty(true); }}
-                  className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
-                  placeholder={t("admin.placeholders.bank")}
-                />
-              </div>
-            </div>
+            <PagoMovilFields
+              pmCedula={pmCedula}
+              pmPhone={pmPhone}
+              pmBank={pmBank}
+              onCedulaChange={(v) => { setPmCedula(v); setDirty(true); }}
+              onPhoneChange={(v) => { setPmPhone(v); setDirty(true); }}
+              onBankChange={(v) => { setPmBank(v); setDirty(true); }}
+            />
           )}
 
           <div>
@@ -2049,13 +2033,10 @@ function EventForm({
     e.preventDefault();
     const priceNum = Number(defaultPrice);
     const capNum = capacity === "" ? null : Number(capacity);
-    db.transact(
+    db.transact([
       db.tx.guestListEvents[eventId].update({
         name,
         date,
-        venue: venue || undefined,
-        venueMapUrl: venueMapUrl || undefined,
-        description: description || undefined,
         ...(Number.isFinite(priceNum) && priceNum >= 0 ? { defaultPrice: priceNum } : {}),
         ...(capNum === null
           ? { capacity: null as unknown as undefined }
@@ -2063,7 +2044,12 @@ function EventForm({
             ? { capacity: Math.floor(capNum) }
             : {}),
       }),
-    );
+      db.tx.guestListEvents[eventId].merge({
+        venue: venue || null,
+        venueMapUrl: venueMapUrl || null,
+        description: description || null,
+      }),
+    ]);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
