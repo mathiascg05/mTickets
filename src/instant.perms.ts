@@ -386,9 +386,11 @@ const rules = {
   },
   $files: {
     allow: {
-      view: `data.path.startsWith('event-assets/') || auth.email == '${SUPER_ADMIN}'`,
+      view: `data.path.startsWith('event-assets/') || data.path.startsWith('ticket-type-assets/') || auth.email == '${SUPER_ADMIN}'`,
       create:
-        "data.path.startsWith('payment-proofs/') || (auth.email != null && data.path.startsWith('event-assets/'))",
+        "data.path.startsWith('payment-proofs/') || (auth.email != null && (data.path.startsWith('event-assets/') || data.path.startsWith('ticket-type-assets/')))",
+      delete:
+        `auth.email != null && (data.path.startsWith('event-assets/') || data.path.startsWith('ticket-type-assets/') || auth.email == '${SUPER_ADMIN}')`,
     },
   },
 } satisfies InstantRules;

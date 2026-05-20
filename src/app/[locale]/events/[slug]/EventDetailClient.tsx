@@ -9,6 +9,7 @@ import { getAvailability, getTodayString } from "@/lib/phases";
 import type { Phase } from "@/lib/phases";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
 import { isAuthorizedForConcert } from "@/lib/authHelpers";
+import { getPeoplePerTicket, isAreaTicket } from "@/lib/ticketTypeKind";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState, useCallback } from "react";
@@ -240,7 +241,10 @@ function TicketTypeRow({
     description?: string;
     visibility?: string;
     hideAvailability?: boolean;
-    orders: { id: string; status: string; phaseId?: string }[];
+    peoplePerTicket?: number;
+    imagePath?: string;
+    imageUrl?: string;
+    orders: { id: string; status: string; phaseId?: string; priceSnapshot?: number }[];
     phases: Phase[];
     reservations: { id: string; quantity: number; expiresAt: number; phaseId?: string }[];
     queueEntries: { id: string; status: string; expiresAt: number }[];
@@ -248,6 +252,9 @@ function TicketTypeRow({
 }) {
   const [qty, setQty] = useState(1);
   const { t } = useLanguage();
+  const isArea = isAreaTicket(ticketType);
+  const peoplePerTicket = getPeoplePerTicket(ticketType);
+  const areaImageUrl = useStorageUrl(ticketType.imagePath);
 
   const now = Date.now();
   const today = getTodayString();
@@ -257,7 +264,8 @@ function TicketTypeRow({
   const availability = getAvailability(ticketType, ticketType.phases || [], ticketType.orders, today, activeReservations);
   const { price, available, totalCapacity, activePhase, displayPhase } = availability;
   const soldOut = ticketType.visibility === "soldOutOverride" || availability.soldOut;
-  const maxQty = Math.min(available, 5);
+  // V1: las áreas se compran de a una.
+  const maxQty = isArea ? 1 : Math.min(available, 5);
 
   // Queue detection
   const queueEntries = ticketType.queueEntries || [];
@@ -278,30 +286,51 @@ function TicketTypeRow({
     : `${basePath}?qty=${qty}`;
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 border border-border rounded-lg hover:border-accent/30 hover:shadow-sm transition-all">
-      <div className="flex-1">
-        <h3 className="font-semibold text-lg">{ticketType.name}</h3>
-        {displayPhase && (
-          <p className="text-xs font-medium text-accent-light mt-0.5">
-            {displayPhase.name}
-          </p>
+    <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 border rounded-lg hover:shadow-sm transition-all ${isArea ? "border-accent/40 bg-accent/5 hover:border-accent/60" : "border-border hover:border-accent/30"}`}>
+      <div className="flex-1 flex gap-4 min-w-0">
+        {isArea && areaImageUrl && (
+          <img
+            src={areaImageUrl}
+            alt={ticketType.name}
+            className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg flex-shrink-0"
+          />
         )}
-        {ticketType.description && (
-          <p className="text-muted text-sm mt-1">{ticketType.description}</p>
-        )}
-        {ticketType.visibility !== "soldOutOverride" && !ticketType.hideAvailability && (
-          <p className="text-sm text-muted mt-1">
-            {t("event.availableOf", { available, total: totalCapacity })}
-          </p>
-        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold text-lg">{ticketType.name}</h3>
+            {isArea && (
+              <span className="px-2 py-0.5 bg-accent/20 text-accent-light rounded text-[10px] font-semibold uppercase tracking-wider">
+                {t("admin.areaPeopleIncluded", { n: peoplePerTicket })}
+              </span>
+            )}
+          </div>
+          {displayPhase && (
+            <p className="text-xs font-medium text-accent-light mt-0.5">
+              {displayPhase.name}
+            </p>
+          )}
+          {ticketType.description && (
+            <p className="text-muted text-sm mt-1">{ticketType.description}</p>
+          )}
+          {ticketType.visibility !== "soldOutOverride" && !ticketType.hideAvailability && (
+            <p className="text-sm text-muted mt-1">
+              {isArea
+                ? t("event.areaAvailableOf", { available, total: totalCapacity })
+                : t("event.availableOf", { available, total: totalCapacity })}
+            </p>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-3">
         <div className="text-right">
           <span className="text-2xl font-bold text-accent-light">
             ${price.toFixed(2)}
           </span>
-          {((ticketType as { feePercent?: number }).feePercent ?? 0) > 0 ||
-          ((ticketType as { feeFixed?: number }).feeFixed ?? 0) > 0 ? (
+          {isArea && (
+            <p className="text-[11px] text-muted">{t("admin.areaPriceSuffix")}</p>
+          )}
+          {!isArea && (((ticketType as { feePercent?: number }).feePercent ?? 0) > 0 ||
+            ((ticketType as { feeFixed?: number }).feeFixed ?? 0) > 0) ? (
             <p className="text-[11px] text-muted">{t("event.serviceFee")}</p>
           ) : null}
         </div>
@@ -311,17 +340,19 @@ function TicketTypeRow({
           </span>
         ) : (
           <>
-            <select
-              value={qty}
-              onChange={(e) => setQty(Number(e.target.value))}
-              className="px-3 py-2.5 bg-field border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
-            >
-              {Array.from({ length: maxQty }, (_, i) => i + 1).map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
+            {!isArea && (
+              <select
+                value={qty}
+                onChange={(e) => setQty(Number(e.target.value))}
+                className="px-3 py-2.5 bg-field border border-border rounded-md focus:outline-none focus:border-accent-light transition-colors text-sm"
+              >
+                {Array.from({ length: maxQty }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            )}
             <Link
               href={buyHref}
               className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium text-sm uppercase tracking-wider transition-colors"

@@ -11,6 +11,7 @@ type OrderForPhase = {
   id: string;
   status: string;
   phaseId?: string;
+  priceSnapshot?: number;
 };
 
 type ReservationForPhase = {
@@ -34,13 +35,15 @@ export function getActivePhase(
   allOrders: OrderForPhase[],
   today: string, // "YYYY-MM-DD"
   reservations: ReservationForPhase[] = [],
+  isArea = false,
 ): Phase | null {
   const sorted = [...phases].sort((a, b) => a.sortOrder - b.sortOrder);
   for (const phase of sorted) {
     const sold = allOrders.filter(
       (o) =>
         o.phaseId === phase.id &&
-        (o.status === "approved" || o.status === "pending"),
+        (o.status === "approved" || o.status === "pending") &&
+        (!isArea || (o.priceSnapshot ?? 0) > 0),
     ).length;
     const reserved = activeReservedQty(reservations, phase.id);
     if (sold + reserved >= phase.quantity) continue;
@@ -62,6 +65,7 @@ export type Availability = {
 function getLastSoldPhase(
   phases: Phase[],
   allOrders: OrderForPhase[],
+  isArea = false,
 ): Phase | null {
   if (phases.length === 0) return null;
   const sortedDesc = [...phases].sort((a, b) => b.sortOrder - a.sortOrder);
@@ -69,22 +73,27 @@ function getLastSoldPhase(
     allOrders.some(
       (o) =>
         o.phaseId === p.id &&
-        (o.status === "approved" || o.status === "pending"),
+        (o.status === "approved" || o.status === "pending") &&
+        (!isArea || (o.priceSnapshot ?? 0) > 0),
     ),
   );
   return withSales ?? sortedDesc[0];
 }
 
 export function getAvailability(
-  ticketType: { price: number; quantity: number },
+  ticketType: { price: number; quantity: number; peoplePerTicket?: number },
   phases: Phase[],
   allOrders: OrderForPhase[],
   today: string,
   reservations: ReservationForPhase[] = [],
 ): Availability {
+  const isArea = (ticketType.peoplePerTicket ?? 1) > 1;
+
   if (!phases || phases.length === 0) {
     const approvedOrPending = allOrders.filter(
-      (o) => o.status === "approved" || o.status === "pending",
+      (o) =>
+        (o.status === "approved" || o.status === "pending") &&
+        (!isArea || (o.priceSnapshot ?? 0) > 0),
     ).length;
     const reserved = activeReservedQty(reservations);
     const available = ticketType.quantity - approvedOrPending - reserved;
@@ -98,9 +107,9 @@ export function getAvailability(
     };
   }
 
-  const activePhase = getActivePhase(phases, allOrders, today, reservations);
+  const activePhase = getActivePhase(phases, allOrders, today, reservations, isArea);
   if (!activePhase) {
-    const lastSold = getLastSoldPhase(phases, allOrders);
+    const lastSold = getLastSoldPhase(phases, allOrders, isArea);
     return {
       price: lastSold?.price ?? ticketType.price,
       available: 0,
@@ -114,7 +123,8 @@ export function getAvailability(
   const sold = allOrders.filter(
     (o) =>
       o.phaseId === activePhase.id &&
-      (o.status === "approved" || o.status === "pending"),
+      (o.status === "approved" || o.status === "pending") &&
+      (!isArea || (o.priceSnapshot ?? 0) > 0),
   ).length;
   const reserved = activeReservedQty(reservations, activePhase.id);
 

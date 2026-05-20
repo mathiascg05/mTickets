@@ -5,6 +5,7 @@ import { useStorageUrl } from "@/lib/useStorageUrl";
 import { dateLocale } from "@/lib/i18n";
 import { getActivePhase, getTodayString } from "@/lib/phases";
 import type { Phase } from "@/lib/phases";
+import { isAreaTicket, getPeoplePerTicket } from "@/lib/ticketTypeKind";
 import { id } from "@instantdb/react";
 import { extractDominantColor, extractPalette, mapPaletteToTheme } from "@/lib/colorExtract";
 import { serializeThemeColors } from "@/lib/themeColors";
@@ -31,6 +32,7 @@ export default function AdminConcertEditPage() {
         phases: {
           $: { order: { sortOrder: "asc" } },
         },
+        reservations: {},
       },
       paymentMethods: {
         $: { order: { createdAt: "asc" } },
@@ -870,8 +872,12 @@ type TicketTypeData = {
   hideAvailability?: boolean;
   feePercent?: number;
   feeFixed?: number;
-  orders: { id: string; status: string; phaseId?: string }[];
+  peoplePerTicket?: number;
+  imagePath?: string;
+  imageUrl?: string;
+  orders: { id: string; status: string; phaseId?: string; priceSnapshot?: number }[];
   phases: Phase[];
+  reservations?: { id: string; expiresAt: number }[];
 };
 
 function TicketTypesSection({
@@ -887,9 +893,12 @@ function TicketTypesSection({
   const [price, setPrice] = useState("");
   const [quantity, setQuantity] = useState("");
   const [description, setDescription] = useState("");
+  const [isAreaMode, setIsAreaMode] = useState(false);
+  const [peoplePerTicket, setPeoplePerTicket] = useState("8");
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    const ppt = isAreaMode ? Math.max(2, parseInt(peoplePerTicket, 10) || 0) : undefined;
     db.transact(
       db.tx.ticketTypes[id()]
         .update({
@@ -897,6 +906,7 @@ function TicketTypesSection({
           price: parseFloat(price),
           quantity: parseInt(quantity, 10),
           description: description || undefined,
+          ...(ppt ? { peoplePerTicket: ppt } : {}),
           createdAt: Date.now(),
         })
         .link({ concert: concertId }),
@@ -905,6 +915,8 @@ function TicketTypesSection({
     setPrice("");
     setQuantity("");
     setDescription("");
+    setIsAreaMode(false);
+    setPeoplePerTicket("8");
     setShowForm(false);
   }
 
@@ -980,6 +992,35 @@ function TicketTypesSection({
               className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
             />
           </div>
+          <div className="border-t border-border pt-3 space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isAreaMode}
+                onChange={(e) => setIsAreaMode(e.target.checked)}
+                className="w-4 h-4 accent-accent"
+              />
+              {t("admin.areaToggle")}
+            </label>
+            {isAreaMode && (
+              <div className="pl-6">
+                <label className="block text-xs font-medium mb-1 text-muted">
+                  {t("admin.peoplePerArea")}
+                </label>
+                <input
+                  type="number"
+                  min="2"
+                  step="1"
+                  value={peoplePerTicket}
+                  onChange={(e) => setPeoplePerTicket(e.target.value)}
+                  className="w-32 px-3 py-1.5 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
+                />
+                <p className="text-xs text-muted mt-1">
+                  {t("admin.areaPriceHint", { price: price || "0", n: peoplePerTicket || "0" })}
+                </p>
+              </div>
+            )}
+          </div>
           <button
             type="submit"
             className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors"
@@ -998,11 +1039,14 @@ function TicketTypesSection({
           ticketTypes.map((tt) => {
             const phases = tt.phases || [];
             const hasPhases = phases.length > 0;
+            const isArea = isAreaTicket(tt);
             const sold = tt.orders.filter(
-              (o) => o.status === "approved" || o.status === "pending",
+              (o) =>
+                (o.status === "approved" || o.status === "pending") &&
+                (!isArea || (o.priceSnapshot ?? 0) > 0),
             ).length;
             const today = getTodayString();
-            const active = hasPhases ? getActivePhase(phases, tt.orders, today) : null;
+            const active = hasPhases ? getActivePhase(phases, tt.orders, today, [], isArea) : null;
             const totalCapacity = hasPhases
               ? phases.reduce((s, p) => s + p.quantity, 0)
               : tt.quantity;
@@ -1063,6 +1107,11 @@ function TicketTypeItem({
             )}
             {tt.visibility === "soldOutOverride" && (
               <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded text-[10px] font-semibold uppercase tracking-wider">{t("admin.forcedSoldOut")}</span>
+            )}
+            {isAreaTicket(tt) && (
+              <span className="px-1.5 py-0.5 bg-accent/20 text-accent-light rounded text-[10px] font-semibold uppercase tracking-wider">
+                {t("admin.areaBadge", { n: getPeoplePerTicket(tt) })}
+              </span>
             )}
           </div>
           <input
@@ -1140,11 +1189,126 @@ function TicketTypeItem({
           </button>
         </div>
       </div>
-      {showPhases && (
+      {isAreaTicket(tt) && (
         <div className="border-t border-border p-4">
-          <PhaseManagement ticketTypeId={tt.id} phases={tt.phases || []} orders={tt.orders} />
+          <AreaSettings tt={tt} sold={sold} />
         </div>
       )}
+      {showPhases && (
+        <div className="border-t border-border p-4">
+          <PhaseManagement ticketTypeId={tt.id} phases={tt.phases || []} orders={tt.orders} isArea={isAreaTicket(tt)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AreaSettings({ tt, sold }: { tt: TicketTypeData; sold: number }) {
+  const { t } = useLanguage();
+  const [editingSize, setEditingSize] = useState(false);
+  const [size, setSize] = useState(String(getPeoplePerTicket(tt)));
+  const [uploading, setUploading] = useState(false);
+  const imageUrl = useStorageUrl(tt.imagePath);
+  const reservationsCount = (tt.reservations || []).filter(
+    (r: { expiresAt: number }) => r.expiresAt > Date.now(),
+  ).length;
+  const locked = sold > 0 || reservationsCount > 0;
+
+  async function saveSize() {
+    const n = Math.max(2, parseInt(size, 10) || 0);
+    db.transact(db.tx.ticketTypes[tt.id].update({ peoplePerTicket: n }));
+    setEditingSize(false);
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `ticket-type-assets/${tt.id}/area.${ext}`;
+      try {
+        const { data: { $files: oldFiles } } = await db.queryOnce({
+          $files: { $: { where: { path: { $like: `ticket-type-assets/${tt.id}/area%` } } } },
+        });
+        if (oldFiles.length > 0) {
+          await db.transact(oldFiles.map((f) => db.tx.$files[f.id].delete()));
+        }
+      } catch { /* ignore */ }
+      await db.storage.upload(path, file);
+      await db.transact(db.tx.ticketTypes[tt.id].update({ imagePath: path, imageUrl: "" }));
+    } catch (err) {
+      console.error("Area image upload failed:", err);
+    }
+    setUploading(false);
+    e.target.value = "";
+  }
+
+  async function handleImageRemove() {
+    try {
+      const { data: { $files: oldFiles } } = await db.queryOnce({
+        $files: { $: { where: { path: { $like: `ticket-type-assets/${tt.id}/area%` } } } },
+      });
+      if (oldFiles.length > 0) {
+        await db.transact(oldFiles.map((f) => db.tx.$files[f.id].delete()));
+      }
+    } catch { /* ignore */ }
+    db.transact(db.tx.ticketTypes[tt.id].update({ imagePath: "", imageUrl: "" }));
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-medium text-muted uppercase tracking-wider">
+          {t("admin.peoplePerArea")}:
+        </span>
+        {editingSize && !locked ? (
+          <>
+            <input
+              type="number"
+              min="2"
+              value={size}
+              onChange={(e) => setSize(e.target.value)}
+              className="w-20 px-2 py-1 bg-background border border-border rounded text-sm focus:outline-none focus:border-accent-light"
+            />
+            <button onClick={saveSize} className="text-xs px-2 py-1 bg-accent hover:bg-accent-dark text-white rounded">
+              {t("common.save")}
+            </button>
+            <button onClick={() => { setSize(String(getPeoplePerTicket(tt))); setEditingSize(false); }} className="text-xs text-muted hover:text-foreground">
+              {t("common.cancel")}
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-sm font-medium">{getPeoplePerTicket(tt)}</span>
+            {locked ? (
+              <span className="text-xs text-muted italic" title={t("admin.areaPeoplePerLocked")}>🔒</span>
+            ) : (
+              <button onClick={() => setEditingSize(true)} className="text-xs text-muted hover:text-accent-light">
+                {t("common.edit")}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-2">
+          {t("admin.areaImageLabel")}
+        </label>
+        {imageUrl ? (
+          <div className="flex items-center gap-3">
+            <img src={imageUrl} alt="" className="w-24 h-24 object-cover rounded-lg border border-border" />
+            <button onClick={handleImageRemove} className="text-xs text-danger hover:text-red-400">
+              {t("admin.areaImageRemove")}
+            </button>
+          </div>
+        ) : (
+          <label className="inline-flex items-center px-3 py-1.5 bg-background border border-border hover:border-accent/50 rounded-lg text-xs font-medium cursor-pointer transition-colors">
+            {uploading ? "..." : t("admin.areaImageUpload")}
+            <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploading} />
+          </label>
+        )}
+      </div>
     </div>
   );
 }
@@ -1153,10 +1317,12 @@ function PhaseManagement({
   ticketTypeId,
   phases,
   orders,
+  isArea = false,
 }: {
   ticketTypeId: string;
   phases: Phase[];
-  orders: { id: string; status: string; phaseId?: string }[];
+  orders: { id: string; status: string; phaseId?: string; priceSnapshot?: number }[];
+  isArea?: boolean;
 }) {
   const { t } = useLanguage();
   const [showForm, setShowForm] = useState(false);
@@ -1171,7 +1337,7 @@ function PhaseManagement({
   const [editEndDate, setEditEndDate] = useState("");
 
   const today = getTodayString();
-  const active = getActivePhase(phases, orders, today);
+  const active = getActivePhase(phases, orders, today, [], isArea);
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -1306,7 +1472,8 @@ function PhaseManagement({
             const phaseSold = orders.filter(
               (o) =>
                 o.phaseId === p.id &&
-                (o.status === "approved" || o.status === "pending"),
+                (o.status === "approved" || o.status === "pending") &&
+                (!isArea || (o.priceSnapshot ?? 0) > 0),
             ).length;
             const isActive = active?.id === p.id;
 
@@ -1586,7 +1753,8 @@ function FeeRow({ tt }: { tt: TicketTypeData }) {
   const today = getTodayString();
   const phases = tt.phases || [];
   const hasPhases = phases.length > 0;
-  const activePhase = hasPhases ? getActivePhase(phases, tt.orders, today) : null;
+  const isArea = isAreaTicket(tt);
+  const activePhase = hasPhases ? getActivePhase(phases, tt.orders, today, [], isArea) : null;
   const currentPrice = activePhase ? activePhase.price : tt.price;
 
   const feePercent = tt.feePercent ?? 0;

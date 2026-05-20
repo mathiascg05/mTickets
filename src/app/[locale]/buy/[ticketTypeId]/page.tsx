@@ -6,6 +6,7 @@ import { dateLocale } from "@/lib/i18n";
 import { db } from "@/lib/db";
 import { useStorageUrl } from "@/lib/useStorageUrl";
 import { getAvailability, getTodayString } from "@/lib/phases";
+import { getPeoplePerTicket, isAreaTicket } from "@/lib/ticketTypeKind";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
 import { TERMS_VERSION, PRIVACY_VERSION } from "@/lib/legalVersions";
 import { id } from "@instantdb/react";
@@ -80,13 +81,13 @@ export default function BuyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const ticketTypeId = params.ticketTypeId as string;
-  const qty = Math.max(1, Math.min(5, Number(searchParams.get("qty")) || 1));
+  const qtyParam = Math.max(1, Math.min(5, Number(searchParams.get("qty")) || 1));
   const queueToken = searchParams.get("queueToken") || undefined;
 
   const { t, lang } = useLanguage();
 
   const [attendees, setAttendees] = useState<Attendee[]>(() =>
-    Array.from({ length: qty }, emptyAttendee),
+    Array.from({ length: qtyParam }, emptyAttendee),
   );
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
   const [memoCode] = useState(() => {
@@ -145,11 +146,16 @@ export default function BuyPage() {
   });
 
   const logoUrl = useStorageUrl(data?.ticketTypes?.[0]?.concert?.logoPath);
+  const areaImageUrl = useStorageUrl(data?.ticketTypes?.[0]?.imagePath);
 
   // Create reservation on first data load (server-side)
   useEffect(() => {
     if (isLoading || !data?.ticketTypes?.[0] || reservationCreatedRef.current) return;
     reservationCreatedRef.current = true;
+
+    const tt = data.ticketTypes[0];
+    const isAreaTT = isAreaTicket(tt);
+    const reservationQty = isAreaTT ? 1 : qtyParam;
 
     const storageKey = STORAGE_KEY_PREFIX + ticketTypeId;
     const stored = sessionStorage.getItem(storageKey);
@@ -175,7 +181,7 @@ export default function BuyPage() {
     fetch("/api/create-reservation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticketTypeId, qty, queueToken }),
+      body: JSON.stringify({ ticketTypeId, qty: reservationQty, queueToken }),
     })
       .then((res) => res.json())
       .then((result) => {
@@ -191,7 +197,20 @@ export default function BuyPage() {
       .catch(() => {
         // Reservation failed — user can still try to buy, just without a hold
       });
-  }, [isLoading, data?.ticketTypes?.[0]?.id, ticketTypeId, qty]);
+  }, [isLoading, data?.ticketTypes?.[0]?.id, ticketTypeId, qtyParam]);
+
+  // Sync attendees array length to peoplePerTicket when area data loads
+  useEffect(() => {
+    if (isLoading || !data?.ticketTypes?.[0]) return;
+    const tt = data.ticketTypes[0];
+    const ppt = getPeoplePerTicket(tt);
+    const target = ppt > 1 ? ppt : qtyParam;
+    setAttendees((prev) => {
+      if (prev.length === target) return prev;
+      const next = Array.from({ length: target }, (_, i) => prev[i] ?? emptyAttendee());
+      return next;
+    });
+  }, [isLoading, data?.ticketTypes?.[0]?.id, data?.ticketTypes?.[0]?.peoplePerTicket, qtyParam]);
 
   // Countdown timer
   useEffect(() => {
@@ -244,9 +263,9 @@ export default function BuyPage() {
 
   useEffect(() => {
     if (!isLoading && ticketTypeForGate && queueIsActive && !hasValidQueueToken && !reservationId) {
-      router.push(`/queue/${ticketTypeId}?qty=${qty}`);
+      router.push(`/queue/${ticketTypeId}?qty=${qtyParam}`);
     }
-  }, [isLoading, ticketTypeForGate, queueIsActive, hasValidQueueToken, ticketTypeId, qty, router]);
+  }, [isLoading, ticketTypeForGate, queueIsActive, hasValidQueueToken, ticketTypeId, qtyParam, router]);
 
   // Block draft events: redirect to event page (which renders "unavailable" for non-organizers)
   const concertForGate = ticketTypeForGate?.concert;
@@ -322,6 +341,11 @@ export default function BuyPage() {
       </div>
     );
   }
+
+  const peoplePerTicket = getPeoplePerTicket(ticketType);
+  const isArea = isAreaTicket(ticketType);
+  const qty = isArea ? 1 : qtyParam;
+  const totalAttendees = qty * peoplePerTicket;
 
   const concert = ticketType.concert;
   const paymentMethods = concert?.paymentMethods || [];
@@ -502,7 +526,8 @@ export default function BuyPage() {
         await uploadWithRetry(filePath, file);
       }
 
-      const purchaseGroupId = qty > 1 ? id() : undefined;
+      // Para áreas, el server genera los purchaseGroupIds por unidad.
+      const purchaseGroupId = isArea ? undefined : (qty > 1 ? id() : undefined);
 
       const res = await fetch("/api/create-order", {
         method: "POST",
@@ -618,18 +643,38 @@ export default function BuyPage() {
           <h1 className="text-2xl font-bold mb-2">{t("checkout.title")}</h1>
 
           <div className="bg-accent/10 border border-accent/30 rounded-xl p-4 mb-6">
-            <p className="font-semibold text-accent-light">{ticketType.name}</p>
-            {activePhase && (
-              <p className="text-xs font-medium text-accent-light/70">
-                {activePhase.name}
-              </p>
-            )}
-            {concert && (
-              <p className="text-sm text-muted">{concert.name}</p>
-            )}
-            <p className="text-lg font-medium mt-2 text-foreground">
-              ${effectivePrice.toFixed(2)} x {qty} = ${subtotal.toFixed(2)}
-            </p>
+            <div className="flex gap-4">
+              {isArea && areaImageUrl && (
+                <img
+                  src={areaImageUrl}
+                  alt={ticketType.name}
+                  className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg flex-shrink-0"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-accent-light">{ticketType.name}</p>
+                {isArea && (
+                  <p className="text-xs font-medium text-accent-light/80 mt-0.5">
+                    {t("admin.areaPeopleIncluded", { n: peoplePerTicket })}
+                  </p>
+                )}
+                {activePhase && (
+                  <p className="text-xs font-medium text-accent-light/70">
+                    {activePhase.name}
+                  </p>
+                )}
+                {concert && (
+                  <p className="text-sm text-muted">{concert.name}</p>
+                )}
+                {isArea ? (
+                  <p className="text-lg font-medium mt-2 text-foreground">
+                    ${effectivePrice.toFixed(2)} <span className="text-sm text-muted">{t("admin.areaPriceSuffix")}</span>
+                  </p>
+                ) : (
+                  <p className="text-lg font-medium mt-2 text-foreground">
+                    ${effectivePrice.toFixed(2)} x {qty} = ${subtotal.toFixed(2)}
+                  </p>
+                )}
             {appliedCoupon && discount > 0 && (
               <p className="text-sm text-success mt-1">
                 {t("checkout.discount", { code: appliedCoupon.code, amount: `$${discount.toFixed(2)}` })}
@@ -651,6 +696,8 @@ export default function BuyPage() {
             <p className="text-2xl font-bold mt-1 text-foreground">
               {t("common.total")}: ${total.toFixed(2)}
             </p>
+              </div>
+            </div>
           </div>
 
           {/* Coupon section */}
@@ -722,7 +769,9 @@ export default function BuyPage() {
                 className="border border-border rounded-xl p-5 space-y-4"
               >
                 <h3 className="font-semibold text-accent-light">
-                  {t("checkout.attendee", { n: i + 1 })}
+                  {isArea
+                    ? t("admin.areaAttendeeLabel", { i: i + 1, n: peoplePerTicket })
+                    : t("checkout.attendee", { n: i + 1 })}
                 </h3>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>

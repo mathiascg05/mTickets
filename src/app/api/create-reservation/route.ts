@@ -3,6 +3,7 @@ import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import { isValidUUID, isValidQty } from "@/lib/validation";
+import { isAreaTicket } from "@/lib/ticketTypeKind";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
 import { processQueueAdmissions } from "@/lib/queueAdmission";
 
@@ -45,6 +46,13 @@ export async function POST(req: NextRequest) {
         { status: 404 },
       );
     }
+    // V1: áreas se compran de a una unidad por transacción.
+    if (isAreaTicket(ticketType) && qty !== 1) {
+      return NextResponse.json(
+        { error: "Area tickets must be reserved one at a time" },
+        { status: 400 },
+      );
+    }
 
     const rawConcertReservation = ticketType.concert as unknown;
     const concertForStatus = (Array.isArray(rawConcertReservation)
@@ -69,6 +77,7 @@ export async function POST(req: NextRequest) {
       id: string;
       status: string;
       phaseId?: string;
+      priceSnapshot?: number;
     }[];
     const allReservations = (ticketType.reservations || []) as {
       id: string;

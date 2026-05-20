@@ -154,3 +154,126 @@ describe("getActivePhase", () => {
     expect(result.available).toBe(0);
   });
 });
+
+describe("getAvailability for areas", () => {
+  // Para áreas, ticketType.quantity = boxes disponibles, peoplePerTicket = personas
+  // por box. Las órdenes companion (priceSnapshot=0) NO consumen stock.
+  it("counts only primary orders (priceSnapshot>0) when ticketType is an area", () => {
+    const ticketType = { price: 800, quantity: 5, peoplePerTicket: 8 };
+    // 1 box vendido = 1 primary + 7 companions
+    const orders = [
+      { id: "primary-1", status: "approved", priceSnapshot: 800 },
+      ...Array.from({ length: 7 }, (_, i) => ({
+        id: `companion-1-${i}`,
+        status: "approved",
+        priceSnapshot: 0,
+      })),
+    ];
+
+    const result = getAvailability(ticketType, [], orders, "2026-03-05");
+    expect(result.available).toBe(4); // 5 boxes - 1 vendido
+    expect(result.soldOut).toBe(false);
+  });
+
+  it("counts multiple boxes sold correctly", () => {
+    const ticketType = { price: 800, quantity: 5, peoplePerTicket: 8 };
+    // 3 boxes = 3 primaries + 21 companions
+    const orders = [
+      ...Array.from({ length: 3 }, (_, i) => ({
+        id: `primary-${i}`,
+        status: "approved",
+        priceSnapshot: 800,
+      })),
+      ...Array.from({ length: 21 }, (_, i) => ({
+        id: `companion-${i}`,
+        status: "approved",
+        priceSnapshot: 0,
+      })),
+    ];
+
+    const result = getAvailability(ticketType, [], orders, "2026-03-05");
+    expect(result.available).toBe(2);
+  });
+
+  it("pending primary orders also consume stock", () => {
+    const ticketType = { price: 800, quantity: 2, peoplePerTicket: 8 };
+    const orders = [
+      { id: "primary-pending", status: "pending", priceSnapshot: 800 },
+      ...Array.from({ length: 7 }, (_, i) => ({
+        id: `companion-${i}`,
+        status: "pending",
+        priceSnapshot: 0,
+      })),
+    ];
+
+    const result = getAvailability(ticketType, [], orders, "2026-03-05");
+    expect(result.available).toBe(1);
+  });
+
+  it("rejected primary orders don't consume stock", () => {
+    const ticketType = { price: 800, quantity: 5, peoplePerTicket: 8 };
+    const orders = [
+      { id: "primary-rej", status: "rejected", priceSnapshot: 800 },
+      ...Array.from({ length: 7 }, (_, i) => ({
+        id: `companion-${i}`,
+        status: "rejected",
+        priceSnapshot: 0,
+      })),
+    ];
+
+    const result = getAvailability(ticketType, [], orders, "2026-03-05");
+    expect(result.available).toBe(5);
+  });
+
+  it("reservation.quantity counts as boxes for areas", () => {
+    const ticketType = { price: 800, quantity: 5, peoplePerTicket: 8 };
+    const reservations = [
+      { quantity: 1, expiresAt: Date.now() + 60000 },
+      { quantity: 1, expiresAt: Date.now() + 60000 },
+    ];
+
+    const result = getAvailability(ticketType, [], [], "2026-03-05", reservations);
+    expect(result.available).toBe(3); // 5 - 2 boxes reservados
+  });
+
+  it("area with phases: phase.quantity counts as boxes", () => {
+    const ticketType = { price: 800, quantity: 0, peoplePerTicket: 8 };
+    const phases = [
+      { id: "p1", name: "Early", price: 700, quantity: 2, sortOrder: 1 },
+      { id: "p2", name: "Regular", price: 800, quantity: 3, sortOrder: 2 },
+    ];
+    // 2 boxes vendidos en p1 (la fase debe agotarse y pasar a p2)
+    const orders = [
+      ...Array.from({ length: 2 }, (_, i) => ({
+        id: `p1-primary-${i}`,
+        status: "approved",
+        phaseId: "p1",
+        priceSnapshot: 700,
+      })),
+      ...Array.from({ length: 14 }, (_, i) => ({
+        id: `p1-companion-${i}`,
+        status: "approved",
+        phaseId: "p1",
+        priceSnapshot: 0,
+      })),
+    ];
+
+    const result = getAvailability(ticketType, phases, orders, "2026-03-05");
+    expect(result.activePhase?.id).toBe("p2");
+    expect(result.price).toBe(800);
+    expect(result.available).toBe(3); // 3 boxes en p2
+  });
+
+  it("individual ticketType (peoplePerTicket=1 or undefined) keeps legacy counting", () => {
+    const ticketType = { price: 25, quantity: 100 };
+    // Comportamiento clásico: cada orden cuenta como 1 persona
+    const orders = Array.from({ length: 40 }, (_, i) => ({
+      id: `order-${i}`,
+      status: "approved",
+      priceSnapshot: 25,
+    }));
+
+    const result = getAvailability(ticketType, [], orders, "2026-03-05");
+    expect(result.available).toBe(60);
+  });
+});

@@ -53,6 +53,9 @@ const _schema = i.schema({
       feePercent: i.number().optional(),
       feeFixed: i.number().optional(),
       lastQueuePosition: i.number().optional().indexed(),
+      peoplePerTicket: i.number().optional(),
+      imagePath: i.string().optional(),
+      imageUrl: i.string().optional(),
       createdAt: i.number().indexed(),
     }),
     orders: i.entity({

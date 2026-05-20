@@ -17,6 +17,7 @@ import {
   isValidName,
   validateAttendee,
 } from "@/lib/validation";
+import { getPeoplePerTicket, isAreaTicket } from "@/lib/ticketTypeKind";
 import {
   computeOrderTotalAtPurchase,
   computePlatformFeeAtPurchase,
@@ -85,7 +86,9 @@ export async function POST(req: NextRequest) {
     if (!isValidQty(qty)) {
       return errorResponse(req, "QTY_OUT_OF_RANGE", 400);
     }
-    if (!Array.isArray(attendees) || attendees.length !== qty) {
+    // Early validation: attendees must be ≥ qty (1+ persona por unidad) y razonablemente bounded.
+    // El match exacto contra qty*peoplePerTicket se valida después de la query del ticketType.
+    if (!Array.isArray(attendees) || attendees.length < qty || attendees.length > qty * 20) {
       return errorResponse(req, "ATTENDEES_MISMATCH", 400);
     }
     const validationErrors = attendees.flatMap((a, i) => validateAttendee(a, i));
@@ -168,6 +171,17 @@ export async function POST(req: NextRequest) {
     const ticketType = ticketTypes[0];
     if (!ticketType) {
       return errorResponse(req, "TICKET_TYPE_NOT_FOUND", 404);
+    }
+
+    const peoplePerTicket = getPeoplePerTicket(ticketType);
+    const isArea = isAreaTicket(ticketType);
+    const expectedAttendees = qty * peoplePerTicket;
+    if (attendees.length !== expectedAttendees) {
+      return errorResponse(req, "ATTENDEES_MISMATCH", 400);
+    }
+    if (isArea && qty !== 1) {
+      // V1: una sola área por compra para evitar 2×8=16 forms.
+      return errorResponse(req, "QTY_OUT_OF_RANGE", 400);
     }
 
     // Admin SDK returns has-one relations as arrays
@@ -335,6 +349,11 @@ export async function POST(req: NextRequest) {
       email: a.email.trim(),
       cedula: a.cedula.trim(),
     }));
+    // Para áreas, generamos un purchaseGroupId server-side por cada unidad de
+    // área (qty áreas → qty groupIds). Para individuales mantenemos el del body.
+    const unitGroupIds: string[] = isArea
+      ? Array.from({ length: qty }, () => genId())
+      : [];
 
     // Capture buyer's locale for downstream email delivery
     const orderLanguage = detectLocale(req);
@@ -384,6 +403,10 @@ export async function POST(req: NextRequest) {
       orderIds.length = 0;
       orderNumbers.length = 0;
 
+      // Para áreas: cada `qty` (unidades de área) genera un purchaseGroup propio,
+      // con 1 primary (que lleva el precio + fees) y peoplePerTicket-1 companions
+      // a precio 0. Para tickets individuales: peoplePerTicket=1, cada attendee es
+      // su propia primary (comportamiento legacy).
       const orderTxns = trimmedAttendees.map((attendee, idx) => {
         const orderId = genId();
         const seq = currentSeq + idx + 1;
@@ -391,41 +414,80 @@ export async function POST(req: NextRequest) {
         orderIds.push(orderId);
         orderNumbers.push(orderNumber);
 
+        const positionInUnit = idx % peoplePerTicket;
+        const unitIndex = Math.floor(idx / peoplePerTicket);
+        const isPrimary = positionInUnit === 0;
+        // Para áreas, cada unidad recibe su propio purchaseGroupId server-side.
+        // Para individuales con qty>1, mantenemos el purchaseGroupId del body si vino.
+        const groupId = isArea
+          ? unitGroupIds[unitIndex]
+          : purchaseGroupId;
+
+        const baseFields = {
+          firstName: attendee.firstName,
+          lastName: attendee.lastName,
+          email: attendee.email,
+          cedula: attendee.cedula,
+          paymentMethod: paymentMethodName,
+          status: "pending",
+          visited: false,
+          createdAt: Date.now(),
+          orderNumber,
+          language: orderLanguage,
+        };
+
+        const pricingFields = isPrimary
+          ? {
+              priceSnapshot: effectivePrice,
+              feePercentSnapshot,
+              feeFixedSnapshot,
+              feeAmountSnapshot,
+              totalSnapshot,
+              platformFeePercentSnapshot,
+              platformFeeFixedSnapshot,
+              platformFeeAmountSnapshot,
+              paymentMethodFeePercentSnapshot: pmFeePercent,
+              paymentMethodFeeFixedSnapshot: pmFeeFixed,
+              paymentMethodFeeAmountSnapshot,
+            }
+          : {
+              priceSnapshot: 0,
+              feePercentSnapshot: 0,
+              feeFixedSnapshot: 0,
+              feeAmountSnapshot: 0,
+              totalSnapshot: 0,
+              platformFeePercentSnapshot: 0,
+              platformFeeFixedSnapshot: 0,
+              platformFeeAmountSnapshot: 0,
+              paymentMethodFeePercentSnapshot: 0,
+              paymentMethodFeeFixedSnapshot: 0,
+              paymentMethodFeeAmountSnapshot: 0,
+            };
+
+        // Cupón/descuento + purchaseRate solo en la primary (evita inflar usageCount
+        // del cupón y duplicar el snapshot de la conversión Bs).
+        const monetaryExtras = isPrimary
+          ? {
+              ...(validatedCouponCode
+                ? { couponCode: validatedCouponCode, discountAmount }
+                : {}),
+              ...(paymentMethodDiscount > 0 ? { paymentMethodDiscount } : {}),
+              ...(purchaseRate ? { purchaseRate, purchaseRateCurrency } : {}),
+              ...(purchaseAmountBs != null ? { purchaseAmountBs } : {}),
+            }
+          : {};
+
         return adminDb.tx.orders[orderId]
           .update({
-            firstName: attendee.firstName,
-            lastName: attendee.lastName,
-            email: attendee.email,
-            cedula: attendee.cedula,
-            paymentMethod: paymentMethodName,
-            status: "pending",
-            visited: false,
-            createdAt: Date.now(),
-            orderNumber,
-            language: orderLanguage,
-            priceSnapshot: effectivePrice,
-            feePercentSnapshot,
-            feeFixedSnapshot,
-            feeAmountSnapshot,
-            totalSnapshot,
-            platformFeePercentSnapshot,
-            platformFeeFixedSnapshot,
-            platformFeeAmountSnapshot,
-            paymentMethodFeePercentSnapshot: pmFeePercent,
-            paymentMethodFeeFixedSnapshot: pmFeeFixed,
-            paymentMethodFeeAmountSnapshot,
+            ...baseFields,
+            ...pricingFields,
+            ...monetaryExtras,
             ...(paymentProofPath ? { paymentProofPath } : {}),
             ...(referenceNumber ? { proofReferenceNumber: referenceNumber } : {}),
             ...(promoter ? { promoter } : {}),
             ...(customFieldValues ? { customFieldValues } : {}),
-            ...(validatedCouponCode
-              ? { couponCode: validatedCouponCode, discountAmount }
-              : {}),
-            ...(paymentMethodDiscount > 0 ? { paymentMethodDiscount } : {}),
             ...(activePhase ? { phaseId: activePhase.id } : {}),
-            ...(purchaseGroupId ? { purchaseGroupId } : {}),
-            ...(purchaseRate ? { purchaseRate, purchaseRateCurrency } : {}),
-            ...(purchaseAmountBs != null ? { purchaseAmountBs } : {}),
+            ...(groupId ? { purchaseGroupId: groupId } : {}),
             ...(acceptedTermsVersion ? { acceptedTermsVersion } : {}),
             ...(acceptedPrivacyVersion ? { acceptedPrivacyVersion } : {}),
           })
@@ -433,7 +495,7 @@ export async function POST(req: NextRequest) {
       });
 
       // Update concert's lastOrderSeq
-      const newSeq = currentSeq + qty;
+      const newSeq = currentSeq + expectedAttendees;
       const seqTxn = adminDb.tx.concerts[concert.id].update({
         lastOrderSeq: newSeq,
       });
@@ -548,11 +610,15 @@ export async function POST(req: NextRequest) {
       const tEmail = await getTranslations({ locale: emailLang, namespace: "emails.confirmation" });
       const eventDateFormatted = formatEventDate(concert.date, emailLang);
 
+      const includedLabel = emailLang === "en"
+        ? `Included in ${ticketType.name}`
+        : `Incluido en ${ticketType.name}`;
       for (let idx = 0; idx < orderIds.length; idx++) {
         const orderId = orderIds[idx];
         const attendee = trimmedAttendees[idx];
         const orderNumber = orderNumbers[idx];
         const orderUrl = `${appUrl}/ticket/${orderId}`;
+        const isCompanion = isArea && idx % peoplePerTicket !== 0;
 
         const emailParams = {
           firstName: attendee.firstName,
@@ -561,7 +627,7 @@ export async function POST(req: NextRequest) {
           eventDate: eventDateFormatted,
           venue: concert.venue || "",
           ticketTypeName: ticketType.name,
-          price: `$${totalSnapshot.toFixed(2)}`,
+          price: isCompanion ? includedLabel : `$${totalSnapshot.toFixed(2)}`,
           orderUrl,
           orderNumber,
           lang: emailLang,
