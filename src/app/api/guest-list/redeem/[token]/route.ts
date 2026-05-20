@@ -61,6 +61,7 @@ export async function GET(
           defaultLanguage?: string;
           defaultPrice: number;
           organizerEmail: string;
+          feeMode?: string;
           paymentMethods?: {
             id: string;
             type: string;
@@ -76,6 +77,8 @@ export async function GET(
             pmCedula?: string;
             pmPhone?: string;
             pmBank?: string;
+            feePercent?: number;
+            feeFixed?: number;
             sortOrder: number;
           }[];
           customFields?: {
@@ -110,10 +113,14 @@ export async function GET(
           feeFixed?: number;
         }
       | undefined;
+    const feeMode =
+      event.feeMode === "paymentMethod" ? "paymentMethod" : "ticketType";
     const hasOverride = typeof entry.priceOverride === "number";
     const basePrice = ticketType ? ticketType.price : event.defaultPrice;
-    const feePercent = ticketType?.feePercent ?? 0;
-    const feeFixed = ticketType?.feeFixed ?? 0;
+    const feePercent =
+      feeMode === "ticketType" ? (ticketType?.feePercent ?? 0) : 0;
+    const feeFixed =
+      feeMode === "ticketType" ? (ticketType?.feeFixed ?? 0) : 0;
     const feeAmount = hasOverride
       ? 0
       : Math.round(((basePrice * feePercent) / 100 + feeFixed) * 100) / 100;
@@ -169,6 +176,7 @@ export async function GET(
         primaryColor: event.primaryColor || "#1a2b4a",
         defaultLanguage: event.defaultLanguage || "es",
         organizerEmail: event.organizerEmail,
+        feeMode,
       },
       paymentMethods: (event.paymentMethods || []).sort(
         (a, b) => a.sortOrder - b.sortOrder,

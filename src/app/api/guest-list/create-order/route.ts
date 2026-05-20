@@ -107,6 +107,7 @@ export async function POST(req: NextRequest) {
           defaultPrice: number;
           capacity?: number;
           orderNumberPrefix?: string;
+          feeMode?: string;
           paymentMethods?: {
             id: string;
             name: string;
@@ -114,6 +115,8 @@ export async function POST(req: NextRequest) {
             customRate?: number;
             requireScreenshot?: boolean;
             requireReferenceNumber?: boolean;
+            feePercent?: number;
+            feeFixed?: number;
           }[];
           platformFeeConfig?:
             | { feePercent: number; feeFixed: number; billingMode?: string }
@@ -159,18 +162,38 @@ export async function POST(req: NextRequest) {
           feeFixed?: number;
         }
       | undefined;
+    const feeMode =
+      event.feeMode === "paymentMethod" ? "paymentMethod" : "ticketType";
     const hasOverride = typeof entry.priceOverride === "number";
     const basePrice = ticketType ? ticketType.price : event.defaultPrice;
-    const feePercentSnapshot = ticketType?.feePercent ?? 0;
-    const feeFixedSnapshot = ticketType?.feeFixed ?? 0;
+    const feePercentSnapshot =
+      feeMode === "ticketType" ? (ticketType?.feePercent ?? 0) : 0;
+    const feeFixedSnapshot =
+      feeMode === "ticketType" ? (ticketType?.feeFixed ?? 0) : 0;
     const feeAmountSnapshot = hasOverride
       ? 0
       : Math.round(
           ((basePrice * feePercentSnapshot) / 100 + feeFixedSnapshot) * 100,
         ) / 100;
+    const pmForFee =
+      feeMode === "paymentMethod" && paymentMethodId
+        ? (event.paymentMethods || []).find((m) => m.id === paymentMethodId)
+        : undefined;
+    const paymentMethodFeePercentSnapshot = pmForFee?.feePercent ?? 0;
+    const paymentMethodFeeFixedSnapshot = pmForFee?.feeFixed ?? 0;
+    const paymentMethodFeeAmountSnapshot = hasOverride
+      ? 0
+      : Math.round(
+          ((basePrice * paymentMethodFeePercentSnapshot) / 100 +
+            paymentMethodFeeFixedSnapshot) *
+            100,
+        ) / 100;
     const finalPrice = hasOverride
       ? (entry.priceOverride as number)
-      : Math.round((basePrice + feeAmountSnapshot) * 100) / 100;
+      : Math.round(
+          (basePrice + feeAmountSnapshot + paymentMethodFeeAmountSnapshot) *
+            100,
+        ) / 100;
 
     const rawPlatformFeeConfig = event.platformFeeConfig as unknown;
     const platformFeeConfig = (
@@ -293,6 +316,9 @@ export async function POST(req: NextRequest) {
       platformFeePercentSnapshot,
       platformFeeFixedSnapshot,
       platformFeeAmountSnapshot,
+      paymentMethodFeePercentSnapshot,
+      paymentMethodFeeFixedSnapshot,
+      paymentMethodFeeAmountSnapshot,
       orderToken,
       language: orderLanguage,
       createdAt: Date.now(),

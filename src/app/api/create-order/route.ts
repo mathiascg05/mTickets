@@ -182,8 +182,9 @@ export async function POST(req: NextRequest) {
       lastOrderSeq?: number;
       orderNumberPrefix?: string;
       defaultLanguage?: string;
+      feeMode?: string;
       coupons: { id: string; code: string; discountType: string; discountValue: number; maxUses?: number; active: boolean }[];
-      paymentMethods: { id: string; type?: string; name: string; discountType?: string; discountValue?: number }[];
+      paymentMethods: { id: string; type?: string; name: string; discountType?: string; discountValue?: number; feePercent?: number; feeFixed?: number }[];
       platformFeeConfig?: { feePercent: number; feeFixed: number; billingMode?: string } | { feePercent: number; feeFixed: number; billingMode?: string }[];
     };
 
@@ -286,8 +287,13 @@ export async function POST(req: NextRequest) {
       validatedCouponCode = coupon.code;
     }
 
-    // Validate and compute payment-method discount server-side
+    const feeMode =
+      concert.feeMode === "paymentMethod" ? "paymentMethod" : "ticketType";
+
+    // Validate and compute payment-method discount + fee server-side
     let paymentMethodDiscount = 0;
+    let pmFeePercent = 0;
+    let pmFeeFixed = 0;
     if (paymentMethodId) {
       const pm = (concert.paymentMethods || []).find(
         (p) => p.id === paymentMethodId,
@@ -307,6 +313,10 @@ export async function POST(req: NextRequest) {
           Math.min(computed, subtotal - discountAmount),
         );
         paymentMethodDiscount = Math.round(paymentMethodDiscount * 100) / 100;
+      }
+      if (pm && feeMode === "paymentMethod") {
+        pmFeePercent = pm.feePercent ?? 0;
+        pmFeeFixed = pm.feeFixed ?? 0;
       }
     }
 
@@ -329,19 +339,26 @@ export async function POST(req: NextRequest) {
     // Capture buyer's locale for downstream email delivery
     const orderLanguage = detectLocale(req);
 
-    const feePercentSnapshot = ticketType.feePercent ?? 0;
-    const feeFixedSnapshot = ticketType.feeFixed ?? 0;
+    const feePercentSnapshot =
+      feeMode === "ticketType" ? (ticketType.feePercent ?? 0) : 0;
+    const feeFixedSnapshot =
+      feeMode === "ticketType" ? (ticketType.feeFixed ?? 0) : 0;
     const perOrderCouponDiscount =
       (validatedCouponCode ? discountAmount : 0) / qty;
     const perOrderPmDiscount = paymentMethodDiscount / qty;
-    const { feeAmount: feeAmountSnapshot, total: totalSnapshot } =
-      computeOrderTotalAtPurchase({
-        basePrice: effectivePrice,
-        feePercent: feePercentSnapshot,
-        feeFixed: feeFixedSnapshot,
-        couponDiscount: perOrderCouponDiscount,
-        paymentMethodDiscount: perOrderPmDiscount,
-      });
+    const {
+      feeAmount: feeAmountSnapshot,
+      paymentMethodFeeAmount: paymentMethodFeeAmountSnapshot,
+      total: totalSnapshot,
+    } = computeOrderTotalAtPurchase({
+      basePrice: effectivePrice,
+      feePercent: feePercentSnapshot,
+      feeFixed: feeFixedSnapshot,
+      paymentMethodFeePercent: pmFeePercent,
+      paymentMethodFeeFixed: pmFeeFixed,
+      couponDiscount: perOrderCouponDiscount,
+      paymentMethodDiscount: perOrderPmDiscount,
+    });
 
     const rawPlatformFeeConfig = concert.platformFeeConfig;
     const platformFeeConfig = (
@@ -394,6 +411,9 @@ export async function POST(req: NextRequest) {
             platformFeePercentSnapshot,
             platformFeeFixedSnapshot,
             platformFeeAmountSnapshot,
+            paymentMethodFeePercentSnapshot: pmFeePercent,
+            paymentMethodFeeFixedSnapshot: pmFeeFixed,
+            paymentMethodFeeAmountSnapshot,
             ...(paymentProofPath ? { paymentProofPath } : {}),
             ...(referenceNumber ? { proofReferenceNumber: referenceNumber } : {}),
             ...(promoter ? { promoter } : {}),

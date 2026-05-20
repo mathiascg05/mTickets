@@ -384,9 +384,21 @@ export default function BuyPage() {
     0,
     Math.min(methodDiscountRaw, subtotal - discount),
   );
-  const feePercent = ticketType.feePercent ?? 0;
-  const feeFixed = ticketType.feeFixed ?? 0;
-  const feeAmount = (subtotal * feePercent) / 100 + feeFixed * qty;
+  const feeMode =
+    (concert as { feeMode?: string } | undefined)?.feeMode === "paymentMethod"
+      ? "paymentMethod"
+      : "ticketType";
+  const feePercent = feeMode === "ticketType" ? (ticketType.feePercent ?? 0) : 0;
+  const feeFixed = feeMode === "ticketType" ? (ticketType.feeFixed ?? 0) : 0;
+  const pmFeeConfig =
+    feeMode === "paymentMethod"
+      ? (selectedPm as { feePercent?: number; feeFixed?: number } | undefined)
+      : undefined;
+  const pmFeePercent = pmFeeConfig?.feePercent ?? 0;
+  const pmFeeFixed = pmFeeConfig?.feeFixed ?? 0;
+  const pmFeeAmount = (subtotal * pmFeePercent) / 100 + pmFeeFixed * qty;
+  const feeAmount =
+    (subtotal * feePercent) / 100 + feeFixed * qty + pmFeeAmount;
   const total = subtotal - discount - methodDiscount + feeAmount;
 
   const rateValue = selectedPmCustomRate ?? cachedRate?.rate ?? 0;

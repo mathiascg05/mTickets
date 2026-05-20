@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
     }
     const event = auth.data as typeof auth.data & {
       orderNumberPrefix?: string;
+      feeMode?: string;
     };
 
     const { guestListEntries } = await adminDb.query({
@@ -116,6 +117,7 @@ export async function POST(req: NextRequest) {
               defaultPrice: event.defaultPrice,
               defaultLanguage: event.defaultLanguage,
               orderNumberPrefix: event.orderNumberPrefix,
+              feeMode: event.feeMode,
             },
           );
           if ("success" in result) {

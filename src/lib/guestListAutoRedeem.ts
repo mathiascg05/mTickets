@@ -25,6 +25,7 @@ type AutoRedeemEvent = {
   defaultPrice: number;
   defaultLanguage?: string;
   orderNumberPrefix?: string;
+  feeMode?: string;
 };
 
 export type AutoRedeemResult =
@@ -56,10 +57,14 @@ export async function autoRedeemFreeEntry(
       }
     | undefined;
 
+  const feeMode =
+    event.feeMode === "paymentMethod" ? "paymentMethod" : "ticketType";
   const hasOverride = typeof entry.priceOverride === "number";
   const basePrice = ticketType ? ticketType.price : event.defaultPrice;
-  const feePercentSnapshot = ticketType?.feePercent ?? 0;
-  const feeFixedSnapshot = ticketType?.feeFixed ?? 0;
+  const feePercentSnapshot =
+    feeMode === "ticketType" ? (ticketType?.feePercent ?? 0) : 0;
+  const feeFixedSnapshot =
+    feeMode === "ticketType" ? (ticketType?.feeFixed ?? 0) : 0;
   const feeAmountSnapshot = hasOverride
     ? 0
     : Math.round(
@@ -107,6 +112,9 @@ export async function autoRedeemFreeEntry(
     platformFeePercentSnapshot: 0,
     platformFeeFixedSnapshot: 0,
     platformFeeAmountSnapshot: 0,
+    paymentMethodFeePercentSnapshot: 0,
+    paymentMethodFeeFixedSnapshot: 0,
+    paymentMethodFeeAmountSnapshot: 0,
     orderToken,
     language: orderLanguage,
     createdAt: Date.now(),

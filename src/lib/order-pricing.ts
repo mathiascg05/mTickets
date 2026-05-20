@@ -8,6 +8,9 @@ export type OrderPricing = {
   feeFixedSnapshot?: number;
   feeAmountSnapshot?: number;
   totalSnapshot?: number;
+  paymentMethodFeePercentSnapshot?: number;
+  paymentMethodFeeFixedSnapshot?: number;
+  paymentMethodFeeAmountSnapshot?: number;
 };
 
 export type TicketTypePricing = {
@@ -34,8 +37,13 @@ export function getOrderTotal(
   if (!tt) return 0;
   const base = recomputeBase(order, tt);
   const fee = recomputeFee(base, tt);
+  const pmFee = order.paymentMethodFeeAmountSnapshot ?? 0;
   const total =
-    base + fee - (order.discountAmount ?? 0) - (order.paymentMethodDiscount ?? 0);
+    base +
+    fee +
+    pmFee -
+    (order.discountAmount ?? 0) -
+    (order.paymentMethodDiscount ?? 0);
   return Math.max(0, total);
 }
 
@@ -47,7 +55,11 @@ export function getOrderBaseDisplayPrice(
     typeof order.priceSnapshot === "number" &&
     typeof order.feeAmountSnapshot === "number"
   ) {
-    return order.priceSnapshot + order.feeAmountSnapshot;
+    return (
+      order.priceSnapshot +
+      order.feeAmountSnapshot +
+      (order.paymentMethodFeeAmountSnapshot ?? 0)
+    );
   }
   if (!tt) return 0;
   const base = recomputeBase(order, tt);
@@ -58,18 +70,28 @@ export function computeOrderTotalAtPurchase(args: {
   basePrice: number;
   feePercent: number;
   feeFixed: number;
+  paymentMethodFeePercent?: number;
+  paymentMethodFeeFixed?: number;
   couponDiscount: number;
   paymentMethodDiscount: number;
 }): {
   feeAmount: number;
+  paymentMethodFeeAmount: number;
   total: number;
 } {
   const feeAmount = (args.basePrice * args.feePercent) / 100 + args.feeFixed;
+  const paymentMethodFeeAmount =
+    (args.basePrice * (args.paymentMethodFeePercent ?? 0)) / 100 +
+    (args.paymentMethodFeeFixed ?? 0);
   const total = Math.max(
     0,
-    args.basePrice + feeAmount - args.couponDiscount - args.paymentMethodDiscount,
+    args.basePrice +
+      feeAmount +
+      paymentMethodFeeAmount -
+      args.couponDiscount -
+      args.paymentMethodDiscount,
   );
-  return { feeAmount, total };
+  return { feeAmount, paymentMethodFeeAmount, total };
 }
 
 export function computePlatformFeeAtPurchase(args: {

@@ -36,6 +36,8 @@ type PaymentMethodPublic = {
   pmCedula?: string;
   pmPhone?: string;
   pmBank?: string;
+  feePercent?: number;
+  feeFixed?: number;
   sortOrder: number;
 };
 
@@ -79,6 +81,7 @@ type RedeemData = {
     logoPath: string;
     primaryColor: string;
     organizerEmail: string;
+    feeMode?: string;
   };
   paymentMethods?: PaymentMethodPublic[];
   customFields?: CustomFieldPublic[];
@@ -150,6 +153,19 @@ export default function InvitePage({
   const paymentMethods = data.paymentMethods || [];
   const customFields = data.customFields || [];
   const selectedPm = paymentMethods.find((m) => m.id === paymentMethodId);
+  const feeMode = event.feeMode === "paymentMethod" ? "paymentMethod" : "ticketType";
+  const pmFeeAmount =
+    feeMode === "paymentMethod" &&
+    !isFree &&
+    !entry.hasOverride &&
+    typeof entry.basePrice === "number" &&
+    selectedPm
+      ? (entry.basePrice * (selectedPm.feePercent ?? 0)) / 100 +
+        (selectedPm.feeFixed ?? 0)
+      : 0;
+  const displayTotal = Math.round((entry.finalPrice + pmFeeAmount) * 100) / 100;
+  const displayFeeAmount =
+    Math.round(((entry.feeAmount ?? 0) + pmFeeAmount) * 100) / 100;
 
   async function uploadProof(file: File): Promise<string | null> {
     const ts = Date.now();
@@ -314,15 +330,15 @@ export default function InvitePage({
               {t("guestList.yourPrice")}
             </p>
             <p className="text-3xl font-bold mt-1" style={{ color: primary }}>
-              {isFree ? t("guestList.cortesia") : `$${entry.finalPrice.toFixed(2)}`}
+              {isFree ? t("guestList.cortesia") : `$${displayTotal.toFixed(2)}`}
             </p>
             {!isFree &&
               !entry.hasOverride &&
-              (entry.feeAmount ?? 0) > 0 &&
+              displayFeeAmount > 0 &&
               typeof entry.basePrice === "number" && (
                 <p className="text-xs text-muted mt-1">
                   ${entry.basePrice.toFixed(2)} + $
-                  {(entry.feeAmount ?? 0).toFixed(2)}{" "}
+                  {displayFeeAmount.toFixed(2)}{" "}
                   {t("admin.serviceFees").toLowerCase()}
                 </p>
               )}
