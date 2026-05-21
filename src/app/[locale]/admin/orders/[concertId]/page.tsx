@@ -956,8 +956,7 @@ function CreateOrderModal({
     setSubmitting(true);
 
     try {
-      const effectivePaymentMethod = isCortesia ? "Cortesia" : paymentMethod;
-      let filePath = isCortesia ? "cortesia" : "admin-created";
+      let filePath: string | undefined;
       if (!isCortesia && proofFile) {
         const ext = proofFile.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") || "jpg";
         const storagePath = `payment-proofs/${Date.now()}-admin.${ext}`;
@@ -965,75 +964,57 @@ function CreateOrderModal({
         filePath = storagePath;
       }
 
-      const orderIds: string[] = [];
-      const purchaseGroupId = quantity > 1 ? id() : undefined;
-      const txns = Array.from({ length: quantity }, () => {
-        const orderId = id();
-        orderIds.push(orderId);
-        const isCortesiaOrder = isCortesia;
-        const couponDiscountForOrder = isCortesiaOrder ? selectedOption.price : 0;
-        const totalForOrder = Math.max(
-          0,
-          selectedOption.basePrice + selectedOption.feeAmount - couponDiscountForOrder,
-        );
-        const platformFeePercentSnapshot = platformFeeConfig?.feePercent ?? 0;
-        const platformFeeFixedSnapshot = platformFeeConfig?.feeFixed ?? 0;
-        const platformFeeAmountSnapshot = computePlatformFeeAtPurchase({
-          basePrice: selectedOption.basePrice,
-          feePercent: platformFeePercentSnapshot,
-          feeFixed: platformFeeFixedSnapshot,
-        });
-        return db.tx.orders[orderId]
-          .update({
-            firstName,
-            lastName,
-            email,
-            cedula,
-            paymentMethod: effectivePaymentMethod,
-            status: orderStatus,
-            paymentProofPath: filePath,
-            visited: false,
-            createdAt: Date.now(),
-            priceSnapshot: selectedOption.basePrice,
-            feePercentSnapshot: selectedOption.feePercent,
-            feeFixedSnapshot: selectedOption.feeFixed,
-            feeAmountSnapshot: selectedOption.feeAmount,
-            totalSnapshot: totalForOrder,
-            platformFeePercentSnapshot,
-            platformFeeFixedSnapshot,
-            platformFeeAmountSnapshot,
-            ...(selectedOption.activePhase
-              ? { phaseId: selectedOption.activePhase.id }
-              : {}),
-            ...(purchaseGroupId ? { purchaseGroupId } : {}),
-            ...(isCortesiaOrder
-              ? { discountAmount: selectedOption.price }
-              : (() => {
-                  const customRate = pmCustomRateMap[paymentMethod];
-                  const currency = pmCurrencyMap[paymentMethod];
-                  const effectiveRate = customRate ?? (currency ? rateMap[currency] : undefined);
-                  if (!effectiveRate) return {};
-                  return {
-                    purchaseRate: effectiveRate,
-                    purchaseRateCurrency: customRate ? "USD" : currency,
-                    purchaseAmountBs: Math.round(selectedOption.price * effectiveRate * 100) / 100,
-                  };
-                })()),
-            ...(Object.keys(cfValues).length > 0
-              ? {
-                  customFieldValues: JSON.stringify(
-                    Object.fromEntries(
-                      (concert.customFields || [])
-                        .filter((cf) => cfValues[cf.id])
-                        .map((cf) => [cf.label, cfValues[cf.id]]),
-                    ),
-                  ),
-                }
-              : {}),
-          })
-          .link({ ticketType: selectedTicketTypeId });
+      const customFieldValuesPayload =
+        Object.keys(cfValues).length > 0
+          ? JSON.stringify(
+              Object.fromEntries(
+                (concert.customFields || [])
+                  .filter((cf) => cfValues[cf.id])
+                  .map((cf) => [cf.label, cfValues[cf.id]]),
+              ),
+            )
+          : undefined;
+
+      const rateFields = (() => {
+        if (isCortesia) return {};
+        const customRate = pmCustomRateMap[paymentMethod];
+        const currency = pmCurrencyMap[paymentMethod];
+        const effectiveRate = customRate ?? (currency ? rateMap[currency] : undefined);
+        if (!effectiveRate) return {};
+        return {
+          purchaseRate: effectiveRate,
+          purchaseRateCurrency: customRate ? "USD" : currency,
+          purchaseAmountBs: Math.round(selectedOption.price * effectiveRate * 100) / 100,
+        };
+      })();
+
+      const res = await fetch("/api/admin/create-order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${refreshToken}`,
+        },
+        body: JSON.stringify({
+          ticketTypeId: selectedTicketTypeId,
+          qty: quantity,
+          firstName,
+          lastName,
+          email,
+          cedula,
+          paymentMethodName: isCortesia ? "Cortesia" : paymentMethod,
+          isCortesia,
+          status: orderStatus,
+          ...(filePath ? { paymentProofPath: filePath } : {}),
+          ...(customFieldValuesPayload ? { customFieldValues: customFieldValuesPayload } : {}),
+          ...rateFields,
+        }),
       });
-      await db.transact(txns);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      const { orderIds } = (await res.json()) as { orderIds: string[] };
+
       // Assign order numbers for all created orders
       await Promise.allSettled(
         orderIds.map((oid) =>
@@ -1052,7 +1033,8 @@ function CreateOrderModal({
       onClose();
     } catch (err) {
       console.error("Failed to create order:", err);
-      toast.error(t("admin.errorCreatingOrder"));
+      const msg = err instanceof Error && err.message ? err.message : t("admin.errorCreatingOrder");
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -1262,6 +1244,42 @@ function CreateOrderModal({
                   ))}
                 </select>
               </div>
+
+              {/* Tasa display (Pago Movil / convertCurrency PMs) */}
+              {(() => {
+                const customRate = pmCustomRateMap[paymentMethod];
+                const currency = pmCurrencyMap[paymentMethod];
+                if (!customRate && !currency) return null;
+                const effectiveRate = customRate ?? (currency ? rateMap[currency] : undefined);
+                if (!effectiveRate || !selectedOption) {
+                  return (
+                    <p className="text-sm text-danger">{t("checkout.rateError")}</p>
+                  );
+                }
+                const totalBs =
+                  Math.round(selectedOption.price * quantity * effectiveRate * 100) / 100;
+                const sourceCurrency = customRate ? "USD" : (currency as string);
+                const sourceSymbol = sourceCurrency === "EUR" ? "€" : "$";
+                return (
+                  <div className="bg-warning/10 border border-warning/30 rounded-lg p-3">
+                    <p className="text-sm font-semibold text-foreground">
+                      {t("checkout.totalBs", {
+                        symbol: sourceSymbol,
+                        total: (selectedOption.price * quantity).toFixed(2),
+                        bs: totalBs.toLocaleString("es-VE", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }),
+                      })}
+                    </p>
+                    <p className="text-xs text-muted mt-1">
+                      {customRate
+                        ? t("checkout.customRate", { rate: effectiveRate.toFixed(2) })
+                        : `${sourceCurrency} → Bs: ${effectiveRate.toFixed(2)}`}
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* Payment Proof (optional) */}
               <div>
