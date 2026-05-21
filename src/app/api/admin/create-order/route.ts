@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { isAuthorizedForConcert } from "@/lib/authHelpers";
+import { approveOrderInternal } from "@/lib/approveOrder";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import {
   isValidUUID,
@@ -152,8 +153,8 @@ export async function POST(req: NextRequest) {
           collaborators?: { email: string }[];
           paymentMethods?: { id: string; name: string }[];
           platformFeeConfig?:
-            | { feePercent: number; feeFixed: number }
-            | { feePercent: number; feeFixed: number }[];
+            | { feePercent: number; feeFixed: number; billingMode?: string }
+            | { feePercent: number; feeFixed: number; billingMode?: string }[];
         }
       | undefined;
 
@@ -205,14 +206,49 @@ export async function POST(req: NextRequest) {
       Array.isArray(rawPlatformFeeConfig)
         ? rawPlatformFeeConfig[0]
         : rawPlatformFeeConfig
-    ) as { feePercent: number; feeFixed: number } | undefined;
+    ) as { feePercent: number; feeFixed: number; billingMode?: string } | undefined;
     const platformFeePercentSnapshot = platformFeeConfig?.feePercent ?? 0;
     const platformFeeFixedSnapshot = platformFeeConfig?.feeFixed ?? 0;
-    const platformFeeAmountSnapshot = computePlatformFeeAtPurchase({
-      basePrice: effectivePrice,
-      feePercent: platformFeePercentSnapshot,
-      feeFixed: platformFeeFixedSnapshot,
-    });
+    const platformFeeAmountSnapshot = isCortesia
+      ? 0
+      : computePlatformFeeAtPurchase({
+          basePrice: effectivePrice,
+          feePercent: platformFeePercentSnapshot,
+          feeFixed: platformFeeFixedSnapshot,
+        });
+    const billingMode = platformFeeConfig?.billingMode || "prepaid";
+
+    // Pre-check: if the admin asked to create as "approved" and this batch
+    // will incur platform fees (not cortesía), make sure the organizer has
+    // enough balance (prepaid only). Mirrors `/api/approve-order`'s 402 shape.
+    if (
+      status === "approved" &&
+      !isCortesia &&
+      platformFeeAmountSnapshot > 0 &&
+      billingMode === "prepaid"
+    ) {
+      const totalFeeRequired =
+        Math.round(platformFeeAmountSnapshot * qty * 100) / 100;
+      const { organizerBalances } = await adminDb.query({
+        organizerBalances: {
+          $: { where: { email: concert.organizerEmail.toLowerCase() } },
+        },
+      });
+      const balance = organizerBalances[0];
+      if (!balance || balance.balance < totalFeeRequired) {
+        return NextResponse.json(
+          {
+            error: balance ? "INSUFFICIENT_BALANCE" : "NO_BALANCE",
+            message: balance
+              ? "Insufficient balance to approve this order."
+              : "No balance found. Please top up your account.",
+            requiredFee: totalFeeRequired,
+            currentBalance: balance?.balance ?? 0,
+          },
+          { status: 402 },
+        );
+      }
+    }
 
     const effectivePaymentMethod = isCortesia ? "Cortesia" : paymentMethodName;
     const purchaseGroupId = qty > 1 ? genId() : undefined;
@@ -246,7 +282,11 @@ export async function POST(req: NextRequest) {
           email: trimmed.email,
           cedula: trimmed.cedula,
           paymentMethod: effectivePaymentMethod,
-          status,
+          // Always create as pending; if admin requested "approved" we route
+          // through `approveOrderInternal` afterwards so the fee debit and the
+          // balance transaction happen under the same code path used by the
+          // manual "Aprobar" flow.
+          status: "pending",
           paymentProofPath: paymentProofPath ?? (isCortesia ? "cortesia" : "admin-created"),
           visited: false,
           createdAt: Date.now(),
@@ -272,6 +312,39 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       console.error("[admin/create-order] Transaction failed:", err);
       return errorResponse(req, "CREATE_ORDER_FAILED", 500);
+    }
+
+    // If admin asked for "approved", route each created order through the
+    // standard approve flow so the organizer's balance is debited and a
+    // `balanceTransactions` row is recorded (cortesía short-circuits at the
+    // `platformFee > 0` check inside `approveOrderInternal` since the
+    // snapshot is 0).
+    if (status === "approved") {
+      const approveResults = await Promise.all(
+        orderIds.map((oid) => approveOrderInternal(oid, { skipEmail: true })),
+      );
+      const failures = approveResults
+        .map((r, i) => ({ orderId: orderIds[i], result: r }))
+        .filter((x) => !x.result.success);
+      if (failures.length > 0) {
+        const first = failures[0].result;
+        console.error("[admin/create-order] Approve failures:", failures);
+        return NextResponse.json(
+          {
+            error: "PARTIAL_APPROVE_FAILED",
+            message:
+              first.error ||
+              "Some orders were created but could not be approved.",
+            orderIds,
+            approvedCount: approveResults.filter((r) => r.success).length,
+            failedCount: failures.length,
+            firstErrorCode: first.errorCode,
+            requiredFee: first.requiredFee,
+            currentBalance: first.currentBalance,
+          },
+          { status: 500 },
+        );
+      }
     }
 
     return NextResponse.json({ orderIds }, { status: 200 });
