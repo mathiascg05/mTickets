@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { id } from "@instantdb/admin";
 import { adminDb } from "../src/lib/adminDb";
 import { generateInviteToken } from "../src/lib/guestListTokens";
