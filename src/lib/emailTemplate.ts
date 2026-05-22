@@ -389,8 +389,8 @@ export async function buildReplyEmailHtml(params: {
   firstName: string;
   eventName: string;
   subject: string;
-  originalMessage: string;
-  reply: string;
+  threadUrl: string;
+  attachmentCount?: number;
   lang?: string;
 }) {
   const lang = normalizeLang(params.lang);
@@ -399,19 +399,20 @@ export async function buildReplyEmailHtml(params: {
     getTranslations({ locale: lang, namespace: "emails.common" }),
   ]);
 
-  const firstName = escapeHtml(params.firstName);
   const eventName = escapeHtml(params.eventName);
-  const subject = escapeHtml(params.subject);
-  const originalMessage = escapeHtml(params.originalMessage).replace(/\n/g, "<br />");
-  const reply = escapeHtml(params.reply).replace(/\n/g, "<br />");
+  const threadUrl = escapeHtml(params.threadUrl);
+  const reLabel = escapeHtml(t("subject", { subject: params.subject }));
 
   const greeting = escapeHtml(tCommon("greetingShort", { firstName: params.firstName }));
   const footer = escapeHtml(tCommon("footer"));
   const intro = t("intro", { eventName });
   const labelSubject = escapeHtml(t("labelSubject"));
-  const labelReply = escapeHtml(t("labelReply"));
-  const labelOriginal = escapeHtml(t("labelOriginal"));
-  const reLabel = escapeHtml(t("subject", { subject: params.subject }));
+  const cta = escapeHtml(t("cta"));
+  const linkNote = escapeHtml(t("linkNote"));
+  const attachmentNote =
+    params.attachmentCount && params.attachmentCount > 0
+      ? escapeHtml(t("attachmentNote", { count: params.attachmentCount }))
+      : "";
 
   return `<!DOCTYPE html>
 <html lang="${lang}">
@@ -420,20 +421,17 @@ export async function buildReplyEmailHtml(params: {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;padding:32px 16px;">
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(26,43,74,0.08);">
-        <!-- Header -->
         <tr>
           <td style="background-color:#1a2b4a;padding:24px 32px;text-align:center;">
             <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">ma<span style="color:rgba(255,255,255,0.6);">Tickets</span></h1>
           </td>
         </tr>
-        <!-- Greeting -->
         <tr>
           <td style="padding:32px 32px 16px;">
             <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">${greeting}</p>
             <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">${intro}</p>
           </td>
         </tr>
-        <!-- Reply -->
         <tr>
           <td style="padding:8px 32px 16px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;border-radius:12px;padding:20px;">
@@ -443,25 +441,16 @@ export async function buildReplyEmailHtml(params: {
                   <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${reLabel}</p>
                 </td>
               </tr>
-              <tr>
-                <td style="padding:6px 20px;">
-                  <p style="margin:0 0 8px;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelReply}</p>
-                  <p style="margin:0;font-size:14px;color:#1a2b4a;line-height:1.6;">${reply}</p>
-                </td>
-              </tr>
+              ${attachmentNote ? `<tr><td style="padding:8px 20px 0;"><p style="margin:0;font-size:13px;color:#7a8599;">${attachmentNote}</p></td></tr>` : ""}
             </table>
           </td>
         </tr>
-        <!-- Original message -->
         <tr>
-          <td style="padding:0 32px 24px;">
-            <p style="margin:0 0 8px;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelOriginal}</p>
-            <div style="padding:12px 16px;background-color:#f5f7fa;border-left:3px solid #d8dde6;border-radius:4px;">
-              <p style="margin:0;font-size:13px;color:#7a8599;line-height:1.5;">${originalMessage}</p>
-            </div>
+          <td align="center" style="padding:8px 32px 28px;">
+            <a href="${threadUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background-color:#1a2b4a;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:12px;font-size:15px;font-weight:600;letter-spacing:0.3px;">${cta}</a>
+            <p style="margin:12px 0 0;font-size:12px;color:#7a8599;line-height:1.5;word-break:break-all;">${linkNote}<br /><a href="${threadUrl}" style="color:#1a2b4a;">${threadUrl}</a></p>
           </td>
         </tr>
-        <!-- Footer -->
         <tr>
           <td style="padding:20px 32px;border-top:1px solid #d8dde6;text-align:center;">
             <p style="margin:0;font-size:12px;color:#7a8599;">${footer}</p>
@@ -478,8 +467,8 @@ export async function buildReplyEmailText(params: {
   firstName: string;
   eventName: string;
   subject: string;
-  originalMessage: string;
-  reply: string;
+  threadUrl: string;
+  attachmentCount?: number;
   lang?: string;
 }) {
   const lang = normalizeLang(params.lang);
@@ -487,7 +476,106 @@ export async function buildReplyEmailText(params: {
     getTranslations({ locale: lang, namespace: "emails.reply" }),
     getTranslations({ locale: lang, namespace: "emails.common" }),
   ]);
-  const { firstName, eventName, subject, originalMessage, reply } = params;
+  const { firstName, eventName, subject, threadUrl } = params;
+  const greeting = tCommon("greetingShort", { firstName });
+  const footer = tCommon("footer");
+  const attachmentLine =
+    params.attachmentCount && params.attachmentCount > 0
+      ? `\n${t("attachmentNote", { count: params.attachmentCount })}\n`
+      : "";
+
+  return `maTickets
+========
+
+${greeting}
+
+${t("introText", { eventName })}
+
+--- ${t("subject", { subject })} ---
+${attachmentLine}
+${t("cta")}: ${threadUrl}
+
+---
+
+${footer}
+`;
+}
+
+export async function buildThreadInviteEmailHtml(params: {
+  firstName: string;
+  eventName: string;
+  subject: string;
+  threadUrl: string;
+  lang?: string;
+}) {
+  const lang = normalizeLang(params.lang);
+  const [t, tCommon] = await Promise.all([
+    getTranslations({ locale: lang, namespace: "emails.threadInvite" }),
+    getTranslations({ locale: lang, namespace: "emails.common" }),
+  ]);
+
+  const eventName = escapeHtml(params.eventName);
+  const subject = escapeHtml(params.subject);
+  const threadUrl = escapeHtml(params.threadUrl);
+
+  const greeting = escapeHtml(tCommon("greetingShort", { firstName: params.firstName }));
+  const footer = escapeHtml(tCommon("footer"));
+  const intro = t("intro", { eventName });
+  const labelSubject = escapeHtml(t("labelSubject"));
+  const cta = escapeHtml(t("cta"));
+  const linkNote = escapeHtml(t("linkNote"));
+
+  return `<!DOCTYPE html>
+<html lang="${lang}">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+<body style="margin:0;padding:0;background-color:#f5f7fa;font-family:system-ui,-apple-system,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(26,43,74,0.08);">
+        <tr><td style="background-color:#1a2b4a;padding:24px 32px;text-align:center;"><h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">ma<span style="color:rgba(255,255,255,0.6);">Tickets</span></h1></td></tr>
+        <tr>
+          <td style="padding:32px 32px 16px;">
+            <p style="margin:0;font-size:16px;color:#1a2b4a;font-weight:600;">${greeting}</p>
+            <p style="margin:8px 0 0;font-size:14px;color:#7a8599;line-height:1.5;">${intro}</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px 32px 16px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;border-radius:12px;padding:20px;">
+              <tr><td style="padding:6px 20px;">
+                <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelSubject}</p>
+                <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${subject}</p>
+              </td></tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:8px 32px 28px;">
+            <a href="${threadUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background-color:#1a2b4a;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:12px;font-size:15px;font-weight:600;letter-spacing:0.3px;">${cta}</a>
+            <p style="margin:12px 0 0;font-size:12px;color:#7a8599;line-height:1.5;word-break:break-all;">${linkNote}<br /><a href="${threadUrl}" style="color:#1a2b4a;">${threadUrl}</a></p>
+          </td>
+        </tr>
+        <tr><td style="padding:20px 32px;border-top:1px solid #d8dde6;text-align:center;"><p style="margin:0;font-size:12px;color:#7a8599;">${footer}</p></td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export async function buildThreadInviteEmailText(params: {
+  firstName: string;
+  eventName: string;
+  subject: string;
+  threadUrl: string;
+  lang?: string;
+}) {
+  const lang = normalizeLang(params.lang);
+  const [t, tCommon] = await Promise.all([
+    getTranslations({ locale: lang, namespace: "emails.threadInvite" }),
+    getTranslations({ locale: lang, namespace: "emails.common" }),
+  ]);
+  const { firstName, eventName, subject, threadUrl } = params;
   const greeting = tCommon("greetingShort", { firstName });
   const footer = tCommon("footer");
 
@@ -498,13 +586,109 @@ ${greeting}
 
 ${t("introText", { eventName })}
 
---- ${t("subject", { subject })} ---
+${t("labelSubject")}: ${subject}
 
-${reply}
+${t("cta")}: ${threadUrl}
 
---- ${t("labelOriginal")} ---
+---
 
-${originalMessage}
+${footer}
+`;
+}
+
+export async function buildOrganizerNotifyEmailHtml(params: {
+  eventName: string;
+  customerName: string;
+  subject: string;
+  inboxUrl: string;
+  attachmentCount?: number;
+  lang?: string;
+}) {
+  const lang = normalizeLang(params.lang);
+  const [t, tCommon] = await Promise.all([
+    getTranslations({ locale: lang, namespace: "emails.organizerNotify" }),
+    getTranslations({ locale: lang, namespace: "emails.common" }),
+  ]);
+
+  const eventName = escapeHtml(params.eventName);
+  const customerName = escapeHtml(params.customerName);
+  const subject = escapeHtml(params.subject);
+  const inboxUrl = escapeHtml(params.inboxUrl);
+
+  const footer = escapeHtml(tCommon("footer"));
+  const intro = t("intro", { eventName, customerName });
+  const labelSubject = escapeHtml(t("labelSubject"));
+  const cta = escapeHtml(t("cta"));
+  const attachmentNote =
+    params.attachmentCount && params.attachmentCount > 0
+      ? escapeHtml(t("attachmentNote", { count: params.attachmentCount }))
+      : "";
+
+  return `<!DOCTYPE html>
+<html lang="${lang}">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+<body style="margin:0;padding:0;background-color:#f5f7fa;font-family:system-ui,-apple-system,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(26,43,74,0.08);">
+        <tr><td style="background-color:#1a2b4a;padding:24px 32px;text-align:center;"><h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">ma<span style="color:rgba(255,255,255,0.6);">Tickets</span></h1></td></tr>
+        <tr>
+          <td style="padding:32px 32px 16px;">
+            <p style="margin:0;font-size:14px;color:#7a8599;line-height:1.5;">${intro}</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px 32px 16px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f7fa;border-radius:12px;padding:20px;">
+              <tr><td style="padding:6px 20px;">
+                <p style="margin:0;font-size:12px;color:#7a8599;text-transform:uppercase;letter-spacing:0.5px;">${labelSubject}</p>
+                <p style="margin:2px 0 0;font-size:15px;color:#1a2b4a;font-weight:600;">${subject}</p>
+              </td></tr>
+              ${attachmentNote ? `<tr><td style="padding:8px 20px 0;"><p style="margin:0;font-size:13px;color:#7a8599;">${attachmentNote}</p></td></tr>` : ""}
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:8px 32px 28px;">
+            <a href="${inboxUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background-color:#1a2b4a;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:12px;font-size:15px;font-weight:600;letter-spacing:0.3px;">${cta}</a>
+          </td>
+        </tr>
+        <tr><td style="padding:20px 32px;border-top:1px solid #d8dde6;text-align:center;"><p style="margin:0;font-size:12px;color:#7a8599;">${footer}</p></td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export async function buildOrganizerNotifyEmailText(params: {
+  eventName: string;
+  customerName: string;
+  subject: string;
+  inboxUrl: string;
+  attachmentCount?: number;
+  lang?: string;
+}) {
+  const lang = normalizeLang(params.lang);
+  const [t, tCommon] = await Promise.all([
+    getTranslations({ locale: lang, namespace: "emails.organizerNotify" }),
+    getTranslations({ locale: lang, namespace: "emails.common" }),
+  ]);
+  const { eventName, customerName, subject, inboxUrl } = params;
+  const footer = tCommon("footer");
+  const attachmentLine =
+    params.attachmentCount && params.attachmentCount > 0
+      ? `\n${t("attachmentNote", { count: params.attachmentCount })}\n`
+      : "";
+
+  return `maTickets
+========
+
+${t("introText", { eventName, customerName })}
+
+${t("labelSubject")}: ${subject}
+${attachmentLine}
+${t("cta")}: ${inboxUrl}
 
 ---
 

@@ -4,15 +4,40 @@ import { db } from "@/lib/db";
 import { useAuthContext } from "@/lib/AuthContext";
 import { useLanguage } from "@/lib/LanguageContext";
 import { useState, useCallback, useMemo } from "react";
+import { id } from "@instantdb/react";
 import BroadcastComposer from "./BroadcastComposer";
+import {
+  ALLOWED_IMAGE_MIME,
+  MAX_ATTACHMENTS_PER_TURN,
+  MAX_IMAGE_BYTES,
+  buildOrganizerReplyAttachmentPath,
+  parseAttachmentsJson,
+  validateImageFile,
+  type AttachmentMeta,
+} from "@/lib/imageUpload";
 
-type StatusFilter = "all" | "new" | "read" | "replied";
+async function uploadOrganizerAttachment(path: string, file: File) {
+  try {
+    await db.storage.upload(path, file);
+  } catch (err) {
+    const isIdbClosing =
+      err instanceof Error &&
+      err.name === "InvalidStateError" &&
+      err.message.includes("IDBDatabase");
+    if (!isIdbClosing) throw err;
+    await new Promise((r) => setTimeout(r, 500));
+    await db.storage.upload(path, file);
+  }
+}
+
+type StatusFilter = "all" | "new" | "read" | "replied" | "customer-replied";
 type TopTab = "messages" | "broadcasts";
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
   new: "bg-blue-100 text-blue-800",
   read: "bg-yellow-100 text-yellow-800",
   replied: "bg-green-100 text-green-800",
+  "customer-replied": "bg-purple-100 text-purple-800",
 };
 
 const BROADCAST_STATUS_BADGE_CLASSES: Record<string, string> = {
@@ -67,7 +92,10 @@ export default function AdminCommunicationsPage() {
         ...(isSuperAdmin ? {} : { where: { organizerEmail: email } }),
         order: { createdAt: "desc" as const },
       },
-      messages: { $: { order: { createdAt: "desc" as const } } },
+      messages: {
+        $: { order: { createdAt: "desc" as const } },
+        replies: {},
+      },
       ticketTypes: {},
       paymentMethods: {},
       broadcasts: {
@@ -85,7 +113,10 @@ export default function AdminCommunicationsPage() {
           eventCollaborators: {
             $: { where: { email } },
             concert: {
-              messages: { $: { order: { createdAt: "desc" as const } } },
+              messages: {
+                $: { order: { createdAt: "desc" as const } },
+                replies: {},
+              },
               ticketTypes: {},
               paymentMethods: {},
               broadcasts: {
@@ -122,7 +153,11 @@ export default function AdminCommunicationsPage() {
       concertName: concert.name,
     })),
   );
-  allMessages.sort((a, b) => b.createdAt - a.createdAt);
+  allMessages.sort(
+    (a, b) =>
+      ((b as { lastActivityAt?: number }).lastActivityAt ?? b.createdAt) -
+      ((a as { lastActivityAt?: number }).lastActivityAt ?? a.createdAt),
+  );
 
   const filteredMessages = allMessages.filter((msg) => {
     if (eventFilter !== "all" && msg.concertId !== eventFilter) return false;
@@ -138,6 +173,7 @@ export default function AdminCommunicationsPage() {
     new: relevantMessages.filter((m) => m.status === "new").length,
     read: relevantMessages.filter((m) => m.status === "read").length,
     replied: relevantMessages.filter((m) => m.status === "replied").length,
+    "customer-replied": relevantMessages.filter((m) => m.status === "customer-replied").length,
   };
 
   // Broadcasts list
@@ -224,7 +260,7 @@ export default function AdminCommunicationsPage() {
         <>
           {/* Status tabs */}
           <div className="flex gap-1 mb-6 border-b border-border">
-            {(["all", "new", "read", "replied"] as StatusFilter[]).map((tab) => (
+            {(["all", "new", "customer-replied", "read", "replied"] as StatusFilter[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setStatusFilter(tab)}
@@ -234,7 +270,9 @@ export default function AdminCommunicationsPage() {
                     : "border-transparent text-muted hover:text-foreground"
                 }`}
               >
-                {tab === "all" ? t("admin.communications.tabAll") : t(`admin.messageStatus.${tab}`)}
+                {tab === "all"
+                  ? t("admin.communications.tabAll")
+                  : t(`admin.messageStatus.${tab === "customer-replied" ? "customerReplied" : tab}`)}
                 <span className="ml-1.5 text-xs opacity-60">({counts[tab]})</span>
               </button>
             ))}
@@ -300,6 +338,14 @@ export default function AdminCommunicationsPage() {
   );
 }
 
+type MessageReplyRow = {
+  id: string;
+  body: string;
+  sender: string;
+  attachments?: string;
+  createdAt: number;
+};
+
 type MessageWithConcert = {
   id: string;
   firstName: string;
@@ -310,10 +356,61 @@ type MessageWithConcert = {
   status: string;
   adminReply?: string;
   repliedAt?: number;
+  attachments?: string;
+  lastActivityAt?: number;
+  replies?: MessageReplyRow[];
   createdAt: number;
   concertId: string;
   concertName: string;
 };
+
+function AttachmentThumb({ path, name, mime }: { path: string; name: string; mime: string }) {
+  const { data } = db.useQuery({ $files: { $: { where: { path } } } });
+  const url = data?.$files[0]?.url;
+  if (!url) {
+    return (
+      <span className="text-xs text-muted px-2 py-1 border border-border rounded-md inline-block">
+        {name}
+      </span>
+    );
+  }
+  const isHeic = mime === "image/heic" || mime === "image/heif";
+  if (isHeic) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="block rounded-lg border border-border bg-background px-3 py-2 text-xs hover:bg-surface"
+      >
+        📷 {name}
+      </a>
+    );
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="block rounded-lg overflow-hidden border border-border bg-background"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt={name} className="w-full h-24 object-cover" loading="lazy" />
+    </a>
+  );
+}
+
+function AttachmentGrid({ raw }: { raw?: string }) {
+  const attachments = useMemo(() => parseAttachmentsJson(raw), [raw]);
+  if (attachments.length === 0) return null;
+  return (
+    <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+      {attachments.map((a, idx) => (
+        <AttachmentThumb key={`${a.path}-${idx}`} path={a.path} name={a.name} mime={a.mime} />
+      ))}
+    </div>
+  );
+}
 
 function MessageCard({
   message,
@@ -327,16 +424,37 @@ function MessageCard({
   refreshToken: string;
 }) {
   const { t } = useLanguage();
-  const badgeClass = STATUS_BADGE_CLASSES[message.status] ?? STATUS_BADGE_CLASSES.new;
-  const badgeLabel = t(`admin.messageStatus.${message.status in STATUS_BADGE_CLASSES ? message.status : "new"}`);
+  const badgeKey = message.status in STATUS_BADGE_CLASSES ? message.status : "new";
+  const badgeClass = STATUS_BADGE_CLASSES[badgeKey];
+  const badgeLabel = t(
+    `admin.messageStatus.${badgeKey === "customer-replied" ? "customerReplied" : badgeKey}`,
+  );
+  const [revoking, setRevoking] = useState(false);
 
-  // Mark as read when expanding a "new" message
+  const sortedReplies = useMemo(
+    () => [...(message.replies ?? [])].sort((a, b) => a.createdAt - b.createdAt),
+    [message.replies],
+  );
+  const lastTs = message.lastActivityAt ?? message.createdAt;
+
   const handleToggle = useCallback(() => {
     if (!expanded && message.status === "new") {
       db.transact(db.tx.messages[message.id].update({ status: "read" }));
     }
     onToggle();
   }, [expanded, message.id, message.status, onToggle]);
+
+  const handleRevoke = useCallback(async () => {
+    if (!confirm(t("admin.communications.revokeConfirm"))) return;
+    setRevoking(true);
+    try {
+      await db.transact(
+        db.tx.messages[message.id].merge({ accessToken: null, tokenExpiresAt: null }),
+      );
+    } finally {
+      setRevoking(false);
+    }
+  }, [message.id, t]);
 
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden transition-colors hover:border-accent/30">
@@ -353,6 +471,9 @@ function MessageCard({
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badgeClass}`}>
                 {badgeLabel}
               </span>
+              {sortedReplies.length > 0 && (
+                <span className="text-xs text-muted">· {sortedReplies.length + 1}</span>
+              )}
             </div>
             <p className="text-sm font-medium text-foreground truncate">{message.subject}</p>
             <div className="flex items-center gap-2 mt-1 text-xs text-muted">
@@ -360,7 +481,7 @@ function MessageCard({
               <span>&middot;</span>
               <span>{message.concertName}</span>
               <span>&middot;</span>
-              <span>{timeAgo(message.createdAt, t)}</span>
+              <span>{timeAgo(lastTs, t)}</span>
             </div>
           </div>
           <div className="shrink-0 text-muted">
@@ -379,23 +500,65 @@ function MessageCard({
       {expanded && (
         <div className="px-5 pb-5 border-t border-border pt-4 space-y-4">
           <div>
-            <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-1">{t("admin.communications.messageLabel")}</p>
+            <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+              <p className="text-[11px] font-medium text-muted uppercase tracking-widest">
+                {t("admin.communications.messageLabel")} · {message.firstName}
+              </p>
+              <span className="text-[11px] text-muted">{timeAgo(message.createdAt, t)}</span>
+            </div>
             <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{message.body}</p>
+            <AttachmentGrid raw={message.attachments} />
           </div>
 
-          {message.status === "replied" && message.adminReply && (
-            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-[11px] font-medium text-green-600 uppercase tracking-widest mb-1">{t("admin.communications.yourReply")}</p>
-              <p className="text-sm text-green-800 whitespace-pre-wrap leading-relaxed">{message.adminReply}</p>
-              {message.repliedAt && (
-                <p className="text-xs text-green-600 mt-2">{t("admin.communications.repliedAgo", { time: timeAgo(message.repliedAt, t) })}</p>
-              )}
-            </div>
-          )}
+          {sortedReplies.map((r) => {
+            const fromOrganizer = r.sender === "organizer";
+            return (
+              <div
+                key={r.id}
+                className={`p-4 rounded-lg border ${
+                  fromOrganizer
+                    ? "bg-green-50 border-green-200"
+                    : "bg-purple-50 border-purple-200"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                  <p
+                    className={`text-[11px] font-medium uppercase tracking-widest ${
+                      fromOrganizer ? "text-green-600" : "text-purple-600"
+                    }`}
+                  >
+                    {fromOrganizer
+                      ? t("admin.communications.yourReply")
+                      : t("admin.communications.customerReplyLabel")}
+                  </p>
+                  <span className="text-[11px] text-muted">{timeAgo(r.createdAt, t)}</span>
+                </div>
+                <p
+                  className={`text-sm whitespace-pre-wrap leading-relaxed ${
+                    fromOrganizer ? "text-green-800" : "text-purple-800"
+                  }`}
+                >
+                  {r.body}
+                </p>
+                <AttachmentGrid raw={r.attachments} />
+              </div>
+            );
+          })}
 
-          {message.status !== "replied" && (
-            <ReplyForm messageId={message.id} refreshToken={refreshToken} />
-          )}
+          <ReplyForm messageId={message.id} refreshToken={refreshToken} />
+
+          <div className="pt-3 border-t border-border flex flex-wrap items-center gap-3 text-xs">
+            <button
+              type="button"
+              onClick={handleRevoke}
+              disabled={revoking}
+              className="text-muted hover:text-red-600 underline disabled:opacity-50"
+            >
+              {revoking
+                ? t("admin.communications.revoking")
+                : t("admin.communications.revokeAccess")}
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -405,8 +568,37 @@ function MessageCard({
 function ReplyForm({ messageId, refreshToken }: { messageId: string; refreshToken: string }) {
   const { t } = useLanguage();
   const [reply, setReply] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const acceptAttr = useMemo(() => ALLOWED_IMAGE_MIME.join(","), []);
+
+  const handleSelectFiles = (picked: FileList | null) => {
+    if (!picked) return;
+    setError("");
+    const next = [...files];
+    for (const f of Array.from(picked)) {
+      if (next.length >= MAX_ATTACHMENTS_PER_TURN) {
+        setError(t("event.attachmentTooMany"));
+        break;
+      }
+      const err = validateImageFile(f);
+      if (err === "INVALID_MIME") {
+        setError(t("event.attachmentInvalid"));
+        continue;
+      }
+      if (err === "TOO_LARGE") {
+        setError(t("event.attachmentTooLarge"));
+        continue;
+      }
+      next.push(f);
+    }
+    setFiles(next);
+  };
+
+  const removeFile = (idx: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   const handleSend = useCallback(async () => {
     if (!reply.trim()) {
@@ -416,13 +608,26 @@ function ReplyForm({ messageId, refreshToken }: { messageId: string; refreshToke
     setSending(true);
     setError("");
     try {
+      const replyNamespace = id();
+      const uploaded: AttachmentMeta[] = [];
+      for (const f of files) {
+        if (f.size > MAX_IMAGE_BYTES) {
+          setError(t("event.attachmentTooLarge"));
+          setSending(false);
+          return;
+        }
+        const path = buildOrganizerReplyAttachmentPath(messageId, replyNamespace, f.type, f.name);
+        await uploadOrganizerAttachment(path, f);
+        uploaded.push({ path, name: f.name, mime: f.type, size: f.size });
+      }
+
       const res = await fetch("/api/reply-message", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${refreshToken}`,
         },
-        body: JSON.stringify({ messageId, reply }),
+        body: JSON.stringify({ messageId, reply, attachments: uploaded }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -430,12 +635,13 @@ function ReplyForm({ messageId, refreshToken }: { messageId: string; refreshToke
         return;
       }
       setReply("");
+      setFiles([]);
     } catch {
       setError(t("admin.broadcast.sendError"));
     } finally {
       setSending(false);
     }
-  }, [reply, messageId, refreshToken, t]);
+  }, [reply, files, messageId, refreshToken, t]);
 
   return (
     <div className="space-y-3">
@@ -453,13 +659,52 @@ function ReplyForm({ messageId, refreshToken }: { messageId: string; refreshToke
         />
         <p className="text-right text-xs text-muted mt-1">{reply.length}/5000</p>
       </div>
+      <div>
+        <label className="block text-[11px] font-medium text-muted uppercase tracking-widest mb-1.5">
+          {t("event.attachImages")}
+        </label>
+        <input
+          type="file"
+          accept={acceptAttr}
+          multiple
+          onChange={(e) => {
+            handleSelectFiles(e.target.files);
+            e.currentTarget.value = "";
+          }}
+          className="block w-full text-sm file:mr-4 file:px-3 file:py-1.5 file:rounded-md file:bg-background file:border file:border-border file:font-medium"
+        />
+        <p className="text-xs text-muted mt-1">{t("event.attachHint")}</p>
+        {files.length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {files.map((f, idx) => (
+              <li
+                key={`${f.name}-${idx}`}
+                className="flex items-center justify-between text-xs bg-background border border-border rounded-md px-2 py-1"
+              >
+                <span className="truncate">{f.name}</span>
+                <button
+                  type="button"
+                  onClick={() => removeFile(idx)}
+                  className="text-muted hover:text-red-500 ml-2"
+                >
+                  {t("event.removeAttachment")}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       {error && <p className="text-sm text-red-500">{error}</p>}
       <button
         onClick={handleSend}
         disabled={sending || !reply.trim()}
         className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
       >
-        {sending ? t("admin.communications.sendingReply") : t("admin.communications.sendReply")}
+        {sending
+          ? files.length > 0
+            ? t("event.attachmentUploading")
+            : t("admin.communications.sendingReply")
+          : t("admin.communications.sendReply")}
       </button>
     </div>
   );

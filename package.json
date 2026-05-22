@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:load": "k6 run load-tests/buy-flow.js",
-    "legal:pdf": "tsx scripts/generate-legal-pdf.ts"
+    "legal:pdf": "tsx scripts/generate-legal-pdf.ts",
+    "backfill:messages": "tsx scripts/backfill-message-tokens.ts"
   },
   "dependencies": {
     "@instantdb/admin": "0.22.153",

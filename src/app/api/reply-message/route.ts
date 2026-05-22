@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { id } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { isValidUUID } from "@/lib/validation";
 import { transporter, generateMessageId, EMAIL_FROM } from "@/lib/mailer";
@@ -8,10 +9,18 @@ import { buildMailHeaders } from "@/lib/emailHeaders";
 import { errorResponse } from "@/lib/serverI18n";
 import { resolveEmailLang } from "@/lib/serverLocale";
 import { getTranslations } from "next-intl/server";
+import {
+  isOrganizerReplyAttachmentPath,
+  shapeCheckAttachments,
+  verifyAttachmentsExist,
+  stringifyAttachments,
+} from "@/lib/imageUpload";
+import { generateInviteToken } from "@/lib/guestListTokens";
+
+const TOKEN_TTL_MS = 90 * 24 * 60 * 60_000;
 
 export async function POST(req: NextRequest) {
   try {
-    // Verify caller is authenticated
     const authToken = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!authToken) {
       return errorResponse(req, "UNAUTHORIZED", 401);
@@ -21,7 +30,7 @@ export async function POST(req: NextRequest) {
       return errorResponse(req, "UNAUTHORIZED", 401);
     }
 
-    const { messageId, reply } = await req.json();
+    const { messageId, reply, attachments: rawAttachments } = await req.json();
 
     if (!isValidUUID(messageId)) {
       return errorResponse(req, "INVALID_MESSAGE_ID", 400);
@@ -30,7 +39,24 @@ export async function POST(req: NextRequest) {
       return errorResponse(req, "REPLY_REQUIRED", 400);
     }
 
-    // Fetch message with its concert (and collaborators for auth)
+    const attachmentCheck = shapeCheckAttachments(rawAttachments, (p) =>
+      isOrganizerReplyAttachmentPath(p, messageId),
+    );
+    if (!attachmentCheck.ok) {
+      const code =
+        attachmentCheck.reason === "TOO_MANY"
+          ? "ATTACHMENT_TOO_MANY"
+          : attachmentCheck.reason === "INVALID_MIME"
+            ? "ATTACHMENT_INVALID_TYPE"
+            : attachmentCheck.reason === "TOO_LARGE"
+              ? "ATTACHMENT_TOO_LARGE"
+              : attachmentCheck.reason === "BAD_PATH"
+                ? "ATTACHMENT_BAD_PATH"
+                : "INVALID_ATTACHMENTS";
+      return errorResponse(req, code, 400);
+    }
+    const attachments = attachmentCheck.attachments;
+
     const { messages } = await adminDb.query({
       messages: {
         $: { where: { id: messageId } },
@@ -49,7 +75,6 @@ export async function POST(req: NextRequest) {
     const concert = Array.isArray(rawConcert) ? rawConcert[0] : rawConcert;
     const eventName = concert?.name ?? "Event";
 
-    // Verify user is organizer/collaborator of this concert or super admin
     const { isAuthorizedForConcert } = await import("@/lib/authHelpers");
     if (
       !user.email ||
@@ -61,34 +86,69 @@ export async function POST(req: NextRequest) {
       return errorResponse(req, "UNAUTHORIZED", 401);
     }
 
-    // Update message status
-    await adminDb.transact(
-      adminDb.tx.messages[messageId].update({
-        status: "replied",
-        adminReply: reply.trim(),
-        repliedAt: Date.now(),
-      }),
-    );
+    if (attachments.length > 0) {
+      const verify = await verifyAttachmentsExist(adminDb, attachments);
+      if (!verify.ok) {
+        return errorResponse(req, "ATTACHMENT_MISSING", 400);
+      }
+    }
 
-    // Check suppression (still update message status above, but skip sending)
+    const now = Date.now();
+    const replyId = id();
+    const replyBody = reply.trim();
+    const attachmentsJson = stringifyAttachments(attachments);
+
+    // Rotate token if missing/expired so the magic link in the email is fresh.
+    const currentToken = (message as { accessToken?: string }).accessToken;
+    const currentExpiry = (message as { tokenExpiresAt?: number }).tokenExpiresAt ?? 0;
+    const needsNewToken = !currentToken || currentExpiry < now;
+    const accessToken = needsNewToken ? generateInviteToken() : currentToken!;
+    const tokenExpiresAt = now + TOKEN_TTL_MS;
+
+    const replyTx = adminDb.tx.messageReplies[replyId]
+      .create({
+        body: replyBody,
+        sender: "organizer",
+        authorEmail: user.email,
+        attachments: attachmentsJson ?? undefined,
+        createdAt: now,
+      })
+      .link({ message: messageId });
+
+    const messageUpdate: Record<string, unknown> = {
+      status: "replied",
+      adminReply: replyBody,
+      repliedAt: now,
+      lastActivityAt: now,
+      tokenExpiresAt,
+    };
+    if (needsNewToken) {
+      messageUpdate.accessToken = accessToken;
+    }
+
+    await adminDb.transact([
+      replyTx,
+      adminDb.tx.messages[messageId].update(messageUpdate),
+    ]);
+
     if (await isEmailSuppressed(message.email)) {
       console.log(`[reply-message] Skipping suppressed email: ${message.email}`);
       return NextResponse.json({ success: true });
     }
 
-    // Resolve recipient language: message.language → concert.defaultLanguage → "es"
     const lang = resolveEmailLang(
       (message as { language?: string }).language,
       (concert as { defaultLanguage?: string })?.defaultLanguage,
     );
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://matickets.net";
+    const threadUrl = `${appUrl}/${lang}/messages/${accessToken}`;
 
-    // Send reply email
     const emailParams = {
       firstName: message.firstName,
       eventName,
       subject: message.subject,
-      originalMessage: message.body,
-      reply: reply.trim(),
+      threadUrl,
+      attachmentCount: attachments.length,
       lang,
     };
 
@@ -101,7 +161,10 @@ export async function POST(req: NextRequest) {
       messageId: generateMessageId(),
       text: await buildReplyEmailText(emailParams),
       html: await buildReplyEmailHtml(emailParams),
-      headers: buildMailHeaders(message.email),
+      headers: {
+        ...buildMailHeaders(message.email),
+        "Referrer-Policy": "no-referrer",
+      },
     });
 
     return NextResponse.json({ success: true });

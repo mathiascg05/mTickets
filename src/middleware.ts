@@ -21,6 +21,15 @@ const RATE_LIMITS: Record<string, { max: number; windowMs: number }> = {
   "/api/reset-password": { max: 3, windowMs: 60_000 },
 };
 
+// Prefix-based limits (per IP). Useful for routes with dynamic path segments.
+const RATE_LIMIT_PREFIXES: Array<{
+  prefix: string;
+  max: number;
+  windowMs: number;
+}> = [
+  { prefix: "/api/messages/by-token/", max: 30, windowMs: 10 * 60_000 },
+];
+
 // Routes that authenticate by request signature or shared secret rather than
 // by browser-issued cookies/tokens. CSRF is not relevant for these and
 // rejecting them on Origin would break legitimate webhook/cron callers.
@@ -105,6 +114,21 @@ export function middleware(req: NextRequest) {
           { error: "Too many requests. Please try again later." },
           { status: 429 },
         );
+      }
+    }
+
+    for (const pfx of RATE_LIMIT_PREFIXES) {
+      if (pathname.startsWith(pfx.prefix)) {
+        cleanupIfNeeded();
+        const ip = getClientIp(req);
+        const key = `${ip}:${pfx.prefix}`;
+        if (isRateLimited(key, pfx.max, pfx.windowMs)) {
+          return NextResponse.json(
+            { error: "Too many requests. Please try again later." },
+            { status: 429 },
+          );
+        }
+        break;
       }
     }
     return NextResponse.next();

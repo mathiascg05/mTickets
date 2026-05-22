@@ -170,6 +170,17 @@ const _schema = i.schema({
       adminReply: i.string().optional(),
       repliedAt: i.number().optional().indexed(),
       language: i.string().optional(),
+      attachments: i.string().optional(),
+      accessToken: i.string().unique().indexed().optional(),
+      tokenExpiresAt: i.number().optional().indexed(),
+      lastActivityAt: i.number().optional().indexed(),
+      createdAt: i.number().indexed(),
+    }),
+    messageReplies: i.entity({
+      body: i.string(),
+      sender: i.string().indexed(),
+      authorEmail: i.string().optional(),
+      attachments: i.string().optional(),
       createdAt: i.number().indexed(),
     }),
     organizerBalances: i.entity({
@@ -484,6 +495,19 @@ const _schema = i.schema({
         on: "concerts",
         has: "many",
         label: "messages",
+      },
+    },
+    messageThreadReplies: {
+      forward: {
+        on: "messageReplies",
+        has: "one",
+        label: "message",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "messages",
+        has: "many",
+        label: "replies",
       },
     },
     balanceTransactionBalance: {

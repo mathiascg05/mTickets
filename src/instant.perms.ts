@@ -158,6 +158,23 @@ const rules = {
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
+    fields: {
+      accessToken: `auth.email == '${SUPER_ADMIN}'`,
+    },
+  },
+  messageReplies: {
+    allow: {
+      view: "isOwner || isSuperAdmin",
+      create: "false",
+      update: "false",
+      delete: "isOwner || isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('message.concert.organizerEmail') || auth.email in data.ref('message.concert.collaborators.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
   },
   broadcasts: {
     allow: {
@@ -386,9 +403,9 @@ const rules = {
   },
   $files: {
     allow: {
-      view: `data.path.startsWith('event-assets/') || data.path.startsWith('ticket-type-assets/') || auth.email == '${SUPER_ADMIN}'`,
+      view: `data.path.startsWith('event-assets/') || data.path.startsWith('ticket-type-assets/') || data.path.startsWith('message-attachments/') || auth.email == '${SUPER_ADMIN}'`,
       create:
-        "data.path.startsWith('payment-proofs/') || (auth.email != null && (data.path.startsWith('event-assets/') || data.path.startsWith('ticket-type-assets/')))",
+        "data.path.startsWith('payment-proofs/') || data.path.startsWith('message-attachments/') || (auth.email != null && (data.path.startsWith('event-assets/') || data.path.startsWith('ticket-type-assets/')))",
       delete:
         `auth.email != null && (data.path.startsWith('event-assets/') || data.path.startsWith('ticket-type-assets/') || auth.email == '${SUPER_ADMIN}')`,
     },

@@ -12,9 +12,32 @@ import { isAuthorizedForConcert } from "@/lib/authHelpers";
 import { getPeoplePerTicket, isAreaTicket } from "@/lib/ticketTypeKind";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { id } from "@instantdb/react";
 import emailSpellChecker from "@zootools/email-spell-checker";
 import EventConcluded from "./EventConcluded";
+import {
+  ALLOWED_IMAGE_MIME,
+  MAX_ATTACHMENTS_PER_TURN,
+  MAX_IMAGE_BYTES,
+  buildPendingAttachmentPath,
+  validateImageFile,
+  type AttachmentMeta,
+} from "@/lib/imageUpload";
+
+async function uploadMessageImage(path: string, file: File) {
+  try {
+    await db.storage.upload(path, file);
+  } catch (err) {
+    const isIdbClosing =
+      err instanceof Error &&
+      err.name === "InvalidStateError" &&
+      err.message.includes("IDBDatabase");
+    if (!isIdbClosing) throw err;
+    await new Promise((r) => setTimeout(r, 500));
+    await db.storage.upload(path, file);
+  }
+}
 
 function formatDate(dateStr: string, lang: Lang) {
   const d = new Date(dateStr);
@@ -562,14 +585,43 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
     subject: "",
     body: "",
   });
+  const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [cooldown, setCooldown] = useState(false);
   const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
+  const acceptAttr = useMemo(() => ALLOWED_IMAGE_MIME.join(","), []);
 
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSelectFiles = (picked: FileList | null) => {
+    if (!picked) return;
+    setError("");
+    const next = [...files];
+    for (const f of Array.from(picked)) {
+      if (next.length >= MAX_ATTACHMENTS_PER_TURN) {
+        setError(t("event.attachmentTooMany"));
+        break;
+      }
+      const err = validateImageFile(f);
+      if (err === "INVALID_MIME") {
+        setError(t("event.attachmentInvalid"));
+        continue;
+      }
+      if (err === "TOO_LARGE") {
+        setError(t("event.attachmentTooLarge"));
+        continue;
+      }
+      next.push(f);
+    }
+    setFiles(next);
+  };
+
+  const removeFile = (idx: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const handleSubmit = useCallback(async () => {
@@ -577,13 +629,29 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
       setError(t("event.allFieldsRequired"));
       return;
     }
+    if (files.length > MAX_ATTACHMENTS_PER_TURN) {
+      setError(t("event.attachmentTooMany"));
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
+      const uploaded: AttachmentMeta[] = [];
+      for (const f of files) {
+        if (f.size > MAX_IMAGE_BYTES) {
+          setError(t("event.attachmentTooLarge"));
+          setSubmitting(false);
+          return;
+        }
+        const path = buildPendingAttachmentPath(id(), f.type, f.name);
+        await uploadMessageImage(path, f);
+        uploaded.push({ path, name: f.name, mime: f.type, size: f.size });
+      }
+
       const res = await fetch("/api/contact-organizer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ concertId, ...form }),
+        body: JSON.stringify({ concertId, ...form, attachments: uploaded }),
       });
       if (res.status === 429) {
         setError(t("event.tooManyMessages"));
@@ -596,6 +664,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
       }
       setSuccess(true);
       setForm({ firstName: "", lastName: "", email: "", subject: "", body: "" });
+      setFiles([]);
       setCooldown(true);
       setTimeout(() => setCooldown(false), 30_000);
     } catch {
@@ -603,7 +672,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
     } finally {
       setSubmitting(false);
     }
-  }, [form, concertId, t]);
+  }, [form, files, concertId, t]);
 
   return (
     <div className="border-t border-border mt-10 pt-8">
@@ -726,6 +795,41 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
               />
               <p className="text-right text-xs text-muted mt-1">{form.body.length}/2000</p>
             </div>
+            <div>
+              <label className="block text-[11px] font-medium text-muted uppercase tracking-widest mb-1.5">
+                {t("event.attachImages")}
+              </label>
+              <input
+                type="file"
+                accept={acceptAttr}
+                multiple
+                onChange={(e) => {
+                  handleSelectFiles(e.target.files);
+                  e.currentTarget.value = "";
+                }}
+                className="block w-full text-sm file:mr-4 file:px-3 file:py-1.5 file:rounded-md file:bg-field file:border file:border-border file:font-medium"
+              />
+              <p className="text-xs text-muted mt-1">{t("event.attachHint")}</p>
+              {files.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {files.map((f, idx) => (
+                    <li
+                      key={`${f.name}-${idx}`}
+                      className="flex items-center justify-between text-xs bg-field border border-border rounded-md px-2 py-1"
+                    >
+                      <span className="truncate">{f.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(idx)}
+                        className="text-muted hover:text-red-500 ml-2"
+                      >
+                        {t("event.removeAttachment")}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}
 
@@ -734,7 +838,13 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
               disabled={submitting || cooldown}
               className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
             >
-              {submitting ? t("event.sending") : cooldown ? t("event.messageSent") : t("event.sendMessage")}
+              {submitting
+                ? files.length > 0
+                  ? t("event.attachmentUploading")
+                  : t("event.sending")
+                : cooldown
+                  ? t("event.messageSent")
+                  : t("event.sendMessage")}
             </button>
           </div>
         </div>
