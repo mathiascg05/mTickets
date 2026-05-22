@@ -2996,16 +2996,59 @@ function PlatformFeeSection({
   isDemo,
 }: {
   concertId: string;
-  feeConfig: { id: string; feePercent: number; feeFixed: number; billingMode: string } | undefined;
+  feeConfig:
+    | {
+        id: string;
+        feePercent: number;
+        feeFixed: number;
+        billingMode: string;
+        allowOverdraft?: boolean;
+        overdraftActivatedAt?: number;
+        overdraftActivatedBy?: string;
+      }
+    | undefined;
   isSuperAdmin: boolean;
   isDemo: boolean;
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+  const { user } = db.useAuth();
+  const refreshToken = user?.refresh_token || "";
   const [feePercent, setFeePercent] = useState(feeConfig?.feePercent?.toString() || "5");
   const [feeFixed, setFeeFixed] = useState(feeConfig?.feeFixed?.toString() || "0");
   const [billingMode, setBillingMode] = useState(feeConfig?.billingMode || "prepaid");
+  const [allowOverdraft, setAllowOverdraft] = useState(feeConfig?.allowOverdraft === true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [enabling, setEnabling] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const overdraftEnabled = feeConfig?.allowOverdraft === true;
+  const overdraftActivatedAt = feeConfig?.overdraftActivatedAt;
+
+  async function enableOverdraft() {
+    setEnabling(true);
+    try {
+      const res = await fetch("/api/enable-overdraft", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${refreshToken}`,
+        },
+        body: JSON.stringify({ concertId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || data?.error || "Error");
+      }
+      toast.success(t("admin.overdraftEnabled"));
+      setShowConfirm(false);
+    } catch (err) {
+      console.error("Failed to enable overdraft:", err);
+      toast.error(t("admin.overdraftEnableError"));
+    } finally {
+      setEnabling(false);
+    }
+  }
 
   // Preview calculation
   const previewPrice = 10;
@@ -3020,6 +3063,7 @@ function PlatformFeeSection({
         feePercent: parseFloat(feePercent) || 0,
         feeFixed: parseFloat(feeFixed) || 0,
         billingMode,
+        allowOverdraft,
         updatedAt: Date.now(),
       };
 
@@ -3044,6 +3088,8 @@ function PlatformFeeSection({
   // Read-only view for organizers
   if (!isSuperAdmin) {
     if (!feeConfig) return null;
+    const showOverdraftSection =
+      !isDemo && feeConfig.billingMode === "prepaid";
     return (
       <div className="bg-surface border border-border rounded-xl p-6">
         <h2 className="text-lg font-bold mb-4">{t("admin.platformFeeConfig")}</h2>
@@ -3069,6 +3115,76 @@ function PlatformFeeSection({
             fee: (feeConfig.feePercent / 100 * previewPrice + feeConfig.feeFixed).toFixed(2),
           })}
         </p>
+        {showOverdraftSection && (
+          <div className="mt-5 pt-5 border-t border-border">
+            {overdraftEnabled ? (
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-success/5 border border-success/30">
+                <div className="w-2 h-2 rounded-full bg-success mt-2 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-success">
+                    {t("admin.overdraftEnabled")}
+                  </p>
+                  {overdraftActivatedAt && (
+                    <p className="text-xs text-muted mt-0.5">
+                      {new Date(overdraftActivatedAt).toLocaleString(
+                        dateLocale(lang),
+                      )}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted mt-1">
+                    {t("admin.overdraftEnabledDesc")}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm font-medium mb-1">
+                  {t("admin.allowOverdraft")}
+                </p>
+                <p className="text-xs text-muted mb-3">
+                  {t("admin.allowOverdraftDesc")}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(true)}
+                  className="px-4 py-2 bg-warning/10 hover:bg-warning/20 border border-warning/40 text-warning rounded-lg text-sm font-medium transition-colors"
+                >
+                  {t("admin.allowOverdraftCta")}
+                </button>
+                {showConfirm && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-surface border border-border rounded-xl p-6 max-w-md w-full">
+                      <h3 className="text-lg font-bold mb-2">
+                        {t("admin.overdraftConfirmTitle")}
+                      </h3>
+                      <p className="text-sm text-muted mb-5">
+                        {t("admin.overdraftConfirmBody")}
+                      </p>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirm(false)}
+                          disabled={enabling}
+                          className="px-4 py-2 border border-border rounded-lg text-sm hover:bg-background transition-colors"
+                        >
+                          {t("common.cancel")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={enableOverdraft}
+                          disabled={enabling}
+                          className="px-4 py-2 bg-warning hover:bg-warning/80 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+                        >
+                          {enabling ? "..." : t("admin.overdraftConfirmCta")}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -3161,6 +3277,32 @@ function PlatformFeeSection({
           </button>
         </div>
       </div>
+      {billingMode === "prepaid" && (
+        <div className={`mb-4 p-3 rounded-lg border ${allowOverdraft ? "bg-warning/5 border-warning/30" : "bg-background border-border"}`}>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={allowOverdraft}
+              onChange={(e) => setAllowOverdraft(e.target.checked)}
+              className="mt-1 accent-warning"
+            />
+            <div>
+              <p className="font-medium text-sm">{t("admin.allowOverdraft")}</p>
+              <p className="text-xs text-muted mt-0.5">{t("admin.allowOverdraftDesc")}</p>
+              {overdraftActivatedAt && (
+                <p className="text-xs text-muted mt-1">
+                  {t("admin.overdraftActivatedAt", {
+                    date: new Date(overdraftActivatedAt).toLocaleString(dateLocale(lang)),
+                  })}
+                  {feeConfig?.overdraftActivatedBy
+                    ? ` · ${feeConfig.overdraftActivatedBy}`
+                    : ""}
+                </p>
+              )}
+            </div>
+          </label>
+        </div>
+      )}
       <button
         onClick={handleSave}
         disabled={saving}

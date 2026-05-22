@@ -278,13 +278,22 @@ export default function SuperAdminStats({
     for (const concert of realConcerts) {
       const fc = concert.platformFeeConfig as unknown;
       const cfg = (Array.isArray(fc) ? fc[0] : fc) as
-        | { billingMode?: string; feePercent?: number; feeFixed?: number }
+        | {
+            billingMode?: string;
+            feePercent?: number;
+            feeFixed?: number;
+            allowOverdraft?: boolean;
+          }
         | null
         | undefined;
-      if (cfg?.billingMode !== "postpaid") continue;
+      // Include both real postpaid events AND prepaid events that opted
+      // into overdraft — both can leave pending fees as future debt.
+      const isPostpaidLike =
+        cfg?.billingMode === "postpaid" || cfg?.allowOverdraft === true;
+      if (!isPostpaidLike) continue;
       const liveCfg = {
-        feePercent: cfg.feePercent || 0,
-        feeFixed: cfg.feeFixed || 0,
+        feePercent: cfg?.feePercent || 0,
+        feeFixed: cfg?.feeFixed || 0,
       };
       for (const tt of concert.ticketTypes) {
         for (const order of tt.orders) {
@@ -295,7 +304,16 @@ export default function SuperAdminStats({
     }
     postpaidDebt = Math.round(postpaidDebt * 100) / 100;
 
-    return { totalPlatformBalance, postpaidDebt };
+    // Debt already materialized as a negative organizer balance (overdraft
+    // approvals or postpaid approvals that pushed the balance below zero).
+    let materializedDebt = 0;
+    for (const bal of organizerBalances) {
+      if (demoOnlyOrgEmails.has(bal.email.toLowerCase())) continue;
+      if (bal.balance < 0) materializedDebt += -bal.balance;
+    }
+    materializedDebt = Math.round(materializedDebt * 100) / 100;
+
+    return { totalPlatformBalance, postpaidDebt, materializedDebt };
   }, [organizerBalances, realConcerts, demoOnlyOrgEmails]);
 
   // ── Period KPIs (filtered) ──
@@ -625,7 +643,13 @@ export default function SuperAdminStats({
             <p className="text-2xl font-bold text-warning">
               ${snapshot.postpaidDebt.toFixed(2)}
             </p>
-            <p className="text-xs text-muted">{t("admin.postpaidDebt")}</p>
+            <p className="text-xs text-muted">{t("admin.potentialDebt")}</p>
+          </div>
+          <div className="border-l border-border pl-8">
+            <p className="text-2xl font-bold text-warning">
+              ${snapshot.materializedDebt.toFixed(2)}
+            </p>
+            <p className="text-xs text-muted">{t("admin.materializedDebt")}</p>
           </div>
         </div>
       </div>

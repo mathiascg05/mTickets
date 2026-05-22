@@ -203,6 +203,9 @@ const _schema = i.schema({
       feePercent: i.number(),
       feeFixed: i.number(),
       billingMode: i.string().indexed(),
+      allowOverdraft: i.boolean().optional().indexed(),
+      overdraftActivatedAt: i.number().optional().indexed(),
+      overdraftActivatedBy: i.string().optional(),
       updatedAt: i.number().indexed(),
     }),
     emailSuppressions: i.entity({

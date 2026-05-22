@@ -104,9 +104,14 @@ export async function approveOrderInternal(
     feePercent: number;
     feeFixed: number;
     billingMode: string;
+    allowOverdraft?: boolean;
   } | null;
 
   const billingMode = feeConfig?.billingMode || "prepaid";
+  const allowOverdraft = feeConfig?.allowOverdraft === true;
+  // Overdraft turns a prepaid event into a postpaid-style transaction (no
+  // balance gate, can go negative). Strict prepaid is the default.
+  const strictPrepaid = billingMode === "prepaid" && !allowOverdraft;
 
   // Prefer the snapshot captured at order creation so a later edit to
   // platformFeeConfig or ticketType.price does not change what gets deducted
@@ -126,7 +131,7 @@ export async function approveOrderInternal(
 
     const balance = organizerBalances[0];
 
-    if (billingMode === "prepaid") {
+    if (strictPrepaid) {
       if (!balance) {
         return {
           success: false,

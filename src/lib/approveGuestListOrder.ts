@@ -94,10 +94,17 @@ export async function approveGuestListOrderInternal(
   const feeConfig = (
     Array.isArray(rawFeeConfig) ? rawFeeConfig[0] : rawFeeConfig
   ) as
-    | { feePercent: number; feeFixed: number; billingMode: string }
+    | {
+        feePercent: number;
+        feeFixed: number;
+        billingMode: string;
+        allowOverdraft?: boolean;
+      }
     | null;
 
   const billingMode = feeConfig?.billingMode || "prepaid";
+  const allowOverdraft = feeConfig?.allowOverdraft === true;
+  const strictPrepaid = billingMode === "prepaid" && !allowOverdraft;
 
   let platformFee = 0;
   if (typeof order.platformFeeAmountSnapshot === "number") {
@@ -150,7 +157,7 @@ export async function approveGuestListOrderInternal(
   });
   const balance = organizerBalances[0];
 
-  if (billingMode === "prepaid") {
+  if (strictPrepaid) {
     if (!balance) {
       return {
         success: false,
