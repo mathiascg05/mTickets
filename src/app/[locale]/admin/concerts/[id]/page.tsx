@@ -12,6 +12,7 @@ import { serializeThemeColors } from "@/lib/themeColors";
 import PaletteEditor from "@/components/admin/PaletteEditor";
 import { PagoMovilFields } from "@/components/admin/PagoMovilFields";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { getFieldTypeLabel } from "@/lib/i18n";
@@ -368,15 +369,23 @@ function ConcertEditForm({ concert, isSuperAdmin }: { concert: ConcertData; isSu
                 )}
               </span>
             </div>
-            {isSuperAdmin && (
-              <button
-                type="button"
-                onClick={reopenConcert}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Link
+                href={`/admin/orders/${concert.id}`}
                 className="px-4 py-2 text-sm font-medium rounded-lg border border-border hover:border-accent/50 text-muted hover:text-accent-light transition-colors"
               >
-                {t("admin.reopenEvent")}
-              </button>
-            )}
+                {t("admin.viewOrders")}
+              </Link>
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={reopenConcert}
+                  className="px-4 py-2 text-sm font-medium rounded-lg border border-border hover:border-accent/50 text-muted hover:text-accent-light transition-colors"
+                >
+                  {t("admin.reopenEvent")}
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <button

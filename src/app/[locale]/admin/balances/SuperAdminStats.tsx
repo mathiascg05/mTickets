@@ -276,6 +276,7 @@ export default function SuperAdminStats({
 
     let postpaidDebt = 0;
     for (const concert of realConcerts) {
+      if (concert.status === "finalized") continue;
       const fc = concert.platformFeeConfig as unknown;
       const cfg = (Array.isArray(fc) ? fc[0] : fc) as
         | {

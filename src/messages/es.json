@@ -275,6 +275,7 @@
     "finalizedOn": "Finalizado el {date}",
     "reopenEvent": "Reabrir evento",
     "reopenEventConfirm": "¿Reabrir este evento? Volverá a estar activo y se podrán vender entradas de nuevo.",
+    "viewOrders": "Ver órdenes",
     "venuePlaceholder": "Nombre y dirección del lugar",
     "descPlaceholder": "Descripción del evento",
     "ticketType": "tipo de entrada",

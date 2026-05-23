@@ -173,7 +173,10 @@ export default function AdminOrdersPage() {
   const { isLoading, data } = db.useQuery({
     concerts: {
       $: {
-        ...(isSuperAdmin ? {} : { where: { organizerEmail: email } }),
+        where: {
+          status: { $ne: "finalized" },
+          ...(isSuperAdmin ? {} : { organizerEmail: email }),
+        },
         order: { createdAt: "desc" as const },
       },
       ticketTypes: { orders: {} },
@@ -194,7 +197,10 @@ export default function AdminOrdersPage() {
   const { data: guestListData } = db.useQuery({
     guestListEvents: {
       $: {
-        ...(isSuperAdmin ? {} : { where: { organizerEmail: email } }),
+        where: {
+          status: { $ne: "finalized" },
+          ...(isSuperAdmin ? {} : { organizerEmail: email }),
+        },
         order: { createdAt: "desc" as const },
       },
       entries: { order: {} },
@@ -206,7 +212,10 @@ export default function AdminOrdersPage() {
     const ownedConcerts = data.concerts;
     const collabConcerts = (collabData?.eventCollaborators ?? [])
       .map((ec) => ec.concert)
-      .filter((c): c is NonNullable<typeof c> => c != null);
+      .filter(
+        (c): c is NonNullable<typeof c> =>
+          c != null && c.status !== "finalized",
+      );
     const seenIds = new Set<string>();
     return [...ownedConcerts, ...collabConcerts]
       .filter((c) => {

@@ -275,6 +275,7 @@
     "finalizedOn": "Finalized on {date}",
     "reopenEvent": "Reopen event",
     "reopenEventConfirm": "Reopen this event? It will become active again and sales will resume.",
+    "viewOrders": "View orders",
     "venuePlaceholder": "Venue name and address",
     "descPlaceholder": "Event description",
     "ticketType": "ticket type",
