@@ -915,9 +915,12 @@ function TicketTypesSection({
     setShowForm(false);
   }
 
-  function deleteTicketType(ttId: string) {
-    if (confirm(t("admin.deleteTicketTypeConfirm"))) {
-      db.transact(db.tx.ticketTypes[ttId].delete());
+  async function deleteTicketType(ttId: string) {
+    if (!confirm(t("admin.deleteTicketTypeConfirm"))) return;
+    try {
+      await db.transact(db.tx.ticketTypes[ttId].delete());
+    } catch (err) {
+      toast.error(`${t("admin.deleteTicketTypeFailed")}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

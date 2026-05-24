@@ -410,6 +410,7 @@
     "collaboratorYou": "(tú)",
     "eventNotFound": "Evento no encontrado",
     "deleteTicketTypeConfirm": "¿Eliminar este tipo de entrada?",
+    "deleteTicketTypeFailed": "No se pudo eliminar el tipo de entrada",
     "deletePhaseConfirm": "¿Eliminar esta fase?",
     "deleteCouponConfirm": "¿Eliminar este cupón?",
     "descriptionOptional": "Descripción (opcional)",

@@ -410,6 +410,7 @@
     "collaboratorYou": "(you)",
     "eventNotFound": "Event not found",
     "deleteTicketTypeConfirm": "Delete this ticket type?",
+    "deleteTicketTypeFailed": "Could not delete ticket type",
     "deletePhaseConfirm": "Delete this phase?",
     "deleteCouponConfirm": "Delete this coupon?",
     "descriptionOptional": "Description (optional)",
