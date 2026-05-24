@@ -2296,6 +2296,7 @@ export default function ConcertOrdersPage() {
           feePercent: platformFeeConfig.feePercent || 0,
           feeFixed: platformFeeConfig.feeFixed || 0,
         };
+        const overdraftEnabled = (platformFeeConfig as { allowOverdraft?: boolean }).allowOverdraft === true;
         const pendingFeesByPm = new Map<string, { count: number; fee: number }>();
         let totalPendingFees = 0;
 
@@ -2313,12 +2314,17 @@ export default function ConcertOrdersPage() {
         }
         totalPendingFees = Math.round(totalPendingFees * 100) / 100;
 
+        const balanceDepleted = !organizerBalance || organizerBalance.balance <= 0;
+        const balanceLow = !!organizerBalance && organizerBalance.balance > 0 && organizerBalance.balance < 10;
+
         return (<>
       {platformFeeConfig.billingMode !== "postpaid" && (
         <div className={`border rounded-xl p-4 mb-6 ${
-          !organizerBalance || organizerBalance.balance <= 0
-            ? "bg-danger/5 border-danger/30"
-            : organizerBalance.balance < 10
+          balanceDepleted
+            ? overdraftEnabled
+              ? "bg-warning/5 border-warning/30"
+              : "bg-danger/5 border-danger/30"
+            : balanceLow
               ? "bg-warning/5 border-warning/30"
               : "bg-surface border-border"
         }`}>
@@ -2326,9 +2332,11 @@ export default function ConcertOrdersPage() {
             <div>
               <p className="text-sm text-muted">{t("admin.platformBalance")}</p>
               <p className={`text-2xl font-bold ${
-                !organizerBalance || organizerBalance.balance <= 0
-                  ? "text-danger"
-                  : organizerBalance.balance < 10
+                balanceDepleted
+                  ? overdraftEnabled
+                    ? "text-warning"
+                    : "text-danger"
+                  : balanceLow
                     ? "text-warning"
                     : "text-foreground"
               }`}>
@@ -2343,9 +2351,14 @@ export default function ConcertOrdersPage() {
               </p>
             </div>
           </div>
-          {(!organizerBalance || organizerBalance.balance <= 0) && (
+          {balanceDepleted && !overdraftEnabled && (
             <p className="text-sm text-danger mt-2 font-medium">
               {t("admin.noBalanceWarning")}
+            </p>
+          )}
+          {balanceDepleted && overdraftEnabled && (
+            <p className="text-sm text-warning mt-2 font-medium">
+              {t("admin.overdraftActiveWarning")}
             </p>
           )}
           {totalPendingFees > 0 && (
@@ -2450,6 +2463,19 @@ export default function ConcertOrdersPage() {
           ? ttPhases.reduce((s: number, p: { quantity: number }) => s + p.quantity, 0)
           : tt.quantity;
 
+        const ttFeePercent = (tt as { feePercent?: number }).feePercent ?? 0;
+        const ttFeeFixed = (tt as { feeFixed?: number }).feeFixed ?? 0;
+        const applyFee = (basePrice: number) =>
+          basePrice + (basePrice * ttFeePercent) / 100 + ttFeeFixed;
+        const phaseTotals = ttPhases.length > 0
+          ? ttPhases.map((p: { price: number }) => applyFee(p.price))
+          : [applyFee(tt.price)];
+        const minPrice = Math.min(...phaseTotals);
+        const maxPrice = Math.max(...phaseTotals);
+        const priceLabel = minPrice === maxPrice
+          ? `$${minPrice.toFixed(2)}`
+          : `$${minPrice.toFixed(2)} – $${maxPrice.toFixed(2)}`;
+
         return (
           <div
             key={tt.id}
@@ -2459,7 +2485,7 @@ export default function ConcertOrdersPage() {
               <div>
                 <h2 className="text-lg font-semibold">{tt.name}</h2>
                 <p className="text-sm text-muted">
-                  ${(tt.price + (tt.price * ((tt as { feePercent?: number }).feePercent ?? 0)) / 100 + ((tt as { feeFixed?: number }).feeFixed ?? 0)).toFixed(2)} {t("admin.perTicket")} &middot;{" "}
+                  {priceLabel} {t("admin.perTicket")} &middot;{" "}
                   {t("admin.sold", { sold: statusTotals[0].count + statusTotals[1].count, total: totalCapacity })}
                 </p>
               </div>

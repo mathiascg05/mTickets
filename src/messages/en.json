@@ -526,6 +526,7 @@
     "platformBalance": "Platform Balance",
     "platformFee": "Platform Fee",
     "noBalanceWarning": "You cannot approve orders without balance. Contact the admin to top up.",
+    "overdraftActiveWarning": "Finish on credit is active. You can approve orders even with a negative balance; the difference is recorded as debt.",
     "insufficientBalance": "Insufficient balance. Required: {required}, your balance: {current}. Contact the admin to top up.",
     "errorUpdatingOrder": "Error updating order",
     "balances": "Balances",
