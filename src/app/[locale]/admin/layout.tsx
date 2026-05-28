@@ -10,6 +10,8 @@ import {
   PRIVACY_VERSION,
 } from "@/lib/legalVersions";
 import { LegalGate, hasAcceptedCurrentLegalTerms } from "@/components/LegalGate";
+import PhoneField from "@/components/PhoneField";
+import { isValidName, isValidPhone } from "@/lib/validation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -21,6 +23,9 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptedOrganizerTerms, setAcceptedOrganizerTerms] = useState(false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
@@ -63,6 +68,14 @@ function LoginForm() {
         setError(t("auth.passwordsDiffer"));
         return;
       }
+      if (!isValidName(firstName) || !isValidName(lastName)) {
+        setError(t("auth.nameRequired"));
+        return;
+      }
+      if (!isValidPhone(phone)) {
+        setError(t("auth.phoneRequired"));
+        return;
+      }
       if (!acceptedTerms || !acceptedOrganizerTerms || !acceptedPrivacy) {
         setError(t("auth.mustAcceptTerms"));
         return;
@@ -78,6 +91,9 @@ function LoginForm() {
               password,
               confirmPassword,
               action: "register",
+              firstName: firstName.trim(),
+              lastName: lastName.trim(),
+              phone: phone.trim(),
               acceptedTermsVersion: TERMS_VERSION,
               acceptedOrganizerTermsVersion: ORGANIZER_TERMS_VERSION,
               acceptedPrivacyVersion: PRIVACY_VERSION,
@@ -107,6 +123,9 @@ function LoginForm() {
     setStep("email");
     setPassword("");
     setConfirmPassword("");
+    setFirstName("");
+    setLastName("");
+    setPhone("");
   }
 
   async function handleForgotPassword(e: React.FormEvent) {
@@ -222,6 +241,44 @@ function LoginForm() {
               </div>
             )}
             {mode === "register" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">
+                    {t("auth.firstName")}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
+                    placeholder={t("auth.firstNamePlaceholder")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">
+                    {t("auth.lastName")}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
+                    placeholder={t("auth.lastNamePlaceholder")}
+                  />
+                </div>
+              </div>
+            )}
+            {mode === "register" && (
+              <div>
+                <label className="block text-sm font-medium mb-1.5">
+                  {t("auth.phoneLabel")}
+                </label>
+                <PhoneField value={phone} onChange={setPhone} />
+              </div>
+            )}
+            {mode === "register" && (
               <div className="space-y-2 pt-2 border-t border-border">
                 <label className="flex items-start gap-2 text-sm cursor-pointer">
                   <input
@@ -260,7 +317,7 @@ function LoginForm() {
                     >
                       {t("auth.organizerTermsLink")}
                     </Link>
-                    {t("auth.organizerTermsExtra")}
+                    .
                   </span>
                 </label>
                 <label className="flex items-start gap-2 text-sm cursor-pointer">

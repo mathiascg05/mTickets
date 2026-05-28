@@ -3,6 +3,7 @@ import { id } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
 import { hashPassword, verifyPassword, validatePassword } from "@/lib/password";
+import { isValidName, isValidPhone } from "@/lib/validation";
 import { errorResponse } from "@/lib/serverI18n";
 import {
   TERMS_VERSION,
@@ -50,6 +51,9 @@ export async function PUT(req: NextRequest) {
       password,
       confirmPassword,
       action,
+      firstName,
+      lastName,
+      phone,
       acceptedTermsVersion,
       acceptedOrganizerTermsVersion,
       acceptedPrivacyVersion,
@@ -72,6 +76,15 @@ export async function PUT(req: NextRequest) {
       }
       if (password !== confirmPassword) {
         return errorResponse(req, "PASSWORDS_MISMATCH", 400);
+      }
+      if (!isValidName(firstName)) {
+        return errorResponse(req, "INVALID_FIRST_NAME", 400);
+      }
+      if (!isValidName(lastName)) {
+        return errorResponse(req, "INVALID_LAST_NAME", 400);
+      }
+      if (!isValidPhone(phone)) {
+        return errorResponse(req, "INVALID_PHONE", 400);
       }
       if (
         acceptedTermsVersion !== TERMS_VERSION ||
@@ -108,6 +121,9 @@ export async function PUT(req: NextRequest) {
         await adminDb.transact([
           adminDb.tx.$users[userId].update({
             type: userType,
+            firstName: (firstName as string).trim(),
+            lastName: (lastName as string).trim(),
+            phone: (phone as string).trim(),
             acceptedTermsVersion: TERMS_VERSION,
             acceptedTermsAt: now,
             acceptedOrganizerTermsVersion: ORGANIZER_TERMS_VERSION,

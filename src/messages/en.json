@@ -264,6 +264,11 @@
     "newEvent": "+ New Event",
     "noEvents": "No events yet. Create your first one!",
     "createEvent": "Create Event",
+    "completeContactTitle": "Complete your organizer details",
+    "completeContactIntro": "To create an event we need your first name, last name and contact phone.",
+    "completeContactSave": "Save and continue",
+    "completeContactSaving": "Saving...",
+    "completeContactError": "We couldn't save your details. Please try again.",
     "eventDetails": "Event Details",
     "deleteEvent": "Delete Event",
     "deleteEventConfirm": "Delete this event? This cannot be undone.",
@@ -917,7 +922,14 @@
     "backToLogin": "Back to login",
     "resetSentLine1": "If an account exists for {email}, we've sent a password reset link.",
     "resetSentLine2": "Check your inbox and follow the link to set a new password.",
-    "willSendResetTo": "We'll send a reset link to {email}"
+    "willSendResetTo": "We'll send a reset link to {email}",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "phoneLabel": "Phone",
+    "firstNamePlaceholder": "Your first name",
+    "lastNamePlaceholder": "Your last name",
+    "nameRequired": "Enter your first and last name",
+    "phoneRequired": "Enter a valid phone number"
   },
   "queue": {
     "joinError": "Failed to join queue. Please try again.",
@@ -1064,7 +1076,8 @@
     "NO_PASSWORD_SET": "No password set. Use 'Forgot password?' to set one.",
     "INCORRECT_PASSWORD": "Incorrect password",
     "AUTH_FAILED": "Authentication failed",
-    "INVALID_RESET_LINK": "Invalid or expired reset link. Please request a new one."
+    "INVALID_RESET_LINK": "Invalid or expired reset link. Please request a new one.",
+    "INVALID_PHONE": "Invalid phone number"
   },
   "emails": {
     "common": {

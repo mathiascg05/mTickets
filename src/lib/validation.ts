@@ -1,6 +1,7 @@
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CEDULA_RE = /^[0-9]{1,20}$/;
+const E164_RE = /^\+[1-9]\d{6,14}$/;
 
 export function isValidUUID(val: unknown): val is string {
   return typeof val === "string" && UUID_RE.test(val);
@@ -26,6 +27,10 @@ export function isValidName(val: unknown): val is string {
 
 export function isValidCedula(val: unknown): val is string {
   return typeof val === "string" && CEDULA_RE.test(val.trim());
+}
+
+export function isValidPhone(val: unknown): val is string {
+  return typeof val === "string" && E164_RE.test(val.trim());
 }
 
 export type ValidationError = { field: string; message: string };

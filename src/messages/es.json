@@ -264,6 +264,11 @@
     "newEvent": "+ Nuevo Evento",
     "noEvents": "Aún no hay eventos. ¡Crea el primero!",
     "createEvent": "Crear Evento",
+    "completeContactTitle": "Completa tus datos de organizador",
+    "completeContactIntro": "Para crear un evento necesitamos tu nombre, apellido y teléfono de contacto.",
+    "completeContactSave": "Guardar y continuar",
+    "completeContactSaving": "Guardando...",
+    "completeContactError": "No se pudieron guardar tus datos. Intenta de nuevo.",
     "eventDetails": "Detalles del Evento",
     "deleteEvent": "Eliminar Evento",
     "deleteEventConfirm": "¿Eliminar este evento? Esta acción no se puede deshacer.",
@@ -917,7 +922,14 @@
     "resetPassword": "Restablecer contraseña",
     "resetSentLine1": "Si existe una cuenta para {email}, te enviamos un enlace para restablecer tu contraseña.",
     "resetSentLine2": "Revisa tu bandeja y sigue el enlace para definir una nueva contraseña.",
-    "willSendResetTo": "Te enviaremos un enlace de recuperación a {email}"
+    "willSendResetTo": "Te enviaremos un enlace de recuperación a {email}",
+    "firstName": "Nombre",
+    "lastName": "Apellido",
+    "phoneLabel": "Teléfono",
+    "firstNamePlaceholder": "Tu nombre",
+    "lastNamePlaceholder": "Tu apellido",
+    "nameRequired": "Ingresa tu nombre y apellido",
+    "phoneRequired": "Ingresa un número de teléfono válido"
   },
   "queue": {
     "joinError": "No pudimos unirte a la cola. Intenta de nuevo.",
@@ -1064,7 +1076,8 @@
     "NO_PASSWORD_SET": "No hay contraseña establecida. Usa '¿Olvidaste tu contraseña?' para crear una.",
     "INCORRECT_PASSWORD": "Contraseña incorrecta",
     "AUTH_FAILED": "Autenticación falló",
-    "INVALID_RESET_LINK": "Enlace de restablecimiento inválido o expirado. Solicita uno nuevo."
+    "INVALID_RESET_LINK": "Enlace de restablecimiento inválido o expirado. Solicita uno nuevo.",
+    "INVALID_PHONE": "Teléfono inválido"
   },
   "emails": {
     "common": {
