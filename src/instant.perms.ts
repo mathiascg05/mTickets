@@ -3,6 +3,11 @@ import type { InstantRules } from "@instantdb/react";
 const SUPER_ADMIN = "matickets.ve@gmail.com";
 
 const rules = {
+  $users: {
+    allow: {
+      view: `auth.id == data.id || auth.email == '${SUPER_ADMIN}'`,
+    },
+  },
   concerts: {
     allow: {
       view: "true",

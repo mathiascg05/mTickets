@@ -7,6 +7,7 @@ import { useLanguage } from "@/lib/LanguageContext";
 import { dateLocale } from "@/lib/i18n";
 import { useState } from "react";
 import SuperAdminStats from "./SuperAdminStats";
+import OrganizerSelect, { type OrganizerOption } from "@/components/admin/OrganizerSelect";
 import { toast } from "sonner";
 
 export default function BalancesPage() {
@@ -33,6 +34,7 @@ export default function BalancesPage() {
       platformFeeConfig: {},
       ticketTypes: { orders: {}, phases: {} },
     },
+    $users: {},
   });
 
   if (!isSuperAdmin) {
@@ -47,7 +49,7 @@ export default function BalancesPage() {
     return <div className="animate-pulse text-muted">{t("common.loading")}</div>;
   }
 
-  const { organizerBalances, concerts } = data;
+  const { organizerBalances, concerts, $users } = data;
 
   // Build email -> event names map
   const emailConcertsMap = new Map<string, string[]>();
@@ -58,10 +60,38 @@ export default function BalancesPage() {
     emailConcertsMap.set(email, list);
   }
 
+  // Build email -> organizer profile (name) map
+  const orgByEmail = new Map<string, { firstName?: string; lastName?: string }>();
+  for (const u of $users) {
+    if (u.email) {
+      orgByEmail.set(u.email.toLowerCase(), {
+        firstName: u.firstName,
+        lastName: u.lastName,
+      });
+    }
+  }
+  const organizerName = (email: string): string => {
+    const u = orgByEmail.get(email.toLowerCase());
+    const full = [u?.firstName, u?.lastName].filter(Boolean).join(" ").trim();
+    return full || email;
+  };
+
   // Get unique organizer emails from concerts
   const organizerEmails = [
     ...new Set(concerts.map((c) => c.organizerEmail.toLowerCase())),
-  ].sort();
+  ].sort((a, b) => organizerName(a).localeCompare(organizerName(b)));
+
+  // Options for the searchable organizer picker
+  const organizerOptions: OrganizerOption[] = organizerEmails.map((email) => {
+    const eventNames = (emailConcertsMap.get(email) || []).join(", ");
+    const name = organizerName(email);
+    return {
+      email,
+      label: name === email ? email : `${name} — ${email}`,
+      sublabel: eventNames || undefined,
+      searchText: `${name} ${email} ${eventNames}`,
+    };
+  });
 
   async function handleCredit(e: React.FormEvent) {
     e.preventDefault();
@@ -263,8 +293,9 @@ export default function BalancesPage() {
                 <div key={email} className="bg-surface border border-border rounded-xl p-5">
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <p className="font-medium text-lg">{email}</p>
+                      <p className="font-medium text-lg">{organizerName(email)}</p>
                       <p className="text-sm text-muted">
+                        {organizerName(email) !== email ? `${email} · ` : ""}
                         {(emailConcertsMap.get(email) || []).join(", ")}
                       </p>
                     </div>
@@ -329,21 +360,12 @@ export default function BalancesPage() {
             <label className="block text-sm font-medium mb-1.5">
               {t("admin.organizerEmail")}
             </label>
-            <select
+            <OrganizerSelect
               value={creditEmail}
-              onChange={(e) => { setCreditEmail(e.target.value); setCreditConcertId(""); }}
-              className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30"
-            >
-              <option value="">--</option>
-              {organizerEmails.map((email) => {
-                const eventNames = emailConcertsMap.get(email) || [];
-                return (
-                  <option key={email} value={email}>
-                    {email} — {eventNames.join(", ")}
-                  </option>
-                );
-              })}
-            </select>
+              onChange={(email) => { setCreditEmail(email); setCreditConcertId(""); }}
+              options={organizerOptions}
+              placeholder={t("admin.searchOrganizer")}
+            />
           </div>
           {creditEmail && (
             <div className="flex-1 min-w-[150px]">
@@ -425,8 +447,9 @@ export default function BalancesPage() {
                     className="w-full p-4 flex items-center justify-between hover:bg-background/50 transition-colors text-left"
                   >
                     <div>
-                      <p className="font-medium">{bal.email}</p>
+                      <p className="font-medium">{organizerName(bal.email)}</p>
                       <p className="text-sm text-muted">
+                        {organizerName(bal.email) !== bal.email ? `${bal.email} · ` : ""}
                         {eventNames.length > 0 ? eventNames.join(", ") : t("admin.noOrganizers")}
                       </p>
                     </div>

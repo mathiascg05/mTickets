@@ -545,6 +545,7 @@
     "transactionHistory": "Historial de Transacciones",
     "noTransactions": "Sin transacciones",
     "organizerEmail": "Email del Organizador",
+    "searchOrganizer": "Buscar organizador...",
     "currentBalance": "Balance Actual",
     "platformFeeConfig": "Fee de Plataforma",
     "pFeePercent": "Porcentaje (%)",
