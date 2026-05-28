@@ -12,7 +12,10 @@ export default function AdminDashboard() {
   const { isLoading, data } = db.useQuery({
     concerts: {
       $: {
-        ...(isSuperAdmin ? {} : { where: { organizerEmail: email } }),
+        where: {
+          status: { $ne: "finalized" },
+          ...(isSuperAdmin ? {} : { organizerEmail: email }),
+        },
       },
       ticketTypes: { orders: {} },
     },
@@ -31,6 +34,20 @@ export default function AdminDashboard() {
         },
   );
 
+  // Guest list events the user owns (mirrors /admin/orders: only non-finalized,
+  // filtered by organizerEmail for non-super-admins).
+  const { data: guestListData } = db.useQuery({
+    guestListEvents: {
+      $: {
+        where: {
+          status: { $ne: "finalized" },
+          ...(isSuperAdmin ? {} : { organizerEmail: email }),
+        },
+      },
+      entries: { order: {} },
+    },
+  });
+
   if (isLoading || !data) {
     return <div className="animate-pulse text-muted">{t("common.loading")}</div>;
   }
@@ -38,7 +55,9 @@ export default function AdminDashboard() {
   const ownedConcerts = data.concerts;
   const collabConcerts = (collabData?.eventCollaborators ?? [])
     .map((ec) => ec.concert)
-    .filter((c): c is NonNullable<typeof c> => c != null);
+    .filter(
+      (c): c is NonNullable<typeof c> => c != null && c.status !== "finalized",
+    );
   const seenIds = new Set<string>();
   const concerts = [...ownedConcerts, ...collabConcerts].filter((c) => {
     if (seenIds.has(c.id)) return false;
@@ -46,29 +65,54 @@ export default function AdminDashboard() {
     return true;
   });
   const orders = concerts.flatMap((c) => c.ticketTypes.flatMap((tt) => tt.orders));
-  const activeConcerts = concerts.filter((c) => c.status === "active");
   const pendingOrders = orders.filter((o) => o.status === "pending");
   const approvedOrders = orders.filter((o) => o.status === "approved");
+
+  // Guest list metrics: iterate entries → order (one-to-one, may be array-wrapped).
+  // Entries without a linked order (unredeemed invites) are not counted.
+  const guestEvents = guestListData?.guestListEvents ?? [];
+  let glPending = 0;
+  let glApproved = 0;
+  let glTotal = 0;
+  for (const ev of guestEvents) {
+    for (const e of ev.entries) {
+      const raw = e.order as unknown;
+      const o = (Array.isArray(raw) ? raw[0] : raw) as
+        | { status: string }
+        | undefined;
+      if (!o) continue;
+      glTotal++;
+      if (o.status === "pending") glPending++;
+      else if (o.status === "approved") glApproved++;
+    }
+  }
+
+  const activeCount =
+    concerts.filter((c) => c.status === "active").length +
+    guestEvents.filter((ev) => ev.status === "active").length;
+  const pendingCount = pendingOrders.length + glPending;
+  const approvedCount = approvedOrders.length + glApproved;
+  const totalCount = orders.length + glTotal;
 
   const stats = [
     {
       label: t("admin.activeEvents"),
-      value: activeConcerts.length,
+      value: activeCount,
       color: "text-accent-light",
     },
     {
       label: t("admin.pendingOrders"),
-      value: pendingOrders.length,
+      value: pendingCount,
       color: "text-warning",
     },
     {
       label: t("admin.approvedTickets"),
-      value: approvedOrders.length,
+      value: approvedCount,
       color: "text-success",
     },
     {
       label: t("admin.totalOrders"),
-      value: orders.length,
+      value: totalCount,
       color: "text-foreground",
     },
   ];
@@ -113,9 +157,9 @@ export default function AdminDashboard() {
           </h3>
           <p className="text-muted text-sm mt-1">
             {t("admin.reviewOrdersSub")}
-            {pendingOrders.length > 0 && (
+            {pendingCount > 0 && (
               <span className="ml-2 inline-flex px-2 py-0.5 bg-warning/10 text-warning rounded-full text-xs font-medium">
-                {t("admin.pendingCount", { count: pendingOrders.length })}
+                {t("admin.pendingCount", { count: pendingCount })}
               </span>
             )}
           </p>
