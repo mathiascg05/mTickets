@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { assertOrganizerCanAccessGuestListEntry } from "@/lib/guestListAuth";
 import { isValidEmail, isValidCedula, isValidName } from "@/lib/validation";
+import { recordAuditLog } from "@/lib/auditLog";
 
 async function authOrFail(req: NextRequest, entryId: string) {
   const authToken = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -22,7 +23,7 @@ async function authOrFail(req: NextRequest, entryId: string) {
       err: NextResponse.json({ error: auth.error }, { status: auth.status }),
     };
   }
-  return { user, event: auth.data.event };
+  return { user, actorEmail: user.email, event: auth.data.event };
 }
 
 export async function PATCH(
@@ -109,6 +110,15 @@ export async function PATCH(
     await adminDb.transact([
       adminDb.tx.guestListEntries[entryId].update(updates),
     ]);
+    await recordAuditLog({
+      action: "glentry.edit",
+      actorEmail: result.actorEmail,
+      entityType: "guestListEntry",
+      entityId: entryId,
+      guestListEventId: result.event.id,
+      summary: `Editó invitado de guest list en ${result.event.name}`,
+      metadata: { changedFields: Object.keys(updates) },
+    });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[guest-list/entry/PATCH] Error:", err);
@@ -151,6 +161,17 @@ export async function DELETE(
     txns.push(adminDb.tx.guestListEntries[entryId].delete());
 
     await adminDb.transact(txns);
+    await recordAuditLog({
+      action: "glentry.delete",
+      actorEmail: result.actorEmail,
+      entityType: "guestListEntry",
+      entityId: entryId,
+      guestListEventId: result.event.id,
+      summary: `Eliminó invitado de guest list en ${result.event.name}${
+        order && cancelOrder ? " (canceló su orden)" : ""
+      }`,
+      metadata: { cancelledOrder: !!(order && cancelOrder) },
+    });
     return NextResponse.json({ ok: true, cancelledOrder: !!(order && cancelOrder) });
   } catch (err) {
     console.error("[guest-list/entry/DELETE] Error:", err);

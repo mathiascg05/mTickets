@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { isAuthorizedForConcert } from "@/lib/authHelpers";
+import { recordAuditLog } from "@/lib/auditLog";
 
 type RequestBody = {
   concertId: string;
@@ -95,6 +96,15 @@ export async function POST(req: NextRequest) {
           .link({ concert: concertId }),
       ]);
     }
+
+    await recordAuditLog({
+      action: "overdraft.enable",
+      actorEmail: user.email,
+      entityType: "platformFeeConfig",
+      entityId: concert.id,
+      concertId: concert.id,
+      summary: "Habilitó cierre a crédito (overdraft)",
+    });
 
     return NextResponse.json({ success: true });
   } catch (err) {

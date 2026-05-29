@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/adminDb";
 import { isAuthorizedForConcert } from "@/lib/authHelpers";
 import { approveOrderInternal } from "@/lib/approveOrder";
 import { sendTicketEmailForOrder } from "@/lib/ticketEmailSender";
+import { recordAuditLog } from "@/lib/auditLog";
 
 export async function POST(req: NextRequest) {
   try {
@@ -111,6 +112,20 @@ export async function POST(req: NextRequest) {
         }
       }
     });
+
+    if (approved > 0) {
+      await recordAuditLog({
+        action: "reconcile.confirm",
+        actorEmail: user.email,
+        entityType: "order",
+        entityId: approvedIds[0] ?? concertId,
+        concertId,
+        summary: `Aprobó ${approved} orden(es) por reconciliación CSV${
+          failed > 0 ? ` (${failed} fallidas)` : ""
+        }`,
+        metadata: { approved, failed, approvedIds },
+      });
+    }
 
     return NextResponse.json({
       approved,

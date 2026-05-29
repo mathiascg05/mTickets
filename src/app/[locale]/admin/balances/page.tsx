@@ -1,7 +1,6 @@
 "use client";
 
 import { db } from "@/lib/db";
-import { id } from "@instantdb/react";
 import { useAuthContext } from "@/lib/AuthContext";
 import { useLanguage } from "@/lib/LanguageContext";
 import { dateLocale } from "@/lib/i18n";
@@ -22,6 +21,9 @@ export default function BalancesPage() {
   const [voidingTxnId, setVoidingTxnId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<"balances" | "report" | "stats">("balances");
+
+  const { user } = db.useAuth();
+  const refreshToken = user?.refresh_token || "";
 
   const { isLoading, data } = db.useQuery({
     organizerBalances: {
@@ -106,54 +108,23 @@ export default function BalancesPage() {
       }
 
       const email = creditEmail.toLowerCase().trim();
-      const existing = organizerBalances.find((b) => b.email === email);
 
-      const balanceBefore = existing?.balance || 0;
-      const balanceAfter = Math.round((balanceBefore + amount) * 100) / 100;
-      const txnId = id();
-
-      const concertName = creditConcertId
-        ? concerts.find((c) => c.id === creditConcertId)?.name
-        : null;
-      const description = creditNote
-        ? creditNote
-        : concertName
-          ? `Deposit — ${concertName}`
-          : "Manual deposit";
-
-      const txnData = {
-        type: "deposit" as const,
-        amount,
-        balanceBefore: existing ? balanceBefore : 0,
-        balanceAfter,
-        description,
-        ...(creditConcertId ? { concertId: creditConcertId } : {}),
-        createdAt: Date.now(),
-      };
-
-      if (existing) {
-        await db.transact([
-          db.tx.organizerBalances[existing.id].update({
-            balance: balanceAfter,
-            updatedAt: Date.now(),
-          }),
-          db.tx.balanceTransactions[txnId]
-            .update(txnData)
-            .link({ organizerBalance: existing.id }),
-        ]);
-      } else {
-        const balanceId = id();
-        await db.transact([
-          db.tx.organizerBalances[balanceId].update({
-            email,
-            balance: balanceAfter,
-            currency: "USD",
-            updatedAt: Date.now(),
-          }),
-          db.tx.balanceTransactions[txnId]
-            .update(txnData)
-            .link({ organizerBalance: balanceId }),
-        ]);
+      const res = await fetch("/api/admin/balance-adjust", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${refreshToken}`,
+        },
+        body: JSON.stringify({
+          action: "deposit",
+          email,
+          amount,
+          concertId: creditConcertId || undefined,
+          note: creditNote || undefined,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`balance-adjust deposit failed: ${res.status}`);
       }
 
       setCreditAmount("");
@@ -169,34 +140,22 @@ export default function BalancesPage() {
 
   async function handleVoidTransaction(
     txn: { id: string; amount: number; type: string; description: string },
-    balanceRecord: { id: string; balance: number },
   ) {
     if (!confirm(t("admin.voidConfirm"))) return;
     setVoidingTxnId(txn.id);
 
     try {
-      // Reverse the transaction: subtract what was added, or add what was subtracted
-      const reverseAmount = -txn.amount;
-      const currentBalance = balanceRecord.balance;
-      const newBalance = Math.round((currentBalance + reverseAmount) * 100) / 100;
-      const voidTxnId = id();
-
-      await db.transact([
-        db.tx.organizerBalances[balanceRecord.id].update({
-          balance: newBalance,
-          updatedAt: Date.now(),
-        }),
-        db.tx.balanceTransactions[voidTxnId]
-          .update({
-            type: "adjustment",
-            amount: reverseAmount,
-            balanceBefore: currentBalance,
-            balanceAfter: newBalance,
-            description: `Anulación: ${txn.description}`,
-            createdAt: Date.now(),
-          })
-          .link({ organizerBalance: balanceRecord.id }),
-      ]);
+      const res = await fetch("/api/admin/balance-adjust", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${refreshToken}`,
+        },
+        body: JSON.stringify({ action: "void", txnId: txn.id }),
+      });
+      if (!res.ok) {
+        throw new Error(`balance-adjust void failed: ${res.status}`);
+      }
     } catch (err) {
       console.error("Failed to void transaction:", err);
       toast.error(t("admin.balancesToasts.voidError"));
@@ -527,7 +486,7 @@ export default function BalancesPage() {
                                 </div>
                                 {txn.type !== "adjustment" && (
                                   <button
-                                    onClick={() => handleVoidTransaction(txn, bal)}
+                                    onClick={() => handleVoidTransaction(txn)}
                                     disabled={voidingTxnId === txn.id}
                                     className="px-2 py-1 text-xs text-danger/60 hover:text-danger hover:bg-danger/10 rounded transition-colors disabled:opacity-50"
                                     title={t("admin.void")}

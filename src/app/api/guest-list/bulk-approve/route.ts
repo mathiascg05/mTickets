@@ -5,6 +5,7 @@ import { assertOrganizerCanAccessGuestListOrder } from "@/lib/guestListAuth";
 import { sendGuestListTicketEmail } from "@/lib/guestListTicketSender";
 import { assignGuestListOrderNumber } from "@/lib/guestListOrderNumber";
 import { approveGuestListOrderInternal } from "@/lib/approveGuestListOrder";
+import { recordAuditLog } from "@/lib/auditLog";
 
 export const maxDuration = 300;
 
@@ -84,6 +85,26 @@ export async function POST(req: NextRequest) {
         await new Promise((r) => setTimeout(r, 600));
       }
     });
+
+    if (approved > 0) {
+      const firstEvent = approvedForEmail[0];
+      await recordAuditLog({
+        action: "glorder.bulk_approve",
+        actorEmail: user.email,
+        entityType: "guestListOrder",
+        entityId: firstEvent?.orderId ?? orderIds[0],
+        guestListEventId: firstEvent?.eventId,
+        summary: `Aprobó ${approved} orden(es) de guest list${
+          firstEvent ? ` en ${firstEvent.eventName}` : ""
+        }`,
+        metadata: {
+          approved,
+          skipped,
+          failed,
+          orderIds: approvedForEmail.map((i) => i.orderId),
+        },
+      });
+    }
 
     return NextResponse.json({ approved, skipped, failed, failedIds });
   } catch (err) {

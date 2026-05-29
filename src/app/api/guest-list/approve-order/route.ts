@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { adminDb } from "@/lib/adminDb";
 import { isSuperAdmin } from "@/lib/authHelpers";
 import { approveGuestListOrderInternal } from "@/lib/approveGuestListOrder";
+import { recordAuditLog } from "@/lib/auditLog";
 
 type Body = { orderId: string; action: "approve" | "reject" | "cancel" };
 
@@ -91,6 +92,15 @@ export async function POST(req: NextRequest) {
           console.error("[guest-list/approve-order] post-send:", err);
         }
       });
+      await recordAuditLog({
+        action: "glorder.approve",
+        actorEmail: user.email,
+        entityType: "guestListOrder",
+        entityId: orderId,
+        guestListEventId: event.id,
+        summary: `Aprobó orden de guest list en ${event.name}`,
+        metadata: { platformFee: result.platformFee },
+      });
       return NextResponse.json({ success: true, platformFee: result.platformFee });
     }
 
@@ -114,6 +124,14 @@ export async function POST(req: NextRequest) {
         );
       }
       await adminDb.transact(txns);
+      await recordAuditLog({
+        action: `glorder.${action}`,
+        actorEmail: user.email,
+        entityType: "guestListOrder",
+        entityId: orderId,
+        guestListEventId: event.id,
+        summary: `${action === "reject" ? "Rechazó" : "Canceló"} orden de guest list en ${event.name}`,
+      });
       return NextResponse.json({ success: true });
     }
 

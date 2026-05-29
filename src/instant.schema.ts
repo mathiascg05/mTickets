@@ -384,6 +384,17 @@ const _schema = i.schema({
       billingMode: i.string().indexed(),
       updatedAt: i.number().indexed(),
     }),
+    auditLogs: i.entity({
+      action: i.string().indexed(),
+      actorEmail: i.string().indexed(),
+      entityType: i.string().indexed(),
+      entityId: i.string().indexed(),
+      concertId: i.string().optional().indexed(),
+      guestListEventId: i.string().optional().indexed(),
+      summary: i.string(),
+      metadataJson: i.string().optional(),
+      createdAt: i.number().indexed(),
+    }),
   },
   links: {
     concertTicketTypes: {

@@ -12,6 +12,7 @@ import { resolveEmailLang } from "@/lib/serverLocale";
 import { formatEventDate } from "@/lib/formatters";
 import { getTranslations } from "next-intl/server";
 import { autoRedeemFreeEntry } from "@/lib/guestListAutoRedeem";
+import { recordAuditLog } from "@/lib/auditLog";
 
 export const maxDuration = 300;
 
@@ -191,6 +192,18 @@ export async function POST(req: NextRequest) {
 
       // Throttle to ~2 req/s for Resend free tier
       await new Promise((r) => setTimeout(r, 600));
+    }
+
+    if (invitesSent + ticketsSent > 0) {
+      await recordAuditLog({
+        action: "glinvites.sent",
+        actorEmail: user.email,
+        entityType: "guestListEvent",
+        entityId: event.id,
+        guestListEventId: event.id,
+        summary: `Envió ${invitesSent + ticketsSent} invitación(es) de guest list en ${event.name}`,
+        metadata: { invitesSent, ticketsSent, suppressed, failed, mode },
+      });
     }
 
     return NextResponse.json({

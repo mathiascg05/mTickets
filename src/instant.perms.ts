@@ -406,6 +406,15 @@ const rules = {
       `auth.email == '${SUPER_ADMIN}'`,
     ],
   },
+  auditLogs: {
+    allow: {
+      view: "false",
+      create: "false",
+      update: "false",
+      delete: "false",
+    },
+    bind: [],
+  },
   $files: {
     allow: {
       view: `data.path.startsWith('event-assets/') || data.path.startsWith('ticket-type-assets/') || data.path.startsWith('message-attachments/') || auth.email == '${SUPER_ADMIN}'`,

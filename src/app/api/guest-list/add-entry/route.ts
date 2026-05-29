@@ -5,6 +5,7 @@ import { assertOrganizerCanAccessGuestListEvent } from "@/lib/guestListAuth";
 import { generateInviteToken } from "@/lib/guestListTokens";
 import { isValidEmail, isValidCedula, isValidName } from "@/lib/validation";
 import { personKey } from "@/lib/guestListDedup";
+import { recordAuditLog } from "@/lib/auditLog";
 
 export async function POST(req: NextRequest) {
   try {
@@ -123,6 +124,16 @@ export async function POST(req: NextRequest) {
     await adminDb.transact([
       resolvedTicketTypeId ? tx.link({ ticketType: resolvedTicketTypeId }) : tx,
     ]);
+
+    await recordAuditLog({
+      action: "glentry.create",
+      actorEmail: user.email,
+      entityType: "guestListEntry",
+      entityId: entryId,
+      guestListEventId: eventId,
+      summary: `Agregó invitado ${email ?? cedula ?? entryId} a ${auth.data.name}`,
+      metadata: { email, cedula, priceOverride },
+    });
 
     return NextResponse.json({ id: entryId });
   } catch (err) {

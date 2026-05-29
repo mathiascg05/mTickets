@@ -450,7 +450,10 @@ export default function AdminLayout({
     { href: "/admin/orders", label: t("admin.orders") },
     { href: "/admin/communications", label: t("admin.messages") },
     ...(userIsSuperAdmin
-      ? [{ href: "/admin/balances", label: t("admin.balances") }]
+      ? [
+          { href: "/admin/balances", label: t("admin.balances") },
+          { href: "/admin/audit", label: t("admin.audit") },
+        ]
       : []),
     { href: "/scan", label: t("admin.scanner") },
   ];

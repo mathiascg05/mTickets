@@ -13,6 +13,7 @@ import {
 } from "@/lib/validation";
 import { computePlatformFeeAtPurchase } from "@/lib/order-pricing";
 import { errorResponse } from "@/lib/serverI18n";
+import { recordAuditLog } from "@/lib/auditLog";
 
 type AdminCreateOrderBody = {
   ticketTypeId: string;
@@ -346,6 +347,25 @@ export async function POST(req: NextRequest) {
         );
       }
     }
+
+    await recordAuditLog({
+      action: "order.create_admin",
+      actorEmail: user.email,
+      entityType: "order",
+      entityId: orderIds[0],
+      concertId: concert.id,
+      summary: isCortesia
+        ? `Creó ${qty} cortesía(s) para ${trimmed.email}`
+        : `Creó ${qty} orden(es) (${status}) para ${trimmed.email}`,
+      metadata: {
+        count: qty,
+        orderIds,
+        isCortesia,
+        status,
+        ticketTypeId,
+        email: trimmed.email,
+      },
+    });
 
     return NextResponse.json({ orderIds }, { status: 200 });
   } catch (err) {

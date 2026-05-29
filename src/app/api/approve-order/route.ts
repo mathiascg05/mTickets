@@ -3,6 +3,7 @@ import { adminDb } from "@/lib/adminDb";
 import { isAuthorizedForConcert } from "@/lib/authHelpers";
 import { approveOrderInternal } from "@/lib/approveOrder";
 import { cancelOrderInternal } from "@/lib/cancelOrder";
+import { recordAuditLog } from "@/lib/auditLog";
 
 type RequestBody = {
   orderId: string;
@@ -85,7 +86,11 @@ export async function POST(req: NextRequest) {
     const concert = (
       Array.isArray(rawConcert) ? rawConcert[0] : rawConcert
     ) as
-      | { organizerEmail: string; collaborators?: { email: string }[] }
+      | {
+          id: string;
+          organizerEmail: string;
+          collaborators?: { email: string }[];
+        }
       | undefined;
 
     if (!concert) {
@@ -105,6 +110,15 @@ export async function POST(req: NextRequest) {
       await adminDb.transact([
         adminDb.tx.orders[orderId].update({ status: "rejected" }),
       ]);
+      await recordAuditLog({
+        action: "order.reject",
+        actorEmail: user.email,
+        entityType: "order",
+        entityId: orderId,
+        concertId: concert.id,
+        summary: `Rechazó orden ${order.orderNumber ?? orderId}`,
+        metadata: { orderNumber: order.orderNumber },
+      });
       return NextResponse.json({ success: true });
     }
 
@@ -117,6 +131,19 @@ export async function POST(req: NextRequest) {
           { status: statusCode },
         );
       }
+      await recordAuditLog({
+        action: "order.cancel",
+        actorEmail: user.email,
+        entityType: "order",
+        entityId: orderId,
+        concertId: concert.id,
+        summary: `Canceló orden ${order.orderNumber ?? orderId}`,
+        metadata: {
+          orderNumber: order.orderNumber,
+          feeReversed: result.feeReversed,
+          feeAmount: result.feeAmount,
+        },
+      });
       return NextResponse.json({
         success: true,
         feeReversed: result.feeReversed,
@@ -145,6 +172,19 @@ export async function POST(req: NextRequest) {
         { status: statusCode },
       );
     }
+
+    await recordAuditLog({
+      action: "order.approve",
+      actorEmail: user.email,
+      entityType: "order",
+      entityId: orderId,
+      concertId: concert.id,
+      summary: `Aprobó orden ${order.orderNumber ?? orderId}`,
+      metadata: {
+        orderNumber: order.orderNumber,
+        platformFee: result.platformFee,
+      },
+    });
 
     return NextResponse.json({
       success: true,
