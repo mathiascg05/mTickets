@@ -84,7 +84,11 @@ export default function AuditPage() {
     return () => {
       cancelled = true;
     };
-  }, [isSuperAdmin, refreshToken, t]);
+    // `t` is intentionally excluded: useLanguage() returns a new function
+    // identity every render, so including it would re-run this effect on every
+    // render and cancel the in-flight fetch, leaving the page stuck loading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuperAdmin, refreshToken]);
 
   const eventOf = (r: AuditRow) => r.concertId || r.guestListEventId || "";
 
