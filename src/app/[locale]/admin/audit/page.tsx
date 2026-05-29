@@ -121,7 +121,9 @@ export default function AuditPage() {
   });
 
   const actionLabel = (action: string) => {
-    const key = `admin.auditView.actions.${action}`;
+    // Action names contain dots (e.g. "order.reject"); next-intl treats dots as
+    // nesting separators, so the message keys use "_" instead. Sanitize before lookup.
+    const key = `admin.auditView.actions.${action.replace(/\./g, "_")}`;
     const label = t(key);
     return label === key ? action : label;
   };
