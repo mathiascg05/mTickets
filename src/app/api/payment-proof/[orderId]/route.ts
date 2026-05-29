@@ -35,7 +35,12 @@ export async function GET(
   }
 
   const path = order.paymentProofPath as string | undefined;
-  if (!path || path === "admin-created" || path === "csv-import") {
+  if (
+    !path ||
+    path === "admin-created" ||
+    path === "csv-import" ||
+    path === "proof-deleted"
+  ) {
     return NextResponse.json({ error: "No proof available" }, { status: 404 });
   }
 

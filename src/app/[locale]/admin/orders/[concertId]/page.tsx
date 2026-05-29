@@ -3118,6 +3118,10 @@ export default function ConcertOrdersPage() {
                     <span className="px-3 py-1.5 text-xs border border-accent/30 bg-accent/10 text-accent-light rounded-lg font-medium">
                       {t("admin.adminLabel")}
                     </span>
+                  ) : order.paymentProofPath === "proof-deleted" ? (
+                    <span className="px-3 py-1.5 text-xs border border-border bg-surface text-muted rounded-lg font-medium">
+                      {t("admin.proofDeleted")}
+                    </span>
                   ) : order.paymentProofPath ? (
                     <button
                       onClick={() => viewProof(order.id)}

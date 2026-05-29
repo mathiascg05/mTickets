@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/cleanup-reservations",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-payment-proofs",
+      "schedule": "0 2 * * *"
     }
   ]
 }

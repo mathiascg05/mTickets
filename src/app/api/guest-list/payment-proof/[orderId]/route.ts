@@ -49,7 +49,7 @@ export async function GET(
   }
 
   const path = (order as { paymentProofPath?: string }).paymentProofPath;
-  if (!path) {
+  if (!path || path === "proof-deleted") {
     return NextResponse.json({ error: "No proof available" }, { status: 404 });
   }
 

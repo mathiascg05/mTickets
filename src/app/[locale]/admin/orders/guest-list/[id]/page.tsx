@@ -1037,14 +1037,18 @@ export default function GuestListOrdersPage({
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                    {order.paymentProofPath && (
+                    {order.paymentProofPath === "proof-deleted" ? (
+                      <span className="px-3 py-1.5 text-xs border border-border bg-surface text-muted rounded-lg font-medium">
+                        {t("guestList.proofDeleted")}
+                      </span>
+                    ) : order.paymentProofPath ? (
                       <button
                         onClick={() => viewProof(order.id)}
                         className="px-3 py-1.5 text-xs border border-border rounded-lg hover:border-accent/50 transition-colors"
                       >
                         {t("guestList.viewProof")}
                       </button>
-                    )}
+                    ) : null}
                     {order.status === "pending" && (
                       <>
                         <button
