@@ -35,6 +35,7 @@ type CreateOrderBody = {
     lastName: string;
     email: string;
     cedula: string;
+    phone: string;
   }[];
   paymentMethodName: string;
   paymentMethodId?: string;
@@ -348,6 +349,7 @@ export async function POST(req: NextRequest) {
       lastName: a.lastName.trim(),
       email: a.email.trim(),
       cedula: a.cedula.trim(),
+      phone: a.phone.trim(),
     }));
     // Para áreas, generamos un purchaseGroupId server-side por cada unidad de
     // área (qty áreas → qty groupIds). Para individuales mantenemos el del body.
@@ -428,6 +430,7 @@ export async function POST(req: NextRequest) {
           lastName: attendee.lastName,
           email: attendee.email,
           cedula: attendee.cedula,
+          phone: attendee.phone,
           paymentMethod: paymentMethodName,
           status: "pending",
           visited: false,

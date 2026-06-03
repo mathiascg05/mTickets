@@ -1,6 +1,8 @@
 "use client";
 
 import EventTheme from "@/components/EventTheme";
+import PhoneField from "@/components/PhoneField";
+import { isValidPhone } from "@/lib/validation";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { dateLocale } from "@/lib/i18n";
 import { db } from "@/lib/db";
@@ -23,10 +25,11 @@ type Attendee = {
   lastName: string;
   email: string;
   cedula: string;
+  phone: string;
 };
 
 function emptyAttendee(): Attendee {
-  return { firstName: "", lastName: "", email: "", cedula: "" };
+  return { firstName: "", lastName: "", email: "", cedula: "", phone: "" };
 }
 
 function formatTime(totalSeconds: number): string {
@@ -487,6 +490,10 @@ export default function BuyPage() {
       setError(t("checkout.selectPayment"));
       return;
     }
+    if (attendees.some((a) => !isValidPhone(a.phone))) {
+      setError(t("checkout.invalidPhone"));
+      return;
+    }
     const missingField = customFields.find(
       (cf) => cf.required && !customFieldValues[cf.id]?.trim(),
     );
@@ -541,6 +548,7 @@ export default function BuyPage() {
             lastName: a.lastName.trim(),
             email: a.email.trim(),
             cedula: a.cedula.trim(),
+            phone: a.phone.trim(),
           })),
           paymentMethodName: selectedPm?.name || "",
           paymentMethodId: selectedPm?.id || undefined,
@@ -861,6 +869,16 @@ export default function BuyPage() {
                     onChange={(e) => updateAttendee(i, "cedula", e.target.value.replace(/\D/g, ""))}
                     className="w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors"
                     placeholder={t("checkout.idPlaceholder")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">
+                    {t("common.phone")}
+                  </label>
+                  <PhoneField
+                    value={attendee.phone}
+                    onChange={(v) => updateAttendee(i, "phone", v)}
+                    placeholder={t("checkout.phonePlaceholder")}
                   />
                 </div>
               </div>

@@ -23,6 +23,7 @@
     "firstName": "First Name",
     "lastName": "Last Name",
     "cedula": "Cedula",
+    "phone": "Phone",
     "quantity": "Quantity",
     "price": "Price",
     "total": "Total",
@@ -139,7 +140,7 @@
       "badge": "Concluded",
       "title": "This event has concluded",
       "body": "Thanks to everyone who attended. If you organize events, you can create yours on maTickets.",
-      "cta": "Browse other events"
+      "cta": "Create my event"
     }
   },
   "checkout": {
@@ -204,7 +205,9 @@
     "emailPlaceholder": "email@example.com",
     "emailSuggestion": "Did you mean {suggestion}? Click to fix.",
     "firstNamePlaceholder": "First name",
-    "lastNamePlaceholder": "Last name"
+    "lastNamePlaceholder": "Last name",
+    "phonePlaceholder": "Your phone number",
+    "invalidPhone": "Enter a valid phone number"
   },
   "ticket": {
     "viewTitle": "View Your Ticket",

@@ -66,6 +66,7 @@ const _schema = i.schema({
       lastName: i.string(),
       email: i.string().indexed(),
       cedula: i.string().indexed(),
+      phone: i.string().optional(),
       paymentMethod: i.string(),
       promoter: i.string().optional(),
       customFieldValues: i.string().optional(),

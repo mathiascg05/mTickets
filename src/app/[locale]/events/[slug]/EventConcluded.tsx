@@ -74,7 +74,7 @@ export default function EventConcluded({ concert }: { concert: Concert }) {
           </p>
 
           <Link
-            href="/"
+            href="/admin"
             className="inline-block px-5 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors text-sm"
           >
             {t("public.eventConcluded.cta")}

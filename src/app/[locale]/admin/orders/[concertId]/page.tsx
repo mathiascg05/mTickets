@@ -13,6 +13,7 @@ import {
   getPlatformFeeForOrder,
 } from "@/lib/order-pricing";
 import { sendTicketEmail, sendConfirmationEmail } from "@/lib/sendTicketEmail";
+import PhoneField from "@/components/PhoneField";
 import { useLanguage } from "@/lib/LanguageContext";
 import { dateLocale } from "@/lib/i18n";
 import Papa from "papaparse";
@@ -68,6 +69,7 @@ type FlatOrder = {
   lastName: string;
   email: string;
   cedula: string;
+  phone?: string;
   paymentMethod: string;
   promoter?: string;
   customFieldValues?: string;
@@ -128,6 +130,7 @@ function ExportSection({
       "Order #",
       t("common.firstName"),
       t("common.lastName"),
+      t("common.phone"),
       t("checkout.paymentMethod"),
       "Amount ($)",
       "Amount (Bs)",
@@ -160,6 +163,7 @@ function ExportSection({
         escapeCsv(order.orderNumber || "---"),
         escapeCsv(order.firstName),
         escapeCsv(order.lastName),
+        escapeCsv(order.phone || ""),
         escapeCsv(order.paymentMethod),
         amountUsd,
         amountBs,
@@ -920,6 +924,7 @@ function CreateOrderModal({
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [cedula, setCedula] = useState("");
+  const [phone, setPhone] = useState("");
   const [cfValues, setCfValues] = useState<Record<string, string>>({});
   const [isCortesia, setIsCortesia] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState(concert.paymentMethods[0]?.name || "");
@@ -1001,6 +1006,7 @@ function CreateOrderModal({
           lastName,
           email,
           cedula,
+          ...(phone.trim() ? { phone: phone.trim() } : {}),
           paymentMethodName: isCortesia ? "Cortesia" : paymentMethod,
           isCortesia,
           status: orderStatus,
@@ -1134,6 +1140,18 @@ function CreateOrderModal({
               value={cedula}
               onChange={(e) => setCedula(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent"
+            />
+          </div>
+
+          {/* Phone (optional) */}
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              {t("common.phone")} <span className="text-muted font-normal">({t("common.optional")})</span>
+            </label>
+            <PhoneField
+              value={phone}
+              onChange={setPhone}
+              placeholder={t("checkout.phonePlaceholder")}
             />
           </div>
 
@@ -1927,6 +1945,7 @@ export default function ConcertOrdersPage() {
         `${o.firstName} ${o.lastName}`,
         o.email,
         o.cedula,
+        o.phone,
         o.paymentMethod,
         o.ticketTypeName,
         o.promoter,
@@ -2747,7 +2766,7 @@ export default function ConcertOrdersPage() {
         const filteredScanned = scannedSearch
           ? scannedOrders.filter((o) => {
               const q = scannedSearch.toLowerCase();
-              return [o.firstName, o.lastName, `${o.firstName} ${o.lastName}`, o.email, o.cedula, o.orderNumber, o.ticketTypeName]
+              return [o.firstName, o.lastName, `${o.firstName} ${o.lastName}`, o.email, o.cedula, o.phone, o.orderNumber, o.ticketTypeName]
                 .some((f) => f && f.toLowerCase().includes(q));
             })
           : scannedOrders;
@@ -3075,6 +3094,19 @@ export default function ConcertOrdersPage() {
                     </p>
                   )}
                   <p className="text-xs text-muted">{t("common.cedula")}: {order.cedula}</p>
+                  {order.phone && (
+                    <p className="text-xs text-muted">
+                      {t("common.phone")}:{" "}
+                      <a
+                        href={`https://wa.me/${order.phone.replace(/\D/g, "")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-accent-light hover:underline"
+                      >
+                        {order.phone}
+                      </a>
+                    </p>
+                  )}
                   <p className="text-xs text-muted">{t("admin.paymentMethodLabel")}: {order.paymentMethod}</p>
                   {order.promoter && (
                     <p className="text-xs text-muted">{t("ticket.promoter")}: {order.promoter}</p>

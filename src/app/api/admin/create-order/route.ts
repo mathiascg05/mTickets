@@ -10,6 +10,7 @@ import {
   isValidName,
   isValidEmail,
   isValidCedula,
+  isValidPhone,
 } from "@/lib/validation";
 import { computePlatformFeeAtPurchase } from "@/lib/order-pricing";
 import { errorResponse } from "@/lib/serverI18n";
@@ -22,6 +23,7 @@ type AdminCreateOrderBody = {
   lastName: string;
   email: string;
   cedula: string;
+  phone?: string;
   customFieldValues?: string;
   promoter?: string;
   paymentMethodName: string;
@@ -52,6 +54,7 @@ export async function POST(req: NextRequest) {
       lastName,
       email,
       cedula,
+      phone,
       customFieldValues,
       promoter,
       paymentMethodName,
@@ -77,6 +80,9 @@ export async function POST(req: NextRequest) {
       return errorResponse(req, "INVALID_INPUT", 400);
     }
     if (!isValidCedula(cedula)) {
+      return errorResponse(req, "INVALID_INPUT", 400);
+    }
+    if (phone != null && phone !== "" && !isValidPhone(phone)) {
       return errorResponse(req, "INVALID_INPUT", 400);
     }
     if (typeof paymentMethodName !== "string" || !isValidName(paymentMethodName) || paymentMethodName.length > 100) {
@@ -260,6 +266,7 @@ export async function POST(req: NextRequest) {
       lastName: lastName.trim(),
       email: email.trim(),
       cedula: cedula.trim(),
+      phone: phone?.trim() || "",
     };
 
     const orderTxns = Array.from({ length: qty }, () => {
@@ -282,6 +289,7 @@ export async function POST(req: NextRequest) {
           lastName: trimmed.lastName,
           email: trimmed.email,
           cedula: trimmed.cedula,
+          ...(trimmed.phone ? { phone: trimmed.phone } : {}),
           paymentMethod: effectivePaymentMethod,
           // Always create as pending; if admin requested "approved" we route
           // through `approveOrderInternal` afterwards so the fee debit and the

@@ -94,6 +94,7 @@ function validAttendee(override: Partial<Record<string, string>> = {}) {
     lastName: "Doe",
     email: "john@example.com",
     cedula: "12345678",
+    phone: "+584121234567",
     ...override,
   };
 }

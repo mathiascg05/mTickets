@@ -54,6 +54,9 @@ export function validateAttendee(
   if (!isValidCedula(attendee.cedula)) {
     errors.push({ field: `${prefix}.cedula`, message: "Invalid cedula (numeric, max 20 digits)" });
   }
+  if (!isValidPhone(attendee.phone)) {
+    errors.push({ field: `${prefix}.phone`, message: "Invalid phone (E.164 format)" });
+  }
 
   return errors;
 }

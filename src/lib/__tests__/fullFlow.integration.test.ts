@@ -486,6 +486,7 @@ function validAttendee(override: Record<string, string> = {}) {
     lastName: "Perez",
     email: "juan@example.com",
     cedula: "12345678",
+    phone: "+584121234567",
     ...override,
   };
 }
