@@ -874,6 +874,7 @@
     "foreground": "Texto",
     "surface": "Superficie (tarjetas)",
     "field": "Campos (inputs y selectores)",
+    "border": "Borde (líneas y separadores)",
     "resetField": "Restablecer",
     "resetAll": "Restablecer toda la paleta",
     "lowContrastWarning": "Contraste bajo: el texto puede ser difícil de leer sobre el fondo o las tarjetas.",

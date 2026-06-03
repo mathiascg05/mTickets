@@ -271,6 +271,7 @@ export function mapPaletteToTheme(palette: string[]): EventThemeColors {
   }
 
   const surface = mix(background, accent, 0.05);
+  const border = mix(background, foreground, 0.12);
 
-  return { accent, background, foreground, surface };
+  return { accent, background, foreground, surface, border };
 }

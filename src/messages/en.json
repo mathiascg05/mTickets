@@ -874,6 +874,7 @@
     "foreground": "Text",
     "surface": "Surface (cards)",
     "field": "Fields (inputs and selects)",
+    "border": "Border (lines and separators)",
     "resetField": "Reset",
     "resetAll": "Reset entire palette",
     "lowContrastWarning": "Low contrast: text may be hard to read against the background or cards.",

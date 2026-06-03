@@ -12,8 +12,8 @@ import {
 } from "@/lib/themeColors";
 import { useStorageUrl } from "@/lib/useStorageUrl";
 
-type SlotKey = "accent" | "background" | "foreground" | "surface" | "field";
-const SLOT_KEYS: SlotKey[] = ["accent", "background", "foreground", "surface", "field"];
+type SlotKey = "accent" | "background" | "foreground" | "surface" | "field" | "border";
+const SLOT_KEYS: SlotKey[] = ["accent", "background", "foreground", "surface", "field", "border"];
 
 const FALLBACKS: Record<SlotKey, string> = {
   accent: "#1a2b4a",
@@ -21,6 +21,7 @@ const FALLBACKS: Record<SlotKey, string> = {
   foreground: "#1a2b4a",
   surface: "#ffffff",
   field: "#f5f7fa",
+  border: "#d8dde6",
 };
 
 type Props = {
@@ -81,6 +82,7 @@ export default function PaletteEditor({
     foreground: parsed.foreground ?? FALLBACKS.foreground,
     surface: parsed.surface ?? FALLBACKS.surface,
     field: parsed.field ?? parsed.background ?? FALLBACKS.field,
+    border: parsed.border ?? FALLBACKS.border,
   };
 
   const contrastBg = contrastRatio(effective.foreground, effective.background);
