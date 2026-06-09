@@ -13,7 +13,7 @@ import PaletteEditor from "@/components/admin/PaletteEditor";
 import { PagoMovilFields } from "@/components/admin/PagoMovilFields";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { getFieldTypeLabel } from "@/lib/i18n";
 import { useAuthContext } from "@/lib/AuthContext";
@@ -53,6 +53,31 @@ export default function AdminConcertEditPage() {
   });
 
   const { t } = useLanguage();
+
+  // Record that a collaborator opened this event's admin page (once per mount).
+  // Stamps lastAccessedAt server-side so the organizer can see who's active.
+  const { user: authUser } = db.useAuth();
+  const seenPingedRef = useRef(false);
+  useEffect(() => {
+    if (seenPingedRef.current) return;
+    const token = authUser?.refresh_token;
+    const concert = data?.concerts?.[0];
+    if (!token || !concert || !currentUserEmail) return;
+    const lower = currentUserEmail.toLowerCase();
+    const isCollab = (concert.collaborators ?? []).some(
+      (c) => c.email.toLowerCase() === lower,
+    );
+    if (!isCollab) return;
+    seenPingedRef.current = true;
+    fetch("/api/concerts/collaborator-seen", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ concertId }),
+    }).catch(() => {});
+  }, [data, currentUserEmail, authUser, concertId]);
 
   if (isLoading || !data) {
     return <div className="animate-pulse text-muted">{t("common.loading")}</div>;
@@ -2530,17 +2555,49 @@ function CollaboratorsSection({
     email: string;
     invitedAt: number;
     invitedByEmail: string;
+    inviteSentAt?: number;
+    lastAccessedAt?: number;
   }>;
 }) {
   const { t, lang } = useLanguage();
+  const { user } = db.useAuth();
   const [emailInput, setEmailInput] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   const lowerCurrent = currentUserEmail.toLowerCase();
   const lowerOrganizer = organizerEmail.toLowerCase();
   const canManage = isSuperAdmin || lowerCurrent === lowerOrganizer;
 
-  function handleAdd() {
+  async function sendInvite(collaboratorId: string, email: string) {
+    const token = user?.refresh_token;
+    if (!token) return;
+    setSendingId(collaboratorId);
+    try {
+      const res = await fetch("/api/concerts/send-collaborator-invite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ concertId, collaboratorId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.sent) {
+        toast.success(t("admin.collaboratorInviteToast", { email }));
+      } else if (data.suppressed) {
+        toast.error(t("admin.collaboratorInviteSuppressed", { email }));
+      } else {
+        toast.error(t("admin.collaboratorInviteError"));
+      }
+    } catch {
+      toast.error(t("admin.collaboratorInviteError"));
+    } finally {
+      setSendingId(null);
+    }
+  }
+
+  async function handleAdd() {
     setError(null);
     const trimmed = emailInput.trim().toLowerCase();
     if (!trimmed) return;
@@ -2557,7 +2614,7 @@ function CollaboratorsSection({
       return;
     }
     const newId = id();
-    db.transact(
+    await db.transact(
       db.tx.eventCollaborators[newId]
         .update({
           email: trimmed,
@@ -2567,6 +2624,8 @@ function CollaboratorsSection({
         .link({ concert: concertId }),
     );
     setEmailInput("");
+    // Auto-send the access invitation email on first add.
+    sendInvite(newId, trimmed);
   }
 
   function handleRemove(collaboratorId: string) {
@@ -2651,15 +2710,40 @@ function CollaboratorsSection({
                 </p>
                 <p className="text-xs text-muted">
                   {t("admin.invitedOn")} {formatDate(c.invitedAt)}
+                  {c.inviteSentAt
+                    ? ` · ${t("admin.collaboratorInviteSent", { date: formatDate(c.inviteSentAt) })}`
+                    : ` · ${t("admin.collaboratorNotInvited")}`}
                 </p>
+                <span
+                  className={`inline-block mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                    c.lastAccessedAt
+                      ? "bg-success/10 text-success"
+                      : "bg-warning/10 text-warning"
+                  }`}
+                >
+                  {c.lastAccessedAt
+                    ? t("admin.collaboratorActive", {
+                        date: formatDate(c.lastAccessedAt),
+                      })
+                    : t("admin.collaboratorPending")}
+                </span>
               </div>
               {canManage && (
-                <button
-                  onClick={() => handleRemove(c.id)}
-                  className="px-3 py-1.5 border border-danger/30 text-danger rounded-lg hover:bg-danger/10 transition-colors text-xs font-medium shrink-0"
-                >
-                  {t("admin.remove")}
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => sendInvite(c.id, c.email)}
+                    disabled={sendingId === c.id}
+                    className="px-3 py-1.5 border border-border text-muted rounded-lg hover:bg-surface transition-colors text-xs font-medium disabled:opacity-50"
+                  >
+                    {t("admin.collaboratorResend")}
+                  </button>
+                  <button
+                    onClick={() => handleRemove(c.id)}
+                    className="px-3 py-1.5 border border-danger/30 text-danger rounded-lg hover:bg-danger/10 transition-colors text-xs font-medium"
+                  >
+                    {t("admin.remove")}
+                  </button>
+                </div>
               )}
             </li>
           ))

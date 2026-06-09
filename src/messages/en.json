@@ -416,6 +416,14 @@
     "removeCollaboratorConfirm": "Remove this collaborator?",
     "collaboratorPrimary": "Primary organizer",
     "collaboratorYou": "(you)",
+    "collaboratorResend": "Resend",
+    "collaboratorInviteSent": "Invitation sent {date}",
+    "collaboratorNotInvited": "Invitation not sent yet",
+    "collaboratorActive": "Active · seen {date}",
+    "collaboratorPending": "Pending — hasn't accessed yet",
+    "collaboratorInviteToast": "Invitation sent to {email}",
+    "collaboratorInviteSuppressed": "Couldn't send: {email} has unsubscribed or bounced",
+    "collaboratorInviteError": "Couldn't send the invitation. Try again.",
     "eventNotFound": "Event not found",
     "deleteTicketTypeConfirm": "Delete this ticket type?",
     "deleteTicketTypeFailed": "Could not delete ticket type",
@@ -1189,6 +1197,14 @@
       "labelMessage": "Message",
       "footer": "This message was sent by the organizer of <strong>{eventName}</strong>. To reply, write to <a href=\"mailto:{organizerEmail}\" style=\"color:#1a2b4a;text-decoration:underline;\">{organizerEmail}</a>.",
       "footerText": "This message was sent by the organizer of {eventName}. To reply, write to {organizerEmail}."
+    },
+    "collaboratorInvite": {
+      "subject": "You're now a collaborator: {eventName}",
+      "intro": "You've been added as a collaborator for <strong>{eventName}</strong> on maTickets. You can help manage this event with the same permissions as the organizer.",
+      "instruction": "To access, sign in to maTickets with this email ({inviteEmail}) and open the event. Your access activates automatically the first time you sign in.",
+      "cta": "Manage the event",
+      "linkNote": "If the button doesn't work, copy this link in your browser:",
+      "footerNote": "You were added by the organizer of {eventName}. For questions, contact {organizerEmail}."
     },
     "guestInvite": {
       "subject": "You're invited: {eventName}",

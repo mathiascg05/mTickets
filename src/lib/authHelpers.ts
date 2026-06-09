@@ -40,6 +40,38 @@ export function isPrimaryOrganizer(
 type AuthFailure = { ok: false; status: number; error: string };
 type AuthSuccess = { ok: true };
 
+export type ConcertAccessInfo = {
+  id: string;
+  name: string;
+  slug: string;
+  organizerEmail: string;
+  defaultLanguage?: string;
+  primaryColor?: string;
+  collaborators?: { email: string }[];
+};
+
+export async function assertOrganizerCanAccessConcert(
+  userEmail: string | undefined | null,
+  concertId: string,
+): Promise<({ ok: true } & { data: ConcertAccessInfo }) | AuthFailure> {
+  if (!userEmail) return { ok: false, status: 401, error: "Unauthorized" };
+
+  const { adminDb } = await import("./adminDb");
+  const { concerts } = await adminDb.query({
+    concerts: {
+      $: { where: { id: concertId } },
+      collaborators: {},
+    },
+  });
+
+  const concert = concerts[0] as ConcertAccessInfo | undefined;
+  if (!concert) return { ok: false, status: 404, error: "Concert not found" };
+  if (!isAuthorizedForConcert(userEmail, concert)) {
+    return { ok: false, status: 403, error: "Forbidden" };
+  }
+  return { ok: true, data: concert };
+}
+
 export async function assertOrganizerCanAccessOrder(
   userEmail: string | undefined | null,
   orderId: string,

@@ -416,6 +416,14 @@
     "removeCollaboratorConfirm": "¿Quitar a este colaborador?",
     "collaboratorPrimary": "Organizador principal",
     "collaboratorYou": "(tú)",
+    "collaboratorResend": "Reenviar",
+    "collaboratorInviteSent": "Invitación enviada {date}",
+    "collaboratorNotInvited": "Invitación aún no enviada",
+    "collaboratorActive": "Activo · visto {date}",
+    "collaboratorPending": "Pendiente — aún no ha entrado",
+    "collaboratorInviteToast": "Invitación enviada a {email}",
+    "collaboratorInviteSuppressed": "No se pudo enviar: {email} canceló la suscripción o rebotó",
+    "collaboratorInviteError": "No se pudo enviar la invitación. Inténtalo de nuevo.",
     "eventNotFound": "Evento no encontrado",
     "deleteTicketTypeConfirm": "¿Eliminar este tipo de entrada?",
     "deleteTicketTypeFailed": "No se pudo eliminar el tipo de entrada",
@@ -1189,6 +1197,14 @@
       "labelMessage": "Mensaje",
       "footer": "Este mensaje fue enviado por el organizador de <strong>{eventName}</strong>. Para responder, escribe a <a href=\"mailto:{organizerEmail}\" style=\"color:#1a2b4a;text-decoration:underline;\">{organizerEmail}</a>.",
       "footerText": "Este mensaje fue enviado por el organizador de {eventName}. Para responder, escribe a {organizerEmail}."
+    },
+    "collaboratorInvite": {
+      "subject": "Ahora eres colaborador: {eventName}",
+      "intro": "Te agregaron como colaborador del evento <strong>{eventName}</strong> en maTickets. Puedes ayudar a administrarlo con los mismos permisos que el organizador.",
+      "instruction": "Para acceder, inicia sesión en maTickets con este correo ({inviteEmail}) y abre el evento. Tu acceso se activa automáticamente la primera vez que inicias sesión.",
+      "cta": "Administrar el evento",
+      "linkNote": "Si el botón no funciona, copia este enlace en tu navegador:",
+      "footerNote": "Te agregó el organizador de {eventName}. Para dudas, contacta a {organizerEmail}."
     },
     "guestInvite": {
       "subject": "Estás invitado: {eventName}",

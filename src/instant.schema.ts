@@ -227,6 +227,8 @@ const _schema = i.schema({
       email: i.string().indexed(),
       invitedAt: i.number().indexed(),
       invitedByEmail: i.string(),
+      inviteSentAt: i.number().optional(),
+      lastAccessedAt: i.number().indexed().optional(),
     }),
     broadcasts: i.entity({
       subject: i.string(),
