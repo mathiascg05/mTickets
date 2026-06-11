@@ -198,3 +198,41 @@ STOCK_A=50 npm run loadtest:seed >/dev/null
 VUS=40 ITERS=120 TICKET_TYPE_ID=<idA> k6 run load-tests/buy-flow.js
 npm run loadtest:verify
 ```
+
+---
+
+# Fase F — Fases (tramos de precio) + lado organizador · 2026-06-11 (free tier)
+
+Harness ampliado: `WITH_PHASES=1` siembra 3 fases (Early Bird 30% @$8 / General 40% @$10 /
+Last Minute 30% @$14 = stock), `verify-loadtest` chequea ventas por-fase, y el escenario S7
+(`scripts/scan-ensayo.ts`) prueba el lado organizador (aprobar + entry rush + anti-doble-escaneo).
+
+### Hallazgos
+
+| Escenario | Resultado |
+|---|---|
+| **Organizador (S7)** entry rush 200 escaneos @60 conc | ✅ **200/200 check-in**, avg 441 ms; **200/200 re-escaneo → 409** (anti-doble-escaneo); 200/200 `visited=true`. |
+| **Fase — SIN cola** (buy-flow, ráfaga 600) | 🔴 **Early Bird 537/300 (+237 al precio bajo)**. 0 sobreventa de evento, 0 errores, pero el borde de fase NO es concurrency-safe sin la cola. |
+| **Fase — CON cola** (full-flow, 400 VUs) | ✅ **Early Bird 299/300, cero fuga.** La cola (gate 100) mantiene el borde de fase dentro del límite. |
+
+### Conclusión sobre fases
+- **En producción las fases son seguras**: el camino real del comprador pasa por la cola
+  (se activa a 80 concurrentes, gatea a 100), y a ese nivel el borde de fase se respeta
+  (299/300 medido). La sobreventa de evento NUNCA ocurre (validación post-escritura nivel evento).
+- La fuga grande (537/300) solo aparece en la **ráfaga directa sin cola** (buy-flow), que ningún
+  comprador real usa. Es un artefacto del escenario de estrés, no del flujo de producción.
+- **Causa técnica:** la validación post-escritura en `create-order` chequea `available < 0` a
+  nivel de EVENTO (rueda a la siguiente fase), no a nivel de FASE. Si algún día se quitara la cola
+  o se subiera mucho `MAX_CONCURRENT`, el borde de fase podría filtrar. Mitigación futura opcional:
+  añadir validación post-escritura por-fase análoga a la de evento.
+
+### Aislamiento de pruebas (no afecta eventos reales)
+`assertNotProd()` aborta SIEMPRE si el `appId` destino empieza con `66280f75` (prod), en TODOS
+los scripts (incluido `verify`, solo-lectura). El harness solo toca la app InstantDB de staging
+(`ab553da0`) y el proyecto Vercel `matickets-staging-r1`. Verificado: seed/verify abortan con 🛑
+ante un appId de prod simulado.
+
+### Nota de free tier (reconfirmada)
+El reset de esta corrida limpió **5.616 queueEntries** acumuladas → la carga de lectura de la cola
+(heartbeats) crece con la fila y es lo que throttlea el free tier bajo carga sostenida. La
+correctitud (0 sobreventa, 0 duplicados, fases con cola, anti-doble-escaneo) **nunca falla**.

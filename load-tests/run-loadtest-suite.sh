@@ -9,9 +9,13 @@
 #
 # Uso:
 #   BASE_URL=http://localhost:3000 DOTENV_CONFIG_PATH=.env.staging LOADTEST_CONFIRM=1 \
-#     ./load-tests/run-loadtest-suite.sh            # corre S1 S2 S3 S5 S6
+#     ./load-tests/run-loadtest-suite.sh            # corre S1 S2 S3 S5 S6 S7 S8
 #   ... ./load-tests/run-loadtest-suite.sh S1 S3    # solo escenarios indicados
-set -euo pipefail
+# Escenarios: S1 flash sale · S2 cola · S3 dual · S4 rampa/quiebre · S5 cupón ·
+#             S6 reservas abandonadas · S7 organizador (aprobar+escaneo) · S8 borde de fase.
+# NB: sin `set -e` a propósito — un k6 con thresholds cruzados o un verify con
+#     hallazgo NO debe abortar la suite; los fallos críticos se reportan al final.
+set -uo pipefail
 
 cd "$(dirname "$0")/.."  # raíz del repo
 
@@ -20,7 +24,7 @@ cd "$(dirname "$0")/.."  # raíz del repo
 : "${DOTENV_CONFIG_PATH:?Define DOTENV_CONFIG_PATH=.env.staging}"
 
 SCENARIOS=("$@")
-[ ${#SCENARIOS[@]} -eq 0 ] && SCENARIOS=(S1 S2 S3 S5 S6)
+[ ${#SCENARIOS[@]} -eq 0 ] && SCENARIOS=(S1 S2 S3 S5 S6 S7 S8)
 
 TS="$(date +%Y%m%d-%H%M%S)"
 OUT="load-tests/results/$TS"
@@ -30,7 +34,24 @@ echo "📂 Resultados en $OUT"
 read_id() { node -e "console.log(require('./load-tests/.loadtest-ids.json').$1 || '')"; }
 
 seed() { STOCK_A="$1" STOCK_B="${2:-$1}" npx tsx scripts/seed-loadtest.ts >"$OUT/seed-$3.log" 2>&1; }
-verify() { npx tsx scripts/verify-loadtest.ts | tee "$OUT/verify-$1.log"; }
+
+# verify con reintentos ante `fetch failed` transitorio del free tier (no aborta
+# la suite por un hipo de red; sí registra fallos críticos reales en FAILED).
+FAILED=()
+verify() {
+  local tag="$1" tries=0 out rc
+  while :; do
+    tries=$((tries + 1))
+    out="$(npx tsx scripts/verify-loadtest.ts 2>&1)"; rc=$?
+    echo "$out" | tee "$OUT/verify-$tag.log"
+    if [ $rc -ne 0 ] && echo "$out" | grep -q "fetch failed" && [ $tries -lt 5 ]; then
+      echo "  (verify $tag: fetch transitorio, reintento $tries/5...)"; sleep 8; continue
+    fi
+    break
+  done
+  [ $rc -ne 0 ] && FAILED+=("$tag")
+  return 0
+}
 
 run_S1() {
   echo "── S1 Flash sale (overselling), stock=100 ──"
@@ -72,14 +93,33 @@ run_S6() {
     2>&1 | tee "$OUT/S6.log"
   verify S6
 }
+run_S7() {
+  echo "── S7 Organizador: aprobar + entry rush (escaneo concurrente) ──"
+  seed 1000 1000 S7
+  # Comprar ~300 entradas primero, para tener órdenes que aprobar y escanear.
+  TICKET_TYPE_ID="$(read_id A)" VUS=300 ITERS=300 k6 run load-tests/buy-flow.js 2>&1 | tee "$OUT/k6-S7-buy.log"
+  N=200 CONC=60 npx tsx scripts/scan-ensayo.ts 2>&1 | tee "$OUT/S7-scan.log"
+  verify S7
+}
+run_S8() {
+  echo "── S8 Borde de fase (WITH_PHASES): ráfaga que cruza el límite de la fase 1 ──"
+  WITH_PHASES=1 seed 1000 1000 S8
+  # Ráfaga directa: mide leak de borde de fase bajo concurrencia (verify lo reporta).
+  TICKET_TYPE_ID="$(read_id A)" VUS=600 ITERS=600 k6 run load-tests/buy-flow.js 2>&1 | tee "$OUT/k6-S8.log"
+  verify S8
+}
 
 for s in "${SCENARIOS[@]}"; do
   case "$s" in
-    S1) run_S1 ;; S2) run_S2 ;; S3) run_S3 ;; S4) run_S4 ;; S5) run_S5 ;; S6) run_S6 ;;
-    *) echo "⚠️ escenario desconocido: $s (válidos: S1 S2 S3 S4 S5 S6)" ;;
+    S1) run_S1 ;; S2) run_S2 ;; S3) run_S3 ;; S4) run_S4 ;; S5) run_S5 ;; S6) run_S6 ;; S7) run_S7 ;; S8) run_S8 ;;
+    *) echo "⚠️ escenario desconocido: $s (válidos: S1 S2 S3 S4 S5 S6 S7 S8)" ;;
   esac
 done
 
 echo ""
-echo "✅ Suite terminada. Logs en $OUT"
+if [ ${#FAILED[@]} -eq 0 ]; then
+  echo "✅ Suite terminada SIN fallos críticos. Logs en $OUT"
+else
+  echo "❌ Suite terminada con fallos críticos en: ${FAILED[*]}. Revisa $OUT/verify-*.log"
+fi
 echo "   Revisa cada verify-*.log: 'Todos los invariantes críticos se cumplen' = OK."

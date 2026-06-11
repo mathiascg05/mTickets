@@ -9,6 +9,8 @@ import {
   couponCodeFor,
   findLoadtestConcerts,
   stockFor,
+  withPhases,
+  phasesForStock,
 } from "./loadtest-config";
 
 /**
@@ -33,8 +35,9 @@ async function seed() {
   const existing = await findLoadtestConcerts();
   const bySlug = new Map(existing.map((c) => [c.slug, c]));
 
+  const usePhases = withPhases();
   const txns = [];
-  const summary: { key: string; name: string; ticketTypeId: string; slug: string; stock: number }[] = [];
+  const summary: { key: string; name: string; ticketTypeId: string; slug: string; stock: number; phases: string }[] = [];
 
   for (const ev of LOADTEST.events) {
     const prior = bySlug.get(ev.slug);
@@ -46,6 +49,9 @@ async function seed() {
       for (const o of tt.orders ?? []) txns.push(adminDb.tx.orders[o.id].delete());
       for (const r of tt.reservations ?? []) txns.push(adminDb.tx.reservations[r.id].delete());
       for (const q of tt.queueEntries ?? []) txns.push(adminDb.tx.queueEntries[q.id].delete());
+      // Borrar fases previas: el modo (con/sin fases) se decide en cada seed.
+      for (const p of (tt as { phases?: { id: string }[] }).phases ?? [])
+        txns.push(adminDb.tx.ticketPhases[p.id].delete());
     }
 
     // ── Concierto ──
@@ -82,6 +88,26 @@ async function seed() {
         })
         .link({ concert: concertId }),
     );
+
+    // ── Fases (opcional, WITH_PHASES=1): tramos de precio que suman el stock ──
+    let phasesDesc = "—";
+    if (usePhases) {
+      const phases = phasesForStock(stock);
+      phasesDesc = phases.map((p) => `${p.name}:${p.quantity}@$${p.price}`).join(" / ");
+      for (const ph of phases) {
+        txns.push(
+          adminDb.tx.ticketPhases[genId()]
+            .update({
+              name: ph.name,
+              price: ph.price,
+              quantity: ph.quantity,
+              sortOrder: ph.sortOrder,
+              createdAt: Date.now(),
+            })
+            .link({ ticketType: ticketTypeId }),
+        );
+      }
+    }
 
     // ── Método de pago ──
     const priorPM = prior?.paymentMethods?.find((p) => p.name === LOADTEST.paymentMethodName);
@@ -132,7 +158,7 @@ async function seed() {
         .link({ concert: concertId }),
     );
 
-    summary.push({ key: ev.key, name: ev.name, ticketTypeId, slug: ev.slug, stock });
+    summary.push({ key: ev.key, name: ev.name, ticketTypeId, slug: ev.slug, stock, phases: phasesDesc });
   }
 
   await adminDb.transact(txns);

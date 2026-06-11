@@ -18,6 +18,28 @@ gastaría cuota de Instant de prod.
 Todos los comandos de scripts cargan `.env.staging` y exigen `LOADTEST_CONFIRM=1` para
 operaciones destructivas (guard anti-prod en `scripts/loadtest-config.ts`).
 
+### 🔒 Aislamiento (no afecta a eventos reales)
+
+El harness corre **exclusivamente** contra la app InstantDB de **staging** (`ab553da0…`) y
+el proyecto Vercel de **staging** (`matickets-staging-r1`), **nunca** contra producción
+(`66280f75…` / `matickets.net`). Doble seguro en `assertSafeToMutate`:
+
+1. **Aborta SIEMPRE** si el `appId` destino empieza con el prefijo de producción
+   (`PROD_APP_ID_PREFIX = "66280f75"`), sin importar nada más.
+2. Exige `LOADTEST_CONFIRM=1` para cualquier escritura.
+
+Por eso las pruebas de carga **no pueden tocar ni degradar eventos de otros organizadores**:
+viven en una base de datos distinta. (Nota de PROD aparte: en el plan free, todos los eventos
+reales comparten una sola app InstantDB, así que un evento de alto tráfico sí puede afectar a
+otros el día del evento — eso es harina de otro costal, no de este harness.)
+
+### Fases (tramos de precio)
+
+Para sembrar tipos de entrada **con fases** (Early Bird / General / Last Minute que suman el
+stock), añade `WITH_PHASES=1` al seed. El servidor deriva la fase activa solo, así que los
+scripts k6 no cambian. `loadtest:verify` reporta vendidas por fase y marca cualquier
+"leak de borde" (vender de más en una fase, sin sobreventa de evento).
+
 ## Ciclo de cada corrida
 
 ```bash
@@ -46,8 +68,12 @@ DOTENV_CONFIG_PATH=.env.staging LOADTEST_CONFIRM=1 npm run loadtest:reset
 | **S4** Punto de quiebre | Rampa 0→1.500 VU/evento hasta que algo rompa. | `MODE=ramp TICKET_TYPE_ID_A=<idA> TICKET_TYPE_ID_B=<idB> k6 run dual-event.js` |
 | **S5** Carrera de cupón | `LOADTEST5` maxUses=5; nunca >5 redenciones. | añadir `couponCode:"LOADTEST5"` al payload y 200 VU |
 | **S6** Reservas abandonadas | Crear reservas sin orden; verificar recuperación de stock. | `loadtest:verify` reporta reservas vencidas vivas |
+| **S7** Organizador (entrada) | Aprobar N órdenes + entry rush concurrente; guard anti-doble-escaneo. | `BASE_URL=<url> N=200 CONC=60 npm run loadtest:scan` |
+| **S8** Borde de fase | Siembra con fases y ráfaga que cruza el límite de la fase 1; mide leak de borde. | `WITH_PHASES=1 …seed`; `TICKET_TYPE_ID=<idA> k6 run buy-flow.js` |
 
 `BASE_URL` = URL del preview de Vercel en todos los comandos.
+
+La suite completa (incluye S7/S8): `BASE_URL=<url> DOTENV_CONFIG_PATH=.env.staging LOADTEST_CONFIRM=1 ./load-tests/run-loadtest-suite.sh`
 
 ## Qué vigilar durante cada corrida
 
