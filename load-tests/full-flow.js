@@ -39,6 +39,8 @@ export default function () {
   const sessionId = `k6-vu${__VU}-iter${__ITER}-${Date.now()}`;
   const headers = {
     "Content-Type": "application/json",
+    // Origin debe coincidir con NEXT_PUBLIC_APP_URL o el middleware responde 403 (CSRF).
+    Origin: BASE_URL,
     "X-Forwarded-For": `10.0.${Math.floor(__VU / 256)}.${__VU % 256}`,
   };
 
@@ -149,6 +151,7 @@ export default function () {
           lastName: `Test${__VU}`,
           email: `loadtest-vu${__VU}@test.local`,
           cedula: `${10000000 + __VU}`,
+          phone: "+584140000000",
         },
       ],
       paymentMethodName: "Load Test",

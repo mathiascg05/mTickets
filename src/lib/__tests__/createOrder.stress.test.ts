@@ -151,9 +151,6 @@ describe("POST /api/create-order — overbooking", () => {
     mockQuery
       .mockResolvedValueOnce({
         ticketTypes: [baseTicketType()],
-      })
-      .mockResolvedValueOnce({
-        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
       });
 
     const res = await handler(makeRequest(validBody()));
@@ -205,8 +202,9 @@ describe("POST /api/create-order — overbooking", () => {
     let queryCallCount = 0;
     mockQuery.mockImplementation(() => {
       queryCallCount++;
-      // First calls: initial reads + fresh seq reads (stale snapshot showing 1 ticket left)
-      if (queryCallCount <= 4) {
+      // First 2 calls: the pre-write read of each concurrent handler (stale snapshot
+      // showing 1 ticket left). The 2 post-write re-reads fall through below.
+      if (queryCallCount <= 2) {
         return Promise.resolve({
           ticketTypes: [
             baseTicketType({
@@ -275,9 +273,6 @@ describe("POST /api/create-order — overbooking", () => {
             ],
           }),
         ],
-      })
-      .mockResolvedValueOnce({
-        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
       });
 
     const res = await handler(makeRequest(validBody()));
@@ -321,9 +316,6 @@ describe("POST /api/create-order — overbooking", () => {
             ],
           }),
         ],
-      })
-      .mockResolvedValueOnce({
-        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
       });
 
     const res = await handler(makeRequest(validBody()));
@@ -347,9 +339,6 @@ describe("POST /api/create-order — overbooking", () => {
             ],
           }),
         ],
-      })
-      .mockResolvedValueOnce({
-        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
       });
 
     const res = await handler(
@@ -431,8 +420,9 @@ describe("POST /api/create-order — coupon validation", () => {
     let queryCallCount = 0;
     mockQuery.mockImplementation(() => {
       queryCallCount++;
-      // First calls: initial reads + fresh seq reads (stale: 0 coupon usages)
-      if (queryCallCount <= 4) {
+      // First 2 calls: the pre-write read of each concurrent handler (stale: 0 coupon
+      // usages). The 2 post-write re-reads fall through below.
+      if (queryCallCount <= 2) {
         return Promise.resolve({
           ticketTypes: [
             ticketWithCoupon({ maxUses: 1 }, []),
@@ -495,9 +485,6 @@ describe("POST /api/create-order — coupon validation", () => {
     mockQuery
       .mockResolvedValueOnce({
         ticketTypes: [ticketWithCoupon({ code: "SAVE10" })],
-      })
-      .mockResolvedValueOnce({
-        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
       });
 
     const res = await handler(
@@ -512,9 +499,6 @@ describe("POST /api/create-order — coupon validation", () => {
         ticketTypes: [
           ticketWithCoupon({ discountType: "percentage", discountValue: 150 }),
         ],
-      })
-      .mockResolvedValueOnce({
-        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
       });
 
     const res = await handler(
@@ -530,9 +514,6 @@ describe("POST /api/create-order — coupon validation", () => {
         ticketTypes: [
           ticketWithCoupon({ discountType: "fixed", discountValue: 9999 }),
         ],
-      })
-      .mockResolvedValueOnce({
-        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
       });
 
     const res = await handler(
@@ -543,9 +524,9 @@ describe("POST /api/create-order — coupon validation", () => {
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Order number sequencing
+// Order number generation
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-describe("POST /api/create-order — order number sequencing", () => {
+describe("POST /api/create-order — order number generation", () => {
   let handler: typeof import("@/app/api/create-order/route").POST;
 
   beforeEach(async () => {
@@ -553,29 +534,10 @@ describe("POST /api/create-order — order number sequencing", () => {
     handler = mod.POST;
   });
 
-  it("generates correct sequential order numbers from lastOrderSeq", async () => {
-    mockQuery
-      .mockResolvedValueOnce({
-        ticketTypes: [
-          baseTicketType({
-            concert: [
-              {
-                id: CONCERT_ID,
-                name: "Rock Show",
-                date: "2026-06-15",
-                venue: "Arena",
-                slug: "rock-show",
-                status: "active",
-                lastOrderSeq: 42,
-                coupons: [],
-              },
-            ],
-          }),
-        ],
-      })
-      .mockResolvedValueOnce({
-        concerts: [{ id: CONCERT_ID, lastOrderSeq: 42 }],
-      });
+  it("assigns unique non-sequential order codes (PREFIX-XXXXXX)", async () => {
+    mockQuery.mockResolvedValueOnce({
+      ticketTypes: [baseTicketType()],
+    });
 
     const res = await handler(
       makeRequest(
@@ -587,27 +549,27 @@ describe("POST /api/create-order — order number sequencing", () => {
     );
     expect(res.status).toBe(200);
 
-    // Verify transaction was called with the correct lastOrderSeq update
-    const txArgs = mockTransact.mock.calls[0][0];
-    // The transaction should contain order creates + concert seq update
-    expect(txArgs).toBeDefined();
+    // The order-creation transaction now holds the generated order numbers (there
+    // is no concert seq update anymore). Each is a random Crockford base32 code
+    // `PREFIX-XXXXXX`, and the two attendees get distinct codes.
+    const txArgs = mockTransact.mock.calls[0][0] as { data?: { orderNumber?: string } }[];
+    const orderNumbers = txArgs
+      .map((op) => op.data?.orderNumber)
+      .filter((n): n is string => typeof n === "string");
+    expect(orderNumbers).toHaveLength(2);
+    for (const n of orderNumbers) {
+      expect(n).toMatch(/^[A-Z]{2,4}-[0-9A-HJKMNP-TV-Z]{6}$/);
+    }
+    expect(new Set(orderNumbers).size).toBe(2);
   });
 
-  it("retries on transact failure and re-fetches sequence", async () => {
-    mockQuery
-      .mockResolvedValueOnce({
-        ticketTypes: [baseTicketType()],
-      })
-      // First attempt: fresh seq read
-      .mockResolvedValueOnce({
-        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
-      })
-      // Retry: fresh seq read
-      .mockResolvedValueOnce({
-        concerts: [{ id: CONCERT_ID, lastOrderSeq: 1 }],
-      });
+  it("retries by regenerating the order code on transact failure", async () => {
+    mockQuery.mockResolvedValueOnce({
+      ticketTypes: [baseTicketType()],
+    });
 
-    // First transact fails, second succeeds
+    // First transact fails, second succeeds. The retry just regenerates the random
+    // code (no sequence to re-fetch).
     mockTransact
       .mockRejectedValueOnce(new Error("Conflict"))
       .mockResolvedValueOnce(undefined);
@@ -690,9 +652,6 @@ describe("POST /api/create-order — reservation + queue cleanup", () => {
             { id: reservationId, quantity: 1, expiresAt: Date.now() + 600_000 },
           ],
         })],
-      })
-      .mockResolvedValueOnce({
-        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
       });
 
     const res = await handler(
@@ -721,9 +680,6 @@ describe("POST /api/create-order — reservation + queue cleanup", () => {
             { id: queueToken, status: "admitted", expiresAt: Date.now() + 600_000 },
           ],
         })],
-      })
-      .mockResolvedValueOnce({
-        concerts: [{ id: CONCERT_ID, lastOrderSeq: 0 }],
       });
 
     const res = await handler(

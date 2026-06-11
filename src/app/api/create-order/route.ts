@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { getAvailability, getTodayString } from "@/lib/phases";
-import { generatePrefix, formatOrderNumber } from "@/lib/orderNumber";
+import { generatePrefix, generateOrderCode } from "@/lib/orderNumber";
 import { transporter, generateMessageId, EMAIL_FROM } from "@/lib/mailer";
 import {
   buildConfirmationEmailHtml,
@@ -335,12 +335,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Generate order numbers using atomic counter with retry.
-    // Prefer the prefix stored on the concert (assigned at concert creation
-    // and guaranteed unique by schema). Fallback to name-derived prefix only
-    // for legacy concerts that haven't been backfilled yet.
+    // Order numbers: random, non-sequential code (`PREFIX-XXXXXX`). No per-concert
+    // counter → no serialization point → no contention under high concurrency.
+    // Prefer the prefix stored on the concert (assigned at concert creation,
+    // unique by schema). Fallback to name-derived prefix for legacy concerts.
     const prefix = concert.orderNumberPrefix || generatePrefix(concert.name);
-    let currentSeq = 0;
 
     const orderIds: string[] = [];
     const orderNumbers: string[] = [];
@@ -396,12 +395,6 @@ export async function POST(req: NextRequest) {
     });
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      // Always read fresh lastOrderSeq to avoid collisions
-      const { concerts: freshConcerts } = await adminDb.query({
-        concerts: { $: { where: { id: concert.id } } },
-      });
-      currentSeq = freshConcerts[0]?.lastOrderSeq || 0;
-
       orderIds.length = 0;
       orderNumbers.length = 0;
 
@@ -411,8 +404,7 @@ export async function POST(req: NextRequest) {
       // su propia primary (comportamiento legacy).
       const orderTxns = trimmedAttendees.map((attendee, idx) => {
         const orderId = genId();
-        const seq = currentSeq + idx + 1;
-        const orderNumber = formatOrderNumber(prefix, seq);
+        const orderNumber = `${prefix}-${generateOrderCode()}`;
         orderIds.push(orderId);
         orderNumbers.push(orderNumber);
 
@@ -497,18 +489,12 @@ export async function POST(req: NextRequest) {
           .link({ ticketType: ticketTypeId });
       });
 
-      // Update concert's lastOrderSeq
-      const newSeq = currentSeq + expectedAttendees;
-      const seqTxn = adminDb.tx.concerts[concert.id].update({
-        lastOrderSeq: newSeq,
-      });
-
-      const allTxns = [...orderTxns, seqTxn];
-
       try {
-        await adminDb.transact(allTxns);
+        await adminDb.transact(orderTxns);
         break; // Success
       } catch (err) {
+        // Reintento solo ante la rara colisión del orderNumber aleatorio (unique)
+        // o un fallo transitorio. Cada intento regenera los códigos.
         if (attempt === MAX_RETRIES - 1) {
           console.error("[create-order] Transaction failed after retries:", err);
           // Cleanup: free capacity slot so other users can proceed
@@ -588,10 +574,10 @@ export async function POST(req: NextRequest) {
         }
 
         if (rollback) {
-          // Rollback: delete created orders, restore concert seq, restore queue entry
+          // Rollback: borrar las órdenes creadas y restaurar el queue token.
+          // (Ya no hay contador que restaurar: los orderNumber son aleatorios.)
           const rollbackTxns = [
             ...orderIds.map((oid) => adminDb.tx.orders[oid].delete()),
-            adminDb.tx.concerts[concert.id].update({ lastOrderSeq: currentSeq }),
             ...(validatedQueueToken
               ? [adminDb.tx.queueEntries[validatedQueueToken].update({ status: "admitted" })]
               : []),

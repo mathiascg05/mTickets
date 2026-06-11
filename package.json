@@ -10,6 +10,10 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:load": "k6 run load-tests/buy-flow.js",
+    "loadtest:seed": "tsx scripts/seed-loadtest.ts",
+    "loadtest:reset": "tsx scripts/reset-loadtest.ts",
+    "loadtest:verify": "tsx scripts/verify-loadtest.ts",
+    "loadtest:abandon": "tsx scripts/abandon-reservations-loadtest.ts",
     "legal:pdf": "tsx scripts/generate-legal-pdf.ts",
     "backfill:messages": "tsx scripts/backfill-message-tokens.ts"
   },

@@ -52,3 +52,9 @@ next-env.d.ts
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Load test env + artefactos (no commitear secretos ni resultados)
+.env.staging
+.env.*.local
+/load-tests/results/
+/load-tests/.loadtest-ids.json

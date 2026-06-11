@@ -621,10 +621,8 @@ describe("Scenario 1: Happy path without queue", () => {
     expect(order.email).toBe("juan@example.com");
     expect(order.cedula).toBe("12345678");
     expect(order.paymentMethod).toBe("Zelle");
-    expect(order.orderNumber).toMatch(/^RCKF-\d{4}$/);
-
-    const concert = store.concerts.get(CONCERT_ID)!;
-    expect(concert.lastOrderSeq).toBe(1);
+    // Order numbers are now random, non-sequential Crockford codes `PREFIX-XXXXXX`.
+    expect(order.orderNumber).toMatch(/^RCKF-[0-9A-HJKMNP-TV-Z]{6}$/);
   });
 
   it("1.6 approve order (no fee config) changes status to approved", async () => {
@@ -1106,7 +1104,7 @@ describe("Scenario 5: Edge cases", () => {
     expect(body.queueEntryId).not.toBe(oldEntryId);
   });
 
-  it("5.5 multi-attendee order creates sequential order numbers", async () => {
+  it("5.5 multi-attendee order creates unique non-sequential order numbers", async () => {
     resetStore();
     seedConcert();
     seedTicketType({ quantity: 10, price: 25 });
@@ -1139,12 +1137,11 @@ describe("Scenario 5: Edge cases", () => {
     expect(orderIds).toHaveLength(3);
 
     const orderNumbers = orderIds.map((id: string) => store.orders.get(id)!.orderNumber as string);
-    expect(orderNumbers[0]).toBe("RCKF-0001");
-    expect(orderNumbers[1]).toBe("RCKF-0002");
-    expect(orderNumbers[2]).toBe("RCKF-0003");
-
-    const concert = store.concerts.get(CONCERT_ID)!;
-    expect(concert.lastOrderSeq).toBe(3);
+    // Random, non-sequential codes: each matches the format and all three are unique.
+    for (const n of orderNumbers) {
+      expect(n).toMatch(/^RCKF-[0-9A-HJKMNP-TV-Z]{6}$/);
+    }
+    expect(new Set(orderNumbers).size).toBe(3);
   });
 });
 

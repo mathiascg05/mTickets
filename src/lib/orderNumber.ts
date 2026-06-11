@@ -1,7 +1,26 @@
+import { randomBytes } from "crypto";
 import { adminDb } from "./adminDb";
 
 const MAX_RETRIES = 10;
 const VOWELS = new Set("AEIOUaeiou".split(""));
+
+// Crockford base32 (sin I, L, O, U → sin ambigüedad al dictar por teléfono).
+const ORDER_CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/**
+ * Genera un código de orden aleatorio, único y legible (6 chars Crockford base32
+ * → ~1.07e9 combinaciones). No depende de ningún contador, así que no serializa
+ * la creación de órdenes bajo concurrencia. La unicidad la garantiza la
+ * restricción `unique` del schema; ante la rara colisión se regenera.
+ */
+export function generateOrderCode(len = 6): string {
+  const bytes = randomBytes(len);
+  let code = "";
+  for (let i = 0; i < len; i++) {
+    code += ORDER_CODE_ALPHABET[bytes[i] % 32];
+  }
+  return code;
+}
 
 /**
  * Generate a short prefix from a concert name.
@@ -81,9 +100,10 @@ export async function assignUniquePrefix(
 }
 
 /**
- * Assign a sequential order number to an order within its concert.
- * Uses the atomic lastOrderSeq counter on the concert entity.
- * Skips if the order already has one.
+ * Assign a unique, non-sequential order number to an order (fallback path used
+ * when an order somehow lacks one — e.g. email senders). Uses a random Crockford
+ * code (`PREFIX-XXXXXX`) instead of the old per-concert counter, so it doesn't
+ * serialize under concurrency. Skips if the order already has one.
  */
 export async function assignOrderNumber(
   db: typeof adminDb,
@@ -102,38 +122,30 @@ export async function assignOrderNumber(
     return existing.orderNumber as string;
   }
 
+  // Resolve the concert prefix once (no counter involved).
+  const { concerts } = await db.query({
+    concerts: { $: { where: { id: concertId } } },
+  });
+  const concert = concerts[0];
+  if (!concert) {
+    throw new Error(`Concert ${concertId} not found`);
+  }
+  const prefix =
+    (concert as { orderNumberPrefix?: string }).orderNumberPrefix ||
+    generatePrefix(concertName);
+
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    // Read current lastOrderSeq and stored prefix from concert
-    const { concerts } = await db.query({
-      concerts: {
-        $: { where: { id: concertId } },
-      },
-    });
-
-    const concert = concerts[0];
-    if (!concert) {
-      throw new Error(`Concert ${concertId} not found`);
-    }
-
-    const prefix =
-      (concert as { orderNumberPrefix?: string }).orderNumberPrefix ||
-      generatePrefix(concertName);
-    const currentSeq = (concert as { lastOrderSeq?: number }).lastOrderSeq || 0;
-    const newSeq = currentSeq + 1;
-    const orderNumber = formatOrderNumber(prefix, newSeq);
-
+    const orderNumber = `${prefix}-${generateOrderCode()}`;
     try {
-      await db.transact([
-        db.tx.orders[orderId].update({ orderNumber }),
-        db.tx.concerts[concertId].update({ lastOrderSeq: newSeq }),
-      ]);
+      await db.transact([db.tx.orders[orderId].update({ orderNumber })]);
       return orderNumber;
     } catch (err) {
+      // Reintento solo ante la rara colisión del código aleatorio (unique).
       if (attempt === MAX_RETRIES - 1) {
         throw err;
       }
       console.warn(`[assignOrderNumber] Attempt ${attempt + 1} failed, retrying...`);
-      await new Promise((r) => setTimeout(r, 50 + Math.random() * 200));
+      await new Promise((r) => setTimeout(r, 25 + Math.random() * 75));
     }
   }
 
