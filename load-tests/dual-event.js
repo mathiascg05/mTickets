@@ -121,15 +121,19 @@ function runFlow(ev, ticketTypeId) {
 
   // ── Paso 2: heartbeat hasta admisión ──
   const waitStart = Date.now();
+  let beat = 0;
   while (status === "waiting") {
     if ((Date.now() - waitStart) / 1000 > MAX_WAIT_S) {
       queueRejected.add(1, t);
       return;
     }
     sleep(HEARTBEAT_INTERVAL_S + Math.random() * 2);
+    // Igual que el cliente real: refresco "full" cada 3er latido.
+    const full = beat % 3 === 0;
+    beat++;
     const hb = http.post(
       `${BASE_URL}/api/queue-heartbeat`,
-      JSON.stringify({ queueEntryId }),
+      JSON.stringify({ queueEntryId, full }),
       { headers: h, tags: { ...t, step: "heartbeat" } },
     );
     if (hb.status === 200) status = hb.json().status;

@@ -4,9 +4,26 @@ import { isValidUUID } from "@/lib/validation";
 import { WAITING_TTL, ADMITTED_TTL } from "@/lib/queueConstants";
 import { processQueueAdmissions } from "@/lib/queueAdmission";
 
+/**
+ * Heartbeat de la cola. Para no saturar la base de datos bajo alta concurrencia
+ * (cada waiter latía cada 15s leyendo TODAS las queueEntries del ticketType dos
+ * veces → ~O(N²)), separamos dos caminos:
+ *
+ *  - BARATO (default, cada latido): lee SOLO el propio entry + el concierto,
+ *    extiende su TTL y devuelve su estado actual. Si otro evento (create-reservation
+ *    al liberar un slot) ya lo admitió, el estado ya está actualizado y lo refleja.
+ *    No calcula posición ni procesa admisiones → una sola lectura puntual.
+ *
+ *  - COMPLETO (`full: true`, cada ~3 latidos / ~45s): además lee todas las
+ *    queueEntries para calcular posición y corre processQueueAdmissions como
+ *    backstop. La admisión en tiempo real la siguen disparando join-queue y
+ *    create-reservation (que liberan slots), así que sigue siendo oportuna.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const { queueEntryId } = await req.json();
+    const body = await req.json();
+    const { queueEntryId } = body;
+    const full = body.full === true;
 
     if (!isValidUUID(queueEntryId)) {
       return NextResponse.json(
@@ -20,7 +37,8 @@ export async function POST(req: NextRequest) {
         $: { where: { id: queueEntryId } },
         ticketType: {
           concert: {},
-          queueEntries: {},
+          // Solo en el camino completo traemos a los hermanos (lectura pesada).
+          ...(full ? { queueEntries: {} } : {}),
         },
       },
     });
@@ -53,7 +71,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Extend TTL for waiting and admitted entries
+    // Extender TTL (siempre, barato).
     const newExpiresAt =
       entry.status === "waiting"
         ? Date.now() + WAITING_TTL
@@ -65,13 +83,23 @@ export async function POST(req: NextRequest) {
       }),
     );
 
-    // Piggyback admission processing on each heartbeat
+    // Camino BARATO: devolver el estado propio sin calcular posición ni procesar
+    // admisiones. El cliente conserva su última posición conocida (position null).
+    if (!full) {
+      return NextResponse.json({
+        status: entry.status,
+        position: null,
+        totalWaiting: null,
+        estimatedWaitMin: null,
+      });
+    }
+
+    // Camino COMPLETO: backstop de admisión + posición.
     const ticketTypeId = entry.ticketType?.id;
     if (ticketTypeId) {
       await processQueueAdmissions(ticketTypeId);
     }
 
-    // Calculate position from sibling queue entries
     const now = Date.now();
     const allEntries = entry.ticketType?.queueEntries || [];
     const waitingAhead =

@@ -36,6 +36,7 @@ export default function QueuePage() {
   const joinedRef = useRef(false);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const heartbeatFailuresRef = useRef(0);
+  const beatCountRef = useRef(0);
 
   // Polling state — updated by heartbeat responses
   const [queueStatus, setQueueStatus] = useState<string | null>(null);
@@ -118,20 +119,27 @@ export default function QueuePage() {
     if (!queueEntryId) return;
 
     const sendHeartbeat = async () => {
+      // El estado propio (admitido?) se lee en CADA latido (barato). La posición
+      // y el procesamiento de admisión solo cada 3er latido (~45s): camino "full".
+      const isFull = beatCountRef.current % 3 === 0;
+      beatCountRef.current++;
       try {
         const res = await fetch("/api/queue-heartbeat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ queueEntryId }),
+          body: JSON.stringify({ queueEntryId, full: isFull }),
         });
         if (res.ok) {
           heartbeatFailuresRef.current = 0;
           setHeartbeatWarning(false);
           const data = await res.json();
           setQueueStatus(data.status);
-          setPosition(data.position);
-          setTotalWaiting(data.totalWaiting);
-          setEstimatedWaitMin(data.estimatedWaitMin);
+          // En latidos baratos position/total/eta llegan null → conservar lo último.
+          if (data.position !== null && data.position !== undefined) {
+            setPosition(data.position);
+            setTotalWaiting(data.totalWaiting);
+            setEstimatedWaitMin(data.estimatedWaitMin);
+          }
         } else {
           heartbeatFailuresRef.current++;
           if (heartbeatFailuresRef.current >= 3) setHeartbeatWarning(true);

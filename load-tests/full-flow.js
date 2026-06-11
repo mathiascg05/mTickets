@@ -10,13 +10,17 @@ const reservationFailed = new Counter("reservation_failed");
 const queueWaitTime = new Trend("queue_wait_time_ms");
 
 // ── Config ──────────────────────────────────────────────────────────
+const VUS = parseInt(__ENV.VUS || "600", 10);
+const ITERS = parseInt(__ENV.ITERS || String(VUS), 10);
+const MAX_DURATION = __ENV.MAX_DURATION || "15m";
+
 export const options = {
   scenarios: {
     full_flow: {
       executor: "shared-iterations",
-      vus: 600,
-      iterations: 600,
-      maxDuration: "15m",
+      vus: VUS,
+      iterations: ITERS,
+      maxDuration: MAX_DURATION,
     },
   },
   thresholds: {
@@ -73,6 +77,7 @@ export default function () {
 
   // ── Step 2: Poll heartbeat until admitted ─────────────────────────
   const waitStart = Date.now();
+  let beat = 0;
 
   while (status === "waiting") {
     const elapsed = (Date.now() - waitStart) / 1000;
@@ -84,9 +89,12 @@ export default function () {
 
     sleep(HEARTBEAT_INTERVAL_S + Math.random() * 2);
 
+    // Igual que el cliente real: refresco "full" (posición + admisión) cada 3er latido.
+    const full = beat % 3 === 0;
+    beat++;
     const hbRes = http.post(
       `${BASE_URL}/api/queue-heartbeat`,
-      JSON.stringify({ queueEntryId }),
+      JSON.stringify({ queueEntryId, full }),
       { headers, tags: { step: "heartbeat" } },
     );
 

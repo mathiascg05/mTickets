@@ -149,6 +149,7 @@ describe("POST /api/queue-heartbeat", () => {
     const before = Date.now();
     const req = makeRequest("/api/queue-heartbeat", {
       queueEntryId: VALID_UUID,
+      full: true,
     });
     const res = await handler(req);
     const after = Date.now();
@@ -183,6 +184,7 @@ describe("POST /api/queue-heartbeat", () => {
     const before = Date.now();
     const req = makeRequest("/api/queue-heartbeat", {
       queueEntryId: VALID_UUID,
+      full: true,
     });
     const res = await handler(req);
     const after = Date.now();

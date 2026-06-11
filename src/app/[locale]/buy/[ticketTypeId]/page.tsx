@@ -121,6 +121,9 @@ export default function BuyPage() {
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [timerExpired, setTimerExpired] = useState(false);
+  // Si no logramos asegurar el cupo (reserva), bloqueamos el pago para que nadie
+  // pague (p.ej. pago móvil) y luego reciba "no hay".
+  const [reservationFailed, setReservationFailed] = useState(false);
   const [emailSuggestions, setEmailSuggestions] = useState<Record<number, string>>({});
   const reservationCreatedRef = useRef(false);
   const submittingRef = useRef(false);
@@ -181,26 +184,51 @@ export default function BuyPage() {
       }
     }
 
-    // Create new reservation via server
-    fetch("/api/create-reservation", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticketTypeId, qty: reservationQty, queueToken }),
-    })
-      .then((res) => res.json())
-      .then((result) => {
-        if (result.reservationId) {
-          sessionStorage.setItem(
-            storageKey,
-            JSON.stringify({ id: result.reservationId, expiresAt: result.expiresAt }),
-          );
-          setReservationId(result.reservationId);
-          setExpiresAt(result.expiresAt);
+    // Create new reservation via server. CRÍTICO: asegurar el cupo ANTES de que
+    // el usuario pague (pago móvil se paga por fuera). Reintentamos ante fallos
+    // transitorios; si no se logra, bloqueamos el pago (reservationFailed).
+    const createReservation = async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const res = await fetch("/api/create-reservation", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ticketTypeId, qty: reservationQty, queueToken }),
+          });
+          const result = await res.json().catch(() => ({}));
+
+          if (res.ok && result.reservationId) {
+            sessionStorage.setItem(
+              storageKey,
+              JSON.stringify({ id: result.reservationId, expiresAt: result.expiresAt }),
+            );
+            setReservationId(result.reservationId);
+            setExpiresAt(result.expiresAt);
+            return;
+          }
+
+          // 409 = agotado: lo maneja el guard de disponibilidad (available < qty)
+          // que ya bloquea el formulario. No reintentamos un agotado.
+          if (res.status === 409) {
+            setReservationFailed(true);
+            return;
+          }
+          // 403 = cola activa sin token: NO es un fallo; el gate de cola redirige
+          // a /queue. Salimos sin bloquear.
+          if (res.status === 403) {
+            return;
+          }
+          // Otros estados (5xx, etc.): reintentar.
+        } catch {
+          // red caída: reintentar
         }
-      })
-      .catch(() => {
-        // Reservation failed — user can still try to buy, just without a hold
-      });
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+      }
+      // Agotados los reintentos sin asegurar cupo → bloquear el pago.
+      setReservationFailed(true);
+    };
+
+    void createReservation();
   }, [isLoading, data?.ticketTypes?.[0]?.id, ticketTypeId, qtyParam]);
 
   // Sync attendees array length to peoplePerTicket when area data loads
@@ -393,6 +421,27 @@ export default function BuyPage() {
     );
   }
 
+  // No se pudo asegurar el cupo (reserva): bloqueamos el pago para que nadie
+  // pague y luego reciba "no hay". Hay disponibilidad (si no, cae en el bloque
+  // de arriba), así que ofrecemos reintentar recargando.
+  if (reservationFailed && !reservationId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="bg-surface border border-border rounded-2xl p-8 text-center max-w-md">
+          <div className="text-5xl mb-4">{"⏳"}</div>
+          <h1 className="text-2xl font-bold mb-2">{t("checkout.reservationFailedTitle")}</h1>
+          <p className="text-muted mb-4">{t("checkout.reservationFailedBody")}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-accent text-white rounded-xl px-5 py-2.5 font-medium hover:opacity-90"
+          >
+            {t("checkout.retry")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const subtotal = effectivePrice * qty;
   const discount = appliedCoupon
     ? appliedCoupon.discountType === "percentage"
@@ -483,6 +532,12 @@ export default function BuyPage() {
 
     if (timerExpired) {
       setError(t("checkout.timerExpired"));
+      return;
+    }
+
+    // Defensa: nunca crear la orden sin un cupo reservado vivo (evita "pagué y no hay").
+    if (!reservationId) {
+      setError(t("checkout.reservationFailedBody"));
       return;
     }
 
@@ -1223,10 +1278,14 @@ export default function BuyPage() {
 
             <button
               type="submit"
-              disabled={submitting || timerExpired || !!fileError}
+              disabled={submitting || timerExpired || !!fileError || !reservationId}
               className="w-full py-3 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-semibold transition-colors shadow-lg shadow-accent/20"
             >
-              {submitting ? t("checkout.submitting") : t("checkout.submit")}
+              {submitting
+                ? t("checkout.submitting")
+                : !reservationId
+                  ? t("checkout.securingSpot")
+                  : t("checkout.submit")}
             </button>
           </form>
         </div>

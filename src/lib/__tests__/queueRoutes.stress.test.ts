@@ -373,7 +373,7 @@ describe("POST /api/queue-heartbeat — stress tests", () => {
     });
 
     const res = await handler(
-      makeRequest("/api/queue-heartbeat", { queueEntryId: VALID_UUID }),
+      makeRequest("/api/queue-heartbeat", { queueEntryId: VALID_UUID, full: true }),
     );
 
     expect(res.status).toBe(200);
@@ -383,6 +383,32 @@ describe("POST /api/queue-heartbeat — stress tests", () => {
     expect(body.totalWaiting).toBe(3);
     expect(body.estimatedWaitMin).toBe(1);
     expect(mockProcessQueueAdmissions).toHaveBeenCalledWith("tt-1");
+  });
+
+  it("cheap heartbeat (full=false) extends TTL but does NOT process admissions or compute position", async () => {
+    const now = Date.now();
+    mockQuery.mockResolvedValueOnce({
+      queueEntries: [
+        {
+          id: VALID_UUID,
+          status: "waiting",
+          position: 3,
+          expiresAt: now + 60_000,
+          ticketType: { id: "tt-1" },
+        },
+      ],
+    });
+
+    const res = await handler(
+      makeRequest("/api/queue-heartbeat", { queueEntryId: VALID_UUID }),
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("waiting");
+    expect(body.position).toBeNull(); // cliente conserva la última conocida
+    expect(mockTransact).toHaveBeenCalledTimes(1); // TTL extendido
+    expect(mockProcessQueueAdmissions).not.toHaveBeenCalled(); // sin escaneo pesado
   });
 
   it("heartbeat right at expiry boundary (expiresAt = Date.now()) → still extends", async () => {
@@ -427,7 +453,7 @@ describe("POST /api/queue-heartbeat — stress tests", () => {
       ],
     });
 
-    await handler(makeRequest("/api/queue-heartbeat", { queueEntryId: VALID_UUID }));
+    await handler(makeRequest("/api/queue-heartbeat", { queueEntryId: VALID_UUID, full: true }));
 
     expect(mockProcessQueueAdmissions).toHaveBeenCalledWith("tt-1");
   });
