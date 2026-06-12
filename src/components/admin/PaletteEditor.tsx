@@ -12,13 +12,14 @@ import {
 } from "@/lib/themeColors";
 import { useStorageUrl } from "@/lib/useStorageUrl";
 
-type SlotKey = "accent" | "background" | "foreground" | "surface" | "field" | "border";
-const SLOT_KEYS: SlotKey[] = ["accent", "background", "foreground", "surface", "field", "border"];
+type SlotKey = "accent" | "background" | "foreground" | "heading" | "surface" | "field" | "border";
+const SLOT_KEYS: SlotKey[] = ["accent", "background", "foreground", "heading", "surface", "field", "border"];
 
 const FALLBACKS: Record<SlotKey, string> = {
   accent: "#1a2b4a",
   background: "#f5f7fa",
   foreground: "#1a2b4a",
+  heading: "#1a2b4a",
   surface: "#ffffff",
   field: "#f5f7fa",
   border: "#d8dde6",
@@ -80,6 +81,7 @@ export default function PaletteEditor({
     accent: parsed.accent ?? (primaryColor && isValidHex(primaryColor) ? primaryColor : FALLBACKS.accent),
     background: parsed.background ?? FALLBACKS.background,
     foreground: parsed.foreground ?? FALLBACKS.foreground,
+    heading: parsed.heading ?? parsed.foreground ?? FALLBACKS.heading,
     surface: parsed.surface ?? FALLBACKS.surface,
     field: parsed.field ?? parsed.background ?? FALLBACKS.field,
     border: parsed.border ?? FALLBACKS.border,
@@ -217,7 +219,10 @@ export default function PaletteEditor({
               className="rounded-xl p-4 border border-border"
             >
               <div className="bg-background rounded-lg p-3">
-                <div className="text-foreground font-semibold text-base mb-2">
+                <div
+                  className="font-semibold text-base mb-2"
+                  style={{ color: "var(--heading, var(--foreground))" }}
+                >
                   {t("admin.previewHeading")}
                 </div>
                 <div className="bg-surface rounded-md p-3 mb-3">

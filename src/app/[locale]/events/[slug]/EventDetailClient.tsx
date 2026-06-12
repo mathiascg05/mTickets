@@ -196,18 +196,18 @@ export default function EventDetailClient() {
           )}
 
           <div className="p-6 sm:p-8">
-            <h1 className="text-3xl sm:text-4xl font-bold mb-5 tracking-tight font-heading">
+            <h1 className="text-3xl sm:text-4xl font-bold mb-5 tracking-tight font-heading text-[color:var(--heading,var(--foreground))]">
               {concert.name}
             </h1>
 
             <div className="flex flex-wrap gap-6 mb-6">
               <div>
-                <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-0.5">{t("common.date")}</p>
+                <p className="text-[11px] font-medium text-[color:var(--heading,var(--muted))] uppercase tracking-widest mb-0.5">{t("common.date")}</p>
                 <p className="text-sm text-foreground">{formatDate(concert.date, lang)}</p>
               </div>
               {concert.venue && (
                 <div>
-                  <p className="text-[11px] font-medium text-muted uppercase tracking-widest mb-0.5">{t("common.venue")}</p>
+                  <p className="text-[11px] font-medium text-[color:var(--heading,var(--muted))] uppercase tracking-widest mb-0.5">{t("common.venue")}</p>
                   {concert.venueMapUrl ? (
                     <a href={concert.venueMapUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-accent-light hover:underline inline-flex items-center gap-1">
                       {concert.venue}
@@ -224,7 +224,7 @@ export default function EventDetailClient() {
               {concert.description}
             </p>
 
-            <h2 className="text-2xl font-semibold mb-5 font-heading tracking-tight">{t("event.tickets")}</h2>
+            <h2 className="text-2xl font-semibold mb-5 font-heading tracking-tight text-[color:var(--heading,var(--foreground))]">{t("event.tickets")}</h2>
 
             {concert.ticketTypes.filter((tt) => tt.visibility !== "hidden").length === 0 ? (
               <p className="text-muted">
@@ -475,7 +475,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
 
   return (
     <div className="border-t border-border mt-10 pt-8">
-      <h2 className="text-2xl font-semibold mb-2 font-heading tracking-tight">{t("event.findTickets")}</h2>
+      <h2 className="text-2xl font-semibold mb-2 font-heading tracking-tight text-[color:var(--heading,var(--foreground))]">{t("event.findTickets")}</h2>
       <p className="text-muted text-sm mb-4">
         {t("event.findTicketsSub")}
       </p>
@@ -516,7 +516,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
         <button
           onClick={handleLookup}
           disabled={loading || !email.trim()}
-          className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
+          className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-[color:var(--heading,#ffffff)] rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
         >
           {loading ? t("event.lookingUp") : t("event.lookUp")}
         </button>
@@ -683,7 +683,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
       ) : !open ? (
         <button
           onClick={() => setOpen(true)}
-          className="w-full flex items-center justify-center gap-2 py-3 border border-border rounded-lg text-sm font-medium text-muted hover:text-foreground hover:border-accent/40 transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-3 bg-field border border-border rounded-lg text-sm font-medium text-muted hover:text-foreground hover:border-accent/40 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -693,7 +693,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
       ) : (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-semibold font-heading tracking-tight">{t("event.contactOrganizer")}</h2>
+            <h2 className="text-2xl font-semibold font-heading tracking-tight text-[color:var(--heading,var(--foreground))]">{t("event.contactOrganizer")}</h2>
             <button
               onClick={() => setOpen(false)}
               className="text-muted hover:text-foreground transition-colors p-1"

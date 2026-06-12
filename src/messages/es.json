@@ -884,6 +884,7 @@
     "accent": "Color de acento",
     "background": "Fondo",
     "foreground": "Texto",
+    "heading": "Títulos y etiquetas",
     "surface": "Superficie (tarjetas)",
     "field": "Campos (inputs y selectores)",
     "border": "Borde (líneas y separadores)",

@@ -5,6 +5,7 @@ export type EventThemeColors = {
   accent?: string;
   background?: string;
   foreground?: string;
+  heading?: string;
   surface?: string;
   field?: string;
   border?: string;
@@ -22,7 +23,7 @@ export function parseThemeColors(json?: string | null): EventThemeColors {
     const raw = JSON.parse(json);
     if (!raw || typeof raw !== "object") return {};
     const out: EventThemeColors = {};
-    for (const key of ["accent", "background", "foreground", "surface", "field", "border"] as const) {
+    for (const key of ["accent", "background", "foreground", "heading", "surface", "field", "border"] as const) {
       const v = (raw as Record<string, unknown>)[key];
       if (typeof v === "string" && isValidHex(v)) out[key] = v.toLowerCase();
     }
@@ -34,7 +35,7 @@ export function parseThemeColors(json?: string | null): EventThemeColors {
 
 export function serializeThemeColors(t: EventThemeColors): string {
   const clean: EventThemeColors = {};
-  for (const key of ["accent", "background", "foreground", "surface", "field", "border"] as const) {
+  for (const key of ["accent", "background", "foreground", "heading", "surface", "field", "border"] as const) {
     const v = t[key];
     if (typeof v === "string" && isValidHex(v)) clean[key] = v.toLowerCase();
   }
@@ -104,6 +105,7 @@ export function resolveCssVars(
     if (!themeColors.field) style["--field"] = themeColors.background;
   }
   if (themeColors.foreground) style["--foreground"] = themeColors.foreground;
+  if (themeColors.heading) style["--heading"] = themeColors.heading;
   if (themeColors.surface) {
     style["--surface"] = themeColors.surface;
     const hoverBase = themeColors.foreground ?? "#1a2b4a";
