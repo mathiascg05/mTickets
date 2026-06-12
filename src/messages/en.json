@@ -894,6 +894,7 @@
     "palettePreview": "Preview",
     "previewHeading": "Your event",
     "previewCardText": "This is how cards and text will look on your page.",
+    "previewMutedText": "Secondary text like hints and labels looks like this.",
     "previewButton": "Buy ticket",
     "paletteRefImage": "Reference image",
     "paletteRefImageHelp": "Upload an image with the aesthetic you want (mood board, venue photo, screenshot). This image won't be published — it's only used to extract colors.",

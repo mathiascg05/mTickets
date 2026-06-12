@@ -226,8 +226,11 @@ export default function PaletteEditor({
                   {t("admin.previewHeading")}
                 </div>
                 <div className="bg-surface rounded-md p-3 mb-3">
-                  <div className="text-foreground text-sm mb-2">
+                  <div className="text-foreground text-sm mb-1">
                     {t("admin.previewCardText")}
+                  </div>
+                  <div className="text-muted text-xs mb-2">
+                    {t("admin.previewMutedText")}
                   </div>
                   <div className="flex items-center gap-2">
                     <input

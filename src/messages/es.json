@@ -894,6 +894,7 @@
     "palettePreview": "Vista previa",
     "previewHeading": "Tu evento",
     "previewCardText": "Así se verán las tarjetas y el texto en tu página.",
+    "previewMutedText": "El texto secundario, como pistas y etiquetas, se ve así.",
     "previewButton": "Comprar entrada",
     "paletteRefImage": "Imagen de referencia",
     "paletteRefImageHelp": "Sube una imagen con la estética que quieres (mood board, foto del local, screenshot). Esta imagen no se publica — solo se usa para extraer colores.",

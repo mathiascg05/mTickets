@@ -104,7 +104,13 @@ export function resolveCssVars(
     style["--background"] = themeColors.background;
     if (!themeColors.field) style["--field"] = themeColors.background;
   }
-  if (themeColors.foreground) style["--foreground"] = themeColors.foreground;
+  if (themeColors.foreground) {
+    style["--foreground"] = themeColors.foreground;
+    // Secondary/muted text follows the Text color, dimmed toward the background to
+    // keep visual hierarchy (matches the default #1a2b4a/#f5f7fa → ~#7a8599 ratio).
+    const mutedBase = themeColors.background ?? "#f5f7fa";
+    style["--muted"] = mixHex(themeColors.foreground, mutedBase, 0.45);
+  }
   if (themeColors.heading) style["--heading"] = themeColors.heading;
   if (themeColors.surface) {
     style["--surface"] = themeColors.surface;
