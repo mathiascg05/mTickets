@@ -378,7 +378,7 @@ function TicketTypeRow({
             )}
             <Link
               href={buyHref}
-              className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium text-sm uppercase tracking-wider transition-colors"
+              className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-[color:var(--accent-foreground,#ffffff)] rounded-md font-medium text-sm uppercase tracking-wider transition-colors"
             >
               {t("common.buy")}
             </Link>
@@ -516,7 +516,7 @@ function FindMyTickets({ concertId }: { concertId: string }) {
         <button
           onClick={handleLookup}
           disabled={loading || !email.trim()}
-          className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-[color:var(--heading,#ffffff)] rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
+          className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-[color:var(--accent-foreground,#ffffff)] rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
         >
           {loading ? t("event.lookingUp") : t("event.lookUp")}
         </button>
@@ -836,7 +836,7 @@ function ContactOrganizer({ concertId }: { concertId: string }) {
             <button
               onClick={handleSubmit}
               disabled={submitting || cooldown}
-              className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
+              className="px-6 py-2.5 bg-accent hover:bg-accent-dark text-[color:var(--accent-foreground,#ffffff)] rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
             >
               {submitting
                 ? files.length > 0

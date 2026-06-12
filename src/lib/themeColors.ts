@@ -98,6 +98,10 @@ export function resolveCssVars(
     style["--accent-dark"] = palette.accentDark;
     style["--accent-light"] = palette.accentLight;
     style["--accent-glow"] = palette.accentGlow;
+    // Readable label color for text/icons sitting on the accent (e.g. buttons):
+    // pick black or white, whichever contrasts more with the accent.
+    style["--accent-foreground"] =
+      contrastRatio("#ffffff", accent) >= contrastRatio("#000000", accent) ? "#ffffff" : "#000000";
   }
 
   if (themeColors.background) {

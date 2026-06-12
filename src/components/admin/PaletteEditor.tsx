@@ -241,7 +241,7 @@ export default function PaletteEditor({
                     />
                     <button
                       type="button"
-                      className="text-xs px-3 py-1.5 rounded-md bg-accent text-white font-medium"
+                      className="text-xs px-3 py-1.5 rounded-md bg-accent text-[color:var(--accent-foreground,#ffffff)] font-medium"
                       onClick={(e) => e.preventDefault()}
                     >
                       {t("admin.previewButton")}
