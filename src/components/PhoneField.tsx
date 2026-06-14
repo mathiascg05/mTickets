@@ -5,7 +5,7 @@ import flags from "react-phone-number-input/flags";
 import "react-phone-number-input/style.css";
 
 const inputClass =
-  "w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors";
+  "w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors";
 
 export default function PhoneField({
   value,

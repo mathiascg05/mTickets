@@ -16,7 +16,7 @@ export default function EventTheme({ concert, children }: Props) {
   }, [concert.primaryColor, concert.themeColors]);
 
   return (
-    <div className="min-h-screen bg-background" style={style}>
+    <div className="min-h-screen bg-background text-foreground" style={style}>
       {children}
     </div>
   );
