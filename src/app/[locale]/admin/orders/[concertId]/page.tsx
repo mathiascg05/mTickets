@@ -2057,7 +2057,14 @@ export default function ConcertOrdersPage() {
   const totalTicketsIssued = ticketBreakdown.reduce((s, t) => s + t.approved, 0);
   const totalCapacity = concert.ticketTypes.reduce((s, tt) => {
     const phases = tt.phases || [];
-    return s + (phases.length > 0 ? phases.reduce((ps, p) => ps + p.quantity, 0) : tt.quantity);
+    const base = phases.length > 0 ? phases.reduce((ps, p) => ps + p.quantity, 0) : tt.quantity;
+    // Cortesías "encima" (sin phaseId) suman al aforo total, no consumen cupo pagado.
+    const courtesyOnTop = phases.length > 0
+      ? tt.orders.filter(
+          (o) => (o.status === "approved" || o.status === "pending") && !o.phaseId,
+        ).length
+      : 0;
+    return s + base + courtesyOnTop;
   }, 0);
   const totalScanned = allOrders.filter((o) => o.visited).length;
   const scannedPercent = totalTicketsIssued > 0 ? Math.round((totalScanned / totalTicketsIssued) * 100) : 0;
@@ -2478,9 +2485,16 @@ export default function ConcertOrdersPage() {
         if (allPmNames.length === 0) return null;
 
         const ttPhases = tt.phases || [];
-        const totalCapacity = ttPhases.length > 0
+        const baseCapacity = ttPhases.length > 0
           ? ttPhases.reduce((s: number, p: { quantity: number }) => s + p.quantity, 0)
           : tt.quantity;
+        // Cortesías "encima" (sin phaseId) suman al aforo total, no consumen cupo pagado.
+        const ttCourtesyOnTop = ttPhases.length > 0
+          ? tt.orders.filter(
+              (o) => (o.status === "approved" || o.status === "pending") && !o.phaseId,
+            ).length
+          : 0;
+        const totalCapacity = baseCapacity + ttCourtesyOnTop; // aforo total
 
         const ttFeePercent = (tt as { feePercent?: number }).feePercent ?? 0;
         const ttFeeFixed = (tt as { feeFixed?: number }).feeFixed ?? 0;
