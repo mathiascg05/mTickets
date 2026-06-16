@@ -1068,6 +1068,18 @@ function TicketTypesSection({
                 (o.status === "approved" || o.status === "pending") &&
                 (!isArea || (o.priceSnapshot ?? 0) > 0),
             ).length;
+            // Cortesías "encima": órdenes approved/pending sin phaseId no consumen
+            // cupo de fases (p.ej. comps de generate-courtesies.ts). Se muestran como
+            // adicionales en vez de inflar el conteo "vendido en total".
+            const courtesyOnTop = hasPhases
+              ? tt.orders.filter(
+                  (o) =>
+                    (o.status === "approved" || o.status === "pending") &&
+                    (!isArea || (o.priceSnapshot ?? 0) > 0) &&
+                    !o.phaseId,
+                ).length
+              : 0;
+            const phaseSold = sold - courtesyOnTop; // = sold cuando no hay fases
             const today = getTodayString();
             const active = hasPhases ? getActivePhase(phases, tt.orders, today, [], isArea) : null;
             const totalCapacity = hasPhases
@@ -1077,7 +1089,8 @@ function TicketTypesSection({
               <TicketTypeItem
                 key={tt.id}
                 tt={tt}
-                sold={sold}
+                sold={phaseSold}
+                courtesyOnTop={courtesyOnTop}
                 totalCapacity={totalCapacity}
                 hasPhases={hasPhases}
                 activePhase={active}
@@ -1094,6 +1107,7 @@ function TicketTypesSection({
 function TicketTypeItem({
   tt,
   sold,
+  courtesyOnTop,
   totalCapacity,
   hasPhases,
   activePhase,
@@ -1101,6 +1115,7 @@ function TicketTypeItem({
 }: {
   tt: TicketTypeData;
   sold: number;
+  courtesyOnTop: number;
   totalCapacity: number;
   hasPhases: boolean;
   activePhase: Phase | null;
@@ -1167,6 +1182,9 @@ function TicketTypeItem({
               <span className="text-danger font-medium">{t("admin.allPhasesExhausted")} &middot; </span>
             )}
             {t("admin.soldCountPhases", { sold, total: totalCapacity })}
+            {courtesyOnTop > 0 && (
+              <> &middot; {t("admin.plusCourtesies", { count: courtesyOnTop })}</>
+            )}
           </p>
         ) : (
           <p className="text-sm text-muted">

@@ -440,6 +440,7 @@
     "allPhasesExhausted": "Todas las fases agotadas",
     "soldCount": "{sold}/{total} vendidos",
     "soldCountPhases": "{sold}/{total} vendidos en total",
+    "plusCourtesies": "+{count} cortesías",
     "forcedSoldOut": "Agotado Forzado",
     "ends": "termina",
     "addPhaseButton": "Agregar Fase",

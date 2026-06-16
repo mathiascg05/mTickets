@@ -440,6 +440,7 @@
     "allPhasesExhausted": "All phases exhausted",
     "soldCount": "{sold}/{total} sold",
     "soldCountPhases": "{sold}/{total} sold across all phases",
+    "plusCourtesies": "+{count} courtesies",
     "forcedSoldOut": "Forced Sold Out",
     "ends": "ends",
     "addPhaseButton": "Add Phase",
