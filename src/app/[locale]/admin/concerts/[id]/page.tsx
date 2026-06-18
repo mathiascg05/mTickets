@@ -11,6 +11,7 @@ import { extractDominantColor, extractPalette, mapPaletteToTheme } from "@/lib/c
 import { serializeThemeColors } from "@/lib/themeColors";
 import PaletteEditor from "@/components/admin/PaletteEditor";
 import { PagoMovilFields } from "@/components/admin/PagoMovilFields";
+import { InlineEditField } from "@/components/InlineEditField";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -1129,14 +1130,10 @@ function TicketTypeItem({
       <div className="p-4 space-y-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
-            <input
+            <InlineEditField
               value={tt.name}
-              onChange={(e) =>
-                db.transact(
-                  db.tx.ticketTypes[tt.id].update({
-                    name: e.target.value,
-                  }),
-                )
+              onCommit={(v) =>
+                db.transact(db.tx.ticketTypes[tt.id].update({ name: v }))
               }
               className="font-medium text-base text-foreground font-sans bg-transparent border-b border-transparent hover:border-border focus:border-accent-light focus:outline-none transition-colors py-0 px-0 field-sizing-content"
             />
@@ -1159,17 +1156,16 @@ function TicketTypeItem({
             {t("common.delete")}
           </button>
         </div>
-        <input
+        <InlineEditField
           value={tt.description || ""}
-          onChange={(e) =>
+          onCommit={(v) =>
             db.transact(
-              db.tx.ticketTypes[tt.id].merge({
-                description: e.target.value || null,
-              }),
+              db.tx.ticketTypes[tt.id].merge({ description: v || null }),
             )
           }
+          multiline
           placeholder={t("admin.addDescription")}
-          className="text-sm text-muted bg-transparent border-b border-transparent hover:border-border focus:border-accent-light focus:outline-none w-full transition-colors py-0.5"
+          className="text-sm text-muted bg-transparent border-b border-transparent hover:border-border focus:border-accent-light focus:outline-none w-full transition-colors py-0.5 resize-none"
         />
         {hasPhases ? (
           <p className="text-sm text-muted">

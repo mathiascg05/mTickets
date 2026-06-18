@@ -8,6 +8,7 @@ import { extractDominantColor, extractPalette, mapPaletteToTheme } from "@/lib/c
 import { serializeThemeColors } from "@/lib/themeColors";
 import PaletteEditor from "@/components/admin/PaletteEditor";
 import { PagoMovilFields } from "@/components/admin/PagoMovilFields";
+import { InlineEditField } from "@/components/InlineEditField";
 import { getFieldTypeLabel } from "@/lib/i18n";
 import { id as genId } from "@instantdb/react";
 import { toast } from "sonner";
@@ -619,26 +620,23 @@ function GuestListTicketTypeItem({
     <div className="border border-border rounded-lg">
       <div className="flex items-center justify-between p-4">
         <div className="flex-1 min-w-0">
-          <input
+          <InlineEditField
             value={tt.name}
-            onChange={(e) =>
-              db.transact(
-                db.tx.guestListTicketTypes[tt.id].update({ name: e.target.value }),
-              )
+            onCommit={(v) =>
+              db.transact(db.tx.guestListTicketTypes[tt.id].update({ name: v }))
             }
             className="font-medium text-base text-foreground font-sans bg-transparent border-b border-transparent hover:border-border focus:border-accent-light focus:outline-none transition-colors py-0 px-0 field-sizing-content"
           />
-          <input
+          <InlineEditField
             value={tt.description || ""}
-            onChange={(e) =>
+            onCommit={(v) =>
               db.transact(
-                db.tx.guestListTicketTypes[tt.id].merge({
-                  description: e.target.value || null,
-                }),
+                db.tx.guestListTicketTypes[tt.id].merge({ description: v || null }),
               )
             }
+            multiline
             placeholder={t("admin.addDescription")}
-            className="text-sm text-muted bg-transparent border-b border-transparent hover:border-border focus:border-accent-light focus:outline-none w-full transition-colors py-0.5"
+            className="text-sm text-muted bg-transparent border-b border-transparent hover:border-border focus:border-accent-light focus:outline-none w-full transition-colors py-0.5 resize-none"
           />
           <p className="text-sm text-muted mt-1">
             ${tt.price.toFixed(2)}

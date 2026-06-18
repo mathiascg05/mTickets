@@ -333,7 +333,7 @@ function TicketTypeRow({
             </p>
           )}
           {ticketType.description && (
-            <p className="text-muted text-sm mt-1">{ticketType.description}</p>
+            <p className="text-muted text-sm mt-1 whitespace-pre-line">{ticketType.description}</p>
           )}
           {ticketType.visibility !== "soldOutOverride" && !ticketType.hideAvailability && (
             <p className="text-sm text-muted mt-1">

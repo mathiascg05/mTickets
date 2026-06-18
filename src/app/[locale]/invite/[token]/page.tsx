@@ -321,7 +321,7 @@ export default function InvitePage({
                   {entry.ticketType.name}
                 </p>
                 {entry.ticketType.description && (
-                  <p className="text-xs text-muted mt-0.5">
+                  <p className="text-xs text-muted mt-0.5 whitespace-pre-line">
                     {entry.ticketType.description}
                   </p>
                 )}
