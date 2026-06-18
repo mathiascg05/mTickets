@@ -267,10 +267,14 @@ export default function SuperAdminStats({
   const snapshot = useMemo(() => {
     // Sum of organizer balances, skipping orgs whose only events are demo.
     // Orgs with no concerts at all (rare, defensive) are still counted.
+    // Only positive balances are real prepaid credit held by the platform.
+    // Negative balances (postpaid / overdraft debt) are NOT cash on hand —
+    // they live in `materializedDebt` (Active Debt). Counting them here too
+    // would double-represent the same debt and make this read negative.
     let totalPlatformBalance = 0;
     for (const bal of organizerBalances) {
       if (demoOnlyOrgEmails.has(bal.email.toLowerCase())) continue;
-      totalPlatformBalance += bal.balance;
+      totalPlatformBalance += Math.max(0, bal.balance);
     }
     totalPlatformBalance = Math.round(totalPlatformBalance * 100) / 100;
 
