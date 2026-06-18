@@ -619,6 +619,7 @@
     "postpaidReport": "Reporte Postpago",
     "event": "Evento",
     "creditsNeeded": "Créditos necesarios para aprobar pendientes",
+    "pendingFeesPostpaid": "Fees por acumular al aprobar pendientes",
     "void": "Anular",
     "voidConfirm": "¿Estás seguro de anular esta transacción? Se creará un ajuste que revierte el monto.",
     "statistics": "Estadísticas",

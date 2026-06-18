@@ -2423,6 +2423,20 @@ export default function ConcertOrdersPage() {
           <p className="text-sm text-warning mt-2 font-medium">
             {t("admin.postpaidMode")}
           </p>
+          {totalPendingFees > 0 && (
+            <div className="mt-3 pt-3 border-t border-warning/20">
+              <p className="text-sm font-medium mb-2">
+                {t("admin.pendingFeesPostpaid")}: <span className="text-accent-light">${totalPendingFees.toFixed(2)}</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {[...pendingFeesByPm.entries()].map(([pm, { count, fee }]) => (
+                  <span key={pm} className="text-xs px-2 py-1 bg-background border border-border rounded-lg">
+                    {pm}: {count} {count === 1 ? "ticket" : "tickets"} — <span className="font-medium">${fee.toFixed(2)}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
       </>);

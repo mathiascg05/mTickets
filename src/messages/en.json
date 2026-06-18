@@ -619,6 +619,7 @@
     "postpaidReport": "Postpaid Report",
     "event": "Event",
     "creditsNeeded": "Credits needed to approve pending",
+    "pendingFeesPostpaid": "Fees from pending approvals",
     "void": "Void",
     "voidConfirm": "Are you sure you want to void this transaction? An adjustment will be created to reverse the amount.",
     "statistics": "Statistics",
