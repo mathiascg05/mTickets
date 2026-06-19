@@ -245,7 +245,6 @@ function getExpectedUsdAmount(
     feeFixed?: number;
     phases?: { id: string; price: number }[];
   },
-  groupSize = 1,
 ): number {
   let price = ticketType.price;
   if (order.phaseId && ticketType.phases) {
@@ -258,9 +257,10 @@ function getExpectedUsdAmount(
   const feePercent = ticketType.feePercent ?? 0;
   const feeFixed = ticketType.feeFixed ?? 0;
   const fee = (price * feePercent) / 100 + feeFixed;
-  // discountAmount and paymentMethodDiscount on each order are TOTAL group discounts, so divide by groupSize
-  const perOrderDiscount = (order.discountAmount || 0) / groupSize;
-  const perOrderPmDiscount = (order.paymentMethodDiscount || 0) / groupSize;
+  // discountAmount and paymentMethodDiscount on each order are already PER-TICKET
+  // (stored per order row at purchase time), so use them directly.
+  const perOrderDiscount = order.discountAmount || 0;
+  const perOrderPmDiscount = order.paymentMethodDiscount || 0;
   const amount = price + fee - perOrderDiscount - perOrderPmDiscount;
   return Math.round(amount * 100) / 100;
 }
@@ -343,15 +343,12 @@ async function handleZelleReconciliation(
       continue;
     }
 
-    // Calculate total expected amount for all orders in this memo group
-    // Note: discountAmount stored on each order is the TOTAL discount for the
-    // entire purchase group, not per-order. We pass groupSize so it can be
-    // divided correctly.
-    const groupSize = group.length;
+    // Calculate total expected amount for all orders in this memo group.
+    // discountAmount/paymentMethodDiscount are stored per-ticket on each order.
     let groupTotal = 0;
     for (const o of group) {
       const tt = getTicketType(o)!;
-      groupTotal += getExpectedUsdAmount(o, tt, groupSize);
+      groupTotal += getExpectedUsdAmount(o, tt);
     }
     groupTotal = Math.round(groupTotal * 100) / 100;
 
@@ -363,7 +360,7 @@ async function handleZelleReconciliation(
       // Add all orders from this group as matched
       for (const order of group) {
         const tt = getTicketType(order)!;
-        const orderAmount = getExpectedUsdAmount(order, tt, groupSize);
+        const orderAmount = getExpectedUsdAmount(order, tt);
         matched.push({
           orderId: order.id,
           orderNumber: order.orderNumber || "---",

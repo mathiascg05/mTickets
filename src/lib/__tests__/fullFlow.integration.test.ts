@@ -917,6 +917,27 @@ describe("Scenario 4: Coupon flow", () => {
     );
   }
 
+  async function buyQty2WithCoupon(couponCode: string, emailPrefix: string) {
+    const rRes = await createReservation(
+      makeRequest("/api/create-reservation", { ticketTypeId: TT_ID, qty: 2 }),
+    );
+    const { reservationId } = await rRes.json();
+
+    return createOrder(
+      makeRequest("/api/create-order", {
+        ticketTypeId: TT_ID,
+        qty: 2,
+        attendees: [
+          validAttendee({ email: `${emailPrefix}-a@test.com` }),
+          validAttendee({ email: `${emailPrefix}-b@test.com` }),
+        ],
+        paymentMethodName: "Zelle",
+        reservationId,
+        couponCode,
+      }),
+    );
+  }
+
   it("4.1 percentage coupon (SAVE20) → discount = $20", async () => {
     const res = await buyWithCoupon("SAVE20", { email: "c1@test.com" });
     expect(res.status).toBe(200);
@@ -957,6 +978,36 @@ describe("Scenario 4: Coupon flow", () => {
     const { orderIds } = await res.json();
     const order = store.orders.get(orderIds[0])!;
     expect(order.couponCode).toBe("SAVE20"); // stored as canonical
+  });
+
+  // Regresión: el descuento del carrito debe repartirse POR ENTRADA, no guardar
+  // el total en cada fila (matickets crea una fila por entrada).
+  it("4.7 percentage coupon qty=2 → discount por entrada = $20 (no $40)", async () => {
+    const res = await buyQty2WithCoupon("SAVE20", "c7");
+    expect(res.status).toBe(200);
+    const { orderIds } = await res.json();
+    expect(orderIds).toHaveLength(2);
+    const o1 = store.orders.get(orderIds[0])!;
+    const o2 = store.orders.get(orderIds[1])!;
+    // cada entrada lleva su parte (20% de $100), no el total del carrito ($40)
+    expect(o1.discountAmount).toBe(20);
+    expect(o2.discountAmount).toBe(20);
+    // el total del grupo = $40 (20% de $200)
+    expect(Number(o1.discountAmount) + Number(o2.discountAmount)).toBe(40);
+    // y lo cobrado por entrada es correcto
+    expect(o1.totalSnapshot).toBe(80);
+    expect(o2.totalSnapshot).toBe(80);
+  });
+
+  it("4.8 fixed coupon qty=2 → descuento repartido por entrada = $25", async () => {
+    const res = await buyQty2WithCoupon("FLAT50", "c8");
+    expect(res.status).toBe(200);
+    const { orderIds } = await res.json();
+    const o1 = store.orders.get(orderIds[0])!;
+    const o2 = store.orders.get(orderIds[1])!;
+    expect(o1.discountAmount).toBe(25); // $50 / 2 entradas
+    expect(o2.discountAmount).toBe(25);
+    expect(Number(o1.discountAmount) + Number(o2.discountAmount)).toBe(50);
   });
 });
 

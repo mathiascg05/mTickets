@@ -461,12 +461,15 @@ export async function POST(req: NextRequest) {
 
         // Cupón/descuento + purchaseRate solo en la primary (evita inflar usageCount
         // del cupón y duplicar el snapshot de la conversión Bs).
+        // IMPORTANTE: guardamos el descuento POR ENTRADA (perOrder...), no el total
+        // del carrito. matickets crea una fila por entrada; almacenar el total en
+        // cada fila lo mostraba duplicado (×qty) en admin, tickets y correos.
         const monetaryExtras = isPrimary
           ? {
               ...(validatedCouponCode
-                ? { couponCode: validatedCouponCode, discountAmount }
+                ? { couponCode: validatedCouponCode, discountAmount: perOrderCouponDiscount }
                 : {}),
-              ...(paymentMethodDiscount > 0 ? { paymentMethodDiscount } : {}),
+              ...(perOrderPmDiscount > 0 ? { paymentMethodDiscount: perOrderPmDiscount } : {}),
               ...(purchaseRate ? { purchaseRate, purchaseRateCurrency } : {}),
               ...(purchaseAmountBs != null ? { purchaseAmountBs } : {}),
             }
