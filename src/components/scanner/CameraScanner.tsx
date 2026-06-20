@@ -50,20 +50,22 @@ const QR_CONFIG = {
   },
 };
 
+// html5-qrcode's first arg (cameraIdOrConfig) must have EXACTLY ONE key and
+// only accepts `facingMode` ("environment"/"user") or `deviceId` — passing
+// width/height/advanced here throws "should have exactly 1 key". Rich video
+// constraints belong in the SECOND arg under `config.videoConstraints`, which
+// the library uses instead of cameraIdOrConfig when valid.
+const CAMERA_ID_CONFIG = { facingMode: "environment" as const };
+
 // Higher capture resolution lets the decoder read the QR from a greater
 // (focusable) distance and from slightly soft frames. focusMode:continuous
 // nudges Android autofocus; ignored on iOS. Some devices can't satisfy these
-// and reject with OverconstrainedError — see BASIC_CONSTRAINTS fallback.
-const RICH_CONSTRAINTS: MediaTrackConstraints = {
+// and reject with OverconstrainedError — we then retry without videoConstraints.
+const RICH_VIDEO_CONSTRAINTS: MediaTrackConstraints = {
   facingMode: { ideal: "environment" },
   width: { ideal: 1920 },
   height: { ideal: 1080 },
   advanced: [{ focusMode: "continuous" }] as unknown as MediaTrackConstraintSet[],
-};
-
-// Minimal fallback constraints any camera-capable device should satisfy.
-const BASIC_CONSTRAINTS: MediaTrackConstraints = {
-  facingMode: { ideal: "environment" },
 };
 
 /** Extract a DOMException-style name from an Error or string rejection. */
@@ -179,12 +181,18 @@ export function CameraScanner({
         }
       };
       try {
-        await sc.start(RICH_CONSTRAINTS, QR_CONFIG, onDecode, () => {});
+        await sc.start(
+          CAMERA_ID_CONFIG,
+          { ...QR_CONFIG, videoConstraints: RICH_VIDEO_CONSTRAINTS },
+          onDecode,
+          () => {},
+        );
       } catch (startErr) {
         // Some devices can't satisfy the rich constraints (resolution /
-        // focusMode). Retry once with minimal constraints before failing.
+        // focusMode). Retry once without videoConstraints — the library then
+        // uses CAMERA_ID_CONFIG (rear camera, no forced resolution).
         if (isOverconstrained(startErr)) {
-          await sc.start(BASIC_CONSTRAINTS, QR_CONFIG, onDecode, () => {});
+          await sc.start(CAMERA_ID_CONFIG, QR_CONFIG, onDecode, () => {});
         } else {
           throw startErr;
         }
