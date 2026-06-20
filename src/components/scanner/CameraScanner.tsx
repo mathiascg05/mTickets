@@ -2,6 +2,7 @@
 
 import { useLanguage } from "@/lib/LanguageContext";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { classifyCameraEnv } from "./cameraEnv";
 
 // html5-qrcode's stop() throws synchronously when the scanner is not
 // running (instead of returning a rejected promise). Wrap both the
@@ -38,6 +39,64 @@ const ZOOM_STEP = 0.5;
 // frame is what lets it actually focus on close-range screen-to-screen scans.
 const DEFAULT_ZOOM = 2;
 
+// Decode tuning shared across start attempts.
+const QR_CONFIG = {
+  fps: 10,
+  // Adaptive box (~70% of the shorter side) keeps a generous decode
+  // region now that the frame is higher resolution.
+  qrbox: (vw: number, vh: number) => {
+    const m = Math.floor(Math.min(vw, vh) * 0.7);
+    return { width: m, height: m };
+  },
+};
+
+// Higher capture resolution lets the decoder read the QR from a greater
+// (focusable) distance and from slightly soft frames. focusMode:continuous
+// nudges Android autofocus; ignored on iOS. Some devices can't satisfy these
+// and reject with OverconstrainedError — see BASIC_CONSTRAINTS fallback.
+const RICH_CONSTRAINTS: MediaTrackConstraints = {
+  facingMode: { ideal: "environment" },
+  width: { ideal: 1920 },
+  height: { ideal: 1080 },
+  advanced: [{ focusMode: "continuous" }] as unknown as MediaTrackConstraintSet[],
+};
+
+// Minimal fallback constraints any camera-capable device should satisfy.
+const BASIC_CONSTRAINTS: MediaTrackConstraints = {
+  facingMode: { ideal: "environment" },
+};
+
+/** Extract a DOMException-style name from an Error or string rejection. */
+function errName(err: unknown): string {
+  if (err instanceof Error) return err.name;
+  if (err && typeof err === "object" && "name" in err) {
+    return String((err as { name: unknown }).name);
+  }
+  return "";
+}
+
+function isOverconstrained(err: unknown): boolean {
+  const name = errName(err);
+  return name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError";
+}
+
+/** Map a camera start failure to a translation key. */
+function cameraErrorKey(err: unknown): string {
+  switch (errName(err)) {
+    case "NotAllowedError":
+    case "PermissionDeniedError":
+      return "scan.cameraDenied";
+    case "NotFoundError":
+    case "DevicesNotFoundError":
+      return "scan.cameraNotFound";
+    case "NotReadableError":
+    case "TrackStartError":
+      return "scan.cameraBusy";
+    default:
+      return "scan.failedCamera";
+  }
+}
+
 export function CameraScanner({
   onScan,
   extractOrderId,
@@ -48,6 +107,10 @@ export function CameraScanner({
 }  & { readerId?: string }) {
   const { t } = useLanguage();
   const [error, setError] = useState<string | null>(null);
+  // True when the failure is environmental (insecure context / in-app
+  // webview) — surfaces the "open in browser" + copy-link affordances.
+  const [envIssue, setEnvIssue] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
   const [zoom, setZoom] = useState<ZoomState>({ supported: false });
   const scannerRef = useRef<import("html5-qrcode").Html5Qrcode | null>(null);
@@ -72,8 +135,29 @@ export function CameraScanner({
     if (scannerRef.current) return;
     setStarting(true);
     setError(null);
+    setEnvIssue(false);
+    setCopied(false);
     setZoom({ supported: false });
     zoomRef.current = null;
+
+    // Surface actionable guidance before touching html5-qrcode: a shared
+    // link opened inside an in-app webview (WhatsApp/Instagram) has no
+    // getUserMedia, so the camera never prompts and the library rejects
+    // with an opaque string. Catch that here instead.
+    const envProblem = classifyCameraEnv();
+    if (envProblem) {
+      setError(
+        tRef.current(
+          envProblem === "insecure"
+            ? "scan.cameraInsecure"
+            : "scan.cameraInAppBrowser",
+        ),
+      );
+      setEnvIssue(true);
+      setStarting(false);
+      return;
+    }
+
     let sc: import("html5-qrcode").Html5Qrcode | null = null;
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
@@ -84,39 +168,27 @@ export function CameraScanner({
         verbose: false,
       });
       scannerRef.current = sc;
-      await sc.start(
-        {
-          // Higher capture resolution lets the decoder read the QR from a
-          // greater (focusable) distance and from slightly soft frames.
-          // focusMode:continuous nudges Android autofocus; ignored on iOS.
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          advanced: [
-            { focusMode: "continuous" },
-          ] as unknown as MediaTrackConstraintSet[],
-        },
-        {
-          fps: 10,
-          // Adaptive box (~70% of the shorter side) keeps a generous decode
-          // region now that the frame is higher resolution.
-          qrbox: (vw, vh) => {
-            const m = Math.floor(Math.min(vw, vh) * 0.7);
-            return { width: m, height: m };
-          },
-        },
-        (decoded) => {
-          const id = extractRef.current(decoded);
-          if (id) {
-            safeStopScanner(scannerRef.current);
-            scannerRef.current = null;
-            zoomRef.current = null;
-            startedRef.current = false;
-            onScanRef.current(id);
-          }
-        },
-        () => {},
-      );
+      const onDecode = (decoded: string) => {
+        const id = extractRef.current(decoded);
+        if (id) {
+          safeStopScanner(scannerRef.current);
+          scannerRef.current = null;
+          zoomRef.current = null;
+          startedRef.current = false;
+          onScanRef.current(id);
+        }
+      };
+      try {
+        await sc.start(RICH_CONSTRAINTS, QR_CONFIG, onDecode, () => {});
+      } catch (startErr) {
+        // Some devices can't satisfy the rich constraints (resolution /
+        // focusMode). Retry once with minimal constraints before failing.
+        if (isOverconstrained(startErr)) {
+          await sc.start(BASIC_CONSTRAINTS, QR_CONFIG, onDecode, () => {});
+        } else {
+          throw startErr;
+        }
+      }
       startedRef.current = true;
 
       // Apply a sensible default zoom + expose manual controls where the
@@ -137,9 +209,21 @@ export function CameraScanner({
       }
     } catch (err) {
       if (typeof console !== "undefined") console.error("[camera start]", err);
-      setError(
-        err instanceof Error ? err.message : tRef.current("scan.failedCamera"),
-      );
+      const key = cameraErrorKey(err);
+      let msg = tRef.current(key);
+      // Keep the generic case from being a dead end: append the real cause
+      // so on-site debugging isn't blind.
+      if (key === "scan.failedCamera") {
+        const detail =
+          errName(err) ||
+          (typeof err === "string"
+            ? err
+            : err instanceof Error
+              ? err.message
+              : "");
+        if (detail) msg = `${msg} (${detail})`;
+      }
+      setError(msg);
       if (startedRef.current) safeStopScanner(sc);
       scannerRef.current = null;
       zoomRef.current = null;
@@ -163,6 +247,15 @@ export function CameraScanner({
       void zf.apply(next).catch(() => {});
       return { ...z, value: next };
     });
+  }, []);
+
+  const copyLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+    } catch {
+      // Clipboard unavailable (e.g. webview) — user can still copy from the URL bar.
+    }
   }, []);
 
   useEffect(() => {
@@ -218,6 +311,19 @@ export function CameraScanner({
           <div className="text-danger text-sm bg-danger/10 border border-danger/30 rounded-lg p-3 text-center">
             {error}
           </div>
+          {envIssue && (
+            <>
+              <p className="text-xs text-muted text-center">
+                {t("scan.openInBrowserHint")}
+              </p>
+              <button
+                onClick={copyLink}
+                className="w-full py-3 bg-surface border border-border rounded-lg font-semibold"
+              >
+                {copied ? t("scan.linkCopied") : t("scan.copyLink")}
+              </button>
+            </>
+          )}
           <button
             onClick={start}
             disabled={starting}
