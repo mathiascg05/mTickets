@@ -2143,11 +2143,19 @@ export default function ConcertOrdersPage() {
     const pmDiscount = order?.paymentMethodDiscount ?? 0;
     const newTotal = Math.max(0, basePlusFee - discount - pmDiscount);
 
+    const rate = order?.purchaseRate ?? null;
+    const netBase = Math.max(0, orderPrice - discount - pmDiscount);
+    const bsFields =
+      rate != null
+        ? { purchaseAmountBs: Math.round(netBase * rate * 100) / 100 }
+        : {};
+
     db.transact(
       db.tx.orders[orderId].update({
         couponCode: coupon.code,
         discountAmount: discount,
         totalSnapshot: newTotal,
+        ...bsFields,
       }),
     );
     setCouponOrderId(null);
@@ -2163,11 +2171,20 @@ export default function ConcertOrdersPage() {
     const pmDiscount = order?.paymentMethodDiscount ?? 0;
     const newTotal = Math.max(0, basePlusFee - pmDiscount);
 
+    const rate = order?.purchaseRate ?? null;
+    const base = order?.priceSnapshot ?? order?.ticketTypePrice ?? 0;
+    const netBase = Math.max(0, base - pmDiscount);
+    const bsFields =
+      rate != null
+        ? { purchaseAmountBs: Math.round(netBase * rate * 100) / 100 }
+        : {};
+
     db.transact(
       db.tx.orders[orderId].update({
         couponCode: "",
         discountAmount: 0,
         totalSnapshot: newTotal,
+        ...bsFields,
       }),
     );
   }
