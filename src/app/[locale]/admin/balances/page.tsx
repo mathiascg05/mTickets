@@ -34,7 +34,6 @@ export default function BalancesPage() {
     concerts: {
       $: { order: { createdAt: "desc" } },
       platformFeeConfig: {},
-      ticketTypes: { orders: {}, phases: {} },
     },
     $users: {},
   });
@@ -190,9 +189,22 @@ export default function BalancesPage() {
         if (txn.concertId) {
           entry.concerts.set(txn.concertId, (entry.concerts.get(txn.concertId) || 0) + Math.abs(txn.amount));
         }
-      }
-      if (txn.type === "deposit") {
+      } else if (txn.type === "deposit") {
         entry.totalDeposits += txn.amount;
+      } else if (txn.type === "adjustment" || txn.type === "refund") {
+        // Reversals net out against the original transaction so the report
+        // reconciles with the actual balance (pending === -balance). A positive
+        // adjustment refunds a fee (order cancellation / void); a negative one
+        // claws back a deposit.
+        if (txn.concertId && demoConcertIds.has(txn.concertId)) continue;
+        if (txn.amount > 0) {
+          entry.totalFees -= txn.amount;
+          if (txn.concertId) {
+            entry.concerts.set(txn.concertId, (entry.concerts.get(txn.concertId) || 0) - txn.amount);
+          }
+        } else {
+          entry.totalDeposits += txn.amount;
+        }
       }
     }
     if (entry.totalFees > 0 || bal.balance < 0) {
@@ -305,7 +317,6 @@ export default function BalancesPage() {
 
       {activeTab === "stats" && (
         <SuperAdminStats
-          concerts={concerts}
           organizerBalances={organizerBalances}
         />
       )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { db } from "@/lib/db";
 import { useLanguage } from "@/lib/LanguageContext";
 import { dateLocale } from "@/lib/i18n";
 import { getOrderTotal, getPlatformFeeForOrder } from "@/lib/order-pricing";
@@ -56,7 +57,6 @@ type Concert = {
 };
 
 interface SuperAdminStatsProps {
-  concerts: Concert[];
   organizerBalances: OrgBalance[];
 }
 
@@ -89,11 +89,22 @@ function firstOfYear() {
 }
 
 export default function SuperAdminStats({
-  concerts,
   organizerBalances,
 }: SuperAdminStatsProps) {
   const { t, lang } = useLanguage();
   const monthNames = lang === "es" ? MONTH_NAMES_ES : MONTH_NAMES_EN;
+
+  // The heavy orders tree is only needed by this tab, so it's queried here
+  // (the component only mounts when the "Statistics" tab is active) instead of
+  // in the parent — keeping the Balances/Report tabs fast to load.
+  const { isLoading: statsLoading, data: statsData } = db.useQuery({
+    concerts: {
+      $: { order: { createdAt: "desc" } },
+      platformFeeConfig: {},
+      ticketTypes: { orders: {}, phases: {} },
+    },
+  });
+  const concerts = (statsData?.concerts ?? []) as unknown as Concert[];
 
   // Demo events are excluded from every aggregate.
   const realConcerts = useMemo(
@@ -509,6 +520,10 @@ export default function SuperAdminStats({
         ? "bg-accent text-white"
         : "bg-background border border-border text-muted hover:text-foreground"
     }`;
+
+  if (statsLoading && concerts.length === 0) {
+    return <div className="animate-pulse text-muted">{t("common.loading")}</div>;
+  }
 
   return (
     <div className="space-y-8">
