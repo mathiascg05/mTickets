@@ -317,6 +317,7 @@ export default function BalancesPage() {
 
       {activeTab === "stats" && (
         <SuperAdminStats
+          concerts={concerts}
           organizerBalances={organizerBalances}
         />
       )}

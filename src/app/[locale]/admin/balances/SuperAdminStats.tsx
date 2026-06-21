@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/db";
 import { useLanguage } from "@/lib/LanguageContext";
 import { dateLocale } from "@/lib/i18n";
-import { getOrderTotal, getPlatformFeeForOrder } from "@/lib/order-pricing";
+import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
 
 type Transaction = {
   id: string;
@@ -22,21 +22,9 @@ type OrgBalance = {
   transactions: Transaction[];
 };
 
-type ConcertOrder = {
-  id: string;
-  status: string;
-  createdAt: number;
-  phaseId?: string;
-  discountAmount?: number;
-  paymentMethodDiscount?: number;
-  priceSnapshot?: number;
-  feePercentSnapshot?: number;
-  feeFixedSnapshot?: number;
-  feeAmountSnapshot?: number;
-  platformFeeAmountSnapshot?: number;
-  totalSnapshot?: number;
-};
-
+// Light concert metadata (no orders). Order-derived numbers — potential debt,
+// tickets sold, gross revenue — come from /api/admin/platform-stats instead, so
+// the browser never has to load every order row.
 type Concert = {
   id: string;
   name: string;
@@ -45,18 +33,16 @@ type Concert = {
   organizerEmail: string;
   isDemo?: boolean;
   platformFeeConfig: unknown;
-  ticketTypes: {
-    id: string;
-    name: string;
-    price: number;
-    feePercent?: number;
-    feeFixed?: number;
-    phases?: { id: string; price: number }[];
-    orders: ConcertOrder[];
-  }[];
+};
+
+// Order-derived stats fetched from the server.
+type PlatformStats = {
+  potentialDebt: number;
+  perEvent: { id: string; ticketsSold: number; grossRevenue: number }[];
 };
 
 interface SuperAdminStatsProps {
+  concerts: Concert[];
   organizerBalances: OrgBalance[];
 }
 
@@ -89,49 +75,78 @@ function firstOfYear() {
 }
 
 export default function SuperAdminStats({
+  concerts,
   organizerBalances,
 }: SuperAdminStatsProps) {
   const { t, lang } = useLanguage();
   const monthNames = lang === "es" ? MONTH_NAMES_ES : MONTH_NAMES_EN;
 
-  // The heavy orders tree is only needed by this tab, so it's queried here
-  // (the component only mounts when the "Statistics" tab is active) instead of
-  // in the parent — keeping the Balances/Report tabs fast to load.
-  const { isLoading: statsLoading, data: statsData } = db.useQuery({
-    concerts: {
-      $: { order: { createdAt: "desc" } },
-      platformFeeConfig: {},
-      ticketTypes: { orders: {}, phases: {} },
-    },
-  });
-  const concerts = (statsData?.concerts ?? []) as unknown as Concert[];
+  const { user } = db.useAuth();
+  const refreshToken = user?.refresh_token || "";
 
-  // Demo events are excluded from every aggregate.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [activePreset, setActivePreset] = useState<string>("all");
+
+  // Order-derived stats come from the server (admin SDK reliably returns every
+  // order row; the equivalent nested client query does not). Refetched whenever
+  // the period changes; potentialDebt is a snapshot and ignores the period.
+  const [platformStats, setPlatformStats] = useState<PlatformStats>({
+    potentialDebt: 0,
+    perEvent: [],
+  });
+  useEffect(() => {
+    if (!refreshToken) return;
+    let cancelled = false;
+    const params = new URLSearchParams();
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo) params.set("to", dateTo);
+    fetch(`/api/admin/platform-stats?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${refreshToken}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: PlatformStats | null) => {
+        if (!cancelled && data) setPlatformStats(data);
+      })
+      .catch((err) => console.error("Failed to load platform stats:", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshToken, dateFrom, dateTo]);
+
+  const perEventMap = useMemo(
+    () => new Map(platformStats.perEvent.map((e) => [e.id, e])),
+    [platformStats],
+  );
+
+  // Demo events are excluded from every aggregate. The super admin's own
+  // (internal/test) account is also excluded from all org-level financials.
   const realConcerts = useMemo(
-    () => concerts.filter((c) => !c.isDemo),
+    () =>
+      concerts.filter(
+        (c) =>
+          !c.isDemo &&
+          c.organizerEmail.toLowerCase() !== SUPER_ADMIN_EMAIL,
+      ),
     [concerts],
   );
   const demoConcertIds = useMemo(
     () => new Set(concerts.filter((c) => c.isDemo).map((c) => c.id)),
     [concerts],
   );
-  // Organizers whose ONLY events are demo. Their balances and unlinked
-  // deposits/fees should also be excluded from stats.
-  const demoOnlyOrgEmails = useMemo(() => {
+  // Organizers whose ONLY events are demo, plus the super admin account. Their
+  // balances and unlinked deposits/fees are excluded from stats.
+  const excludedOrgEmails = useMemo(() => {
     const realEmails = new Set(
       realConcerts.map((c) => c.organizerEmail.toLowerCase()),
     );
-    const demoOnly = new Set<string>();
+    const excluded = new Set<string>([SUPER_ADMIN_EMAIL]);
     for (const c of concerts) {
       const email = c.organizerEmail.toLowerCase();
-      if (!realEmails.has(email)) demoOnly.add(email);
+      if (!realEmails.has(email)) excluded.add(email);
     }
-    return demoOnly;
+    return excluded;
   }, [concerts, realConcerts]);
-
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [activePreset, setActivePreset] = useState<string>("all");
 
   function applyPreset(preset: string) {
     setActivePreset(preset);
@@ -185,7 +200,7 @@ export default function SuperAdminStats({
   const allFeeTransactions = useMemo(() => {
     const txns: Transaction[] = [];
     for (const bal of organizerBalances) {
-      if (demoOnlyOrgEmails.has(bal.email.toLowerCase())) continue;
+      if (excludedOrgEmails.has(bal.email.toLowerCase())) continue;
       for (const txn of bal.transactions || []) {
         if (txn.type !== "fee") continue;
         if (txn.concertId && demoConcertIds.has(txn.concertId)) continue;
@@ -193,13 +208,13 @@ export default function SuperAdminStats({
       }
     }
     return txns;
-  }, [organizerBalances, demoConcertIds, demoOnlyOrgEmails]);
+  }, [organizerBalances, demoConcertIds, excludedOrgEmails]);
 
   // ── All deposit transactions with the originating organizer email ──
   const allDeposits = useMemo(() => {
     const list: (Transaction & { organizerEmail: string })[] = [];
     for (const bal of organizerBalances) {
-      if (demoOnlyOrgEmails.has(bal.email.toLowerCase())) continue;
+      if (excludedOrgEmails.has(bal.email.toLowerCase())) continue;
       for (const txn of bal.transactions || []) {
         if (txn.type !== "deposit") continue;
         if (txn.concertId && demoConcertIds.has(txn.concertId)) continue;
@@ -207,7 +222,7 @@ export default function SuperAdminStats({
       }
     }
     return list;
-  }, [organizerBalances, demoConcertIds, demoOnlyOrgEmails]);
+  }, [organizerBalances, demoConcertIds, excludedOrgEmails]);
 
   // ── Concert id → name map (for displaying linked event in deposit history) ──
   const concertNameMap = useMemo(() => {
@@ -221,7 +236,7 @@ export default function SuperAdminStats({
   const feesByOrg = useMemo(() => {
     const map = new Map<string, Transaction[]>();
     for (const bal of organizerBalances) {
-      if (demoOnlyOrgEmails.has(bal.email.toLowerCase())) continue;
+      if (excludedOrgEmails.has(bal.email.toLowerCase())) continue;
       const fees = (bal.transactions || [])
         .filter((t) => t.type === "fee")
         .filter((t) => !(t.concertId && demoConcertIds.has(t.concertId)))
@@ -230,7 +245,7 @@ export default function SuperAdminStats({
       map.set(bal.email.toLowerCase(), fees);
     }
     return map;
-  }, [organizerBalances, demoConcertIds, demoOnlyOrgEmails]);
+  }, [organizerBalances, demoConcertIds, excludedOrgEmails]);
 
   // ── Per-org deposits sorted asc, used to find the "next deposit" boundary ──
   const depositsByOrg = useMemo(() => {
@@ -284,53 +299,24 @@ export default function SuperAdminStats({
     // would double-represent the same debt and make this read negative.
     let totalPlatformBalance = 0;
     for (const bal of organizerBalances) {
-      if (demoOnlyOrgEmails.has(bal.email.toLowerCase())) continue;
+      if (excludedOrgEmails.has(bal.email.toLowerCase())) continue;
       totalPlatformBalance += Math.max(0, bal.balance);
     }
     totalPlatformBalance = Math.round(totalPlatformBalance * 100) / 100;
-
-    let postpaidDebt = 0;
-    for (const concert of realConcerts) {
-      if (concert.status === "finalized") continue;
-      const fc = concert.platformFeeConfig as unknown;
-      const cfg = (Array.isArray(fc) ? fc[0] : fc) as
-        | {
-            billingMode?: string;
-            feePercent?: number;
-            feeFixed?: number;
-            allowOverdraft?: boolean;
-          }
-        | null
-        | undefined;
-      // Include both real postpaid events AND prepaid events that opted
-      // into overdraft — both can leave pending fees as future debt.
-      const isPostpaidLike =
-        cfg?.billingMode === "postpaid" || cfg?.allowOverdraft === true;
-      if (!isPostpaidLike) continue;
-      const liveCfg = {
-        feePercent: cfg?.feePercent || 0,
-        feeFixed: cfg?.feeFixed || 0,
-      };
-      for (const tt of concert.ticketTypes) {
-        for (const order of tt.orders) {
-          if (order.status !== "pending") continue;
-          postpaidDebt += getPlatformFeeForOrder(order, tt, liveCfg);
-        }
-      }
-    }
-    postpaidDebt = Math.round(postpaidDebt * 100) / 100;
 
     // Debt already materialized as a negative organizer balance (overdraft
     // approvals or postpaid approvals that pushed the balance below zero).
     let materializedDebt = 0;
     for (const bal of organizerBalances) {
-      if (demoOnlyOrgEmails.has(bal.email.toLowerCase())) continue;
+      if (excludedOrgEmails.has(bal.email.toLowerCase())) continue;
       if (bal.balance < 0) materializedDebt += -bal.balance;
     }
     materializedDebt = Math.round(materializedDebt * 100) / 100;
 
-    return { totalPlatformBalance, postpaidDebt, materializedDebt };
-  }, [organizerBalances, realConcerts, demoOnlyOrgEmails]);
+    // Potential Debt (pending-approval fees) is order-derived and comes from
+    // the server — see platformStats.potentialDebt.
+    return { totalPlatformBalance, materializedDebt };
+  }, [organizerBalances, excludedOrgEmails]);
 
   // ── Period KPIs (filtered) ──
   const periodStats = useMemo(() => {
@@ -353,20 +339,14 @@ export default function SuperAdminStats({
       }
     }
 
+    // Tickets sold + gross revenue are order-derived; the server already
+    // filtered them to the active period (see platformStats.perEvent).
     const ticketsByEvent = new Map<string, number>();
     const grossByEvent = new Map<string, number>();
     for (const concert of realConcerts) {
-      let sold = 0;
-      let gross = 0;
-      for (const tt of concert.ticketTypes) {
-        const approved = tt.orders.filter(
-          (o) => o.status === "approved" && inPeriod(o.createdAt),
-        );
-        sold += approved.length;
-        gross += approved.reduce((s, o) => s + getOrderTotal(o, tt), 0);
-      }
-      ticketsByEvent.set(concert.id, sold);
-      grossByEvent.set(concert.id, gross);
+      const e = perEventMap.get(concert.id);
+      ticketsByEvent.set(concert.id, e?.ticketsSold || 0);
+      grossByEvent.set(concert.id, e?.grossRevenue || 0);
     }
 
     const totalTicketsSold = [...ticketsByEvent.values()].reduce(
@@ -444,6 +424,7 @@ export default function SuperAdminStats({
     organizerBalances,
     allFeeTransactions,
     allDeposits,
+    perEventMap,
     dateFrom,
     dateTo,
   ]);
@@ -520,10 +501,6 @@ export default function SuperAdminStats({
         ? "bg-accent text-white"
         : "bg-background border border-border text-muted hover:text-foreground"
     }`;
-
-  if (statsLoading && concerts.length === 0) {
-    return <div className="animate-pulse text-muted">{t("common.loading")}</div>;
-  }
 
   return (
     <div className="space-y-8">
@@ -661,7 +638,7 @@ export default function SuperAdminStats({
           </div>
           <div className="border-l border-border pl-8">
             <p className="text-2xl font-bold text-warning">
-              ${snapshot.postpaidDebt.toFixed(2)}
+              ${platformStats.potentialDebt.toFixed(2)}
             </p>
             <p className="text-xs text-muted">{t("admin.potentialDebt")}</p>
           </div>
