@@ -19,6 +19,7 @@ export default function BalancesPage() {
   const [crediting, setCrediting] = useState(false);
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
   const [voidingTxnId, setVoidingTxnId] = useState<string | null>(null);
+  const [reconciling, setReconciling] = useState(false);
 
   const [activeTab, setActiveTab] = useState<"balances" | "report" | "stats">("balances");
 
@@ -134,6 +135,33 @@ export default function BalancesPage() {
       toast.error(t("admin.balancesToasts.creditError"));
     } finally {
       setCrediting(false);
+    }
+  }
+
+  async function handleReconcile() {
+    if (!confirm(t("admin.reconcileConfirm"))) return;
+    setReconciling(true);
+    try {
+      const res = await fetch("/api/admin/reconcile-balances", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${refreshToken}` },
+      });
+      if (!res.ok) {
+        throw new Error(`reconcile-balances failed: ${res.status}`);
+      }
+      const data = (await res.json()) as { corrected: number };
+      if (data.corrected > 0) {
+        toast.success(
+          t("admin.balancesToasts.reconcileDone", { count: data.corrected }),
+        );
+      } else {
+        toast.success(t("admin.balancesToasts.reconcileNone"));
+      }
+    } catch (err) {
+      console.error("Failed to reconcile balances:", err);
+      toast.error(t("admin.balancesToasts.reconcileError"));
+    } finally {
+      setReconciling(false);
     }
   }
 
@@ -323,6 +351,17 @@ export default function BalancesPage() {
       )}
 
       {activeTab === "balances" && <>
+      {/* Reconcile balances with the transaction ledger */}
+      <div className="flex justify-end mb-4">
+        <button
+          type="button"
+          onClick={handleReconcile}
+          disabled={reconciling}
+          className="px-4 py-2 text-sm font-medium rounded-lg border border-border bg-surface text-muted hover:text-foreground disabled:opacity-50"
+        >
+          {reconciling ? t("common.loading") : t("admin.reconcileBalances")}
+        </button>
+      </div>
       {/* Credit Account Form */}
       <div className="bg-surface border border-border rounded-xl p-6 mb-8">
         <h2 className="text-lg font-semibold mb-4">{t("admin.creditAccount")}</h2>

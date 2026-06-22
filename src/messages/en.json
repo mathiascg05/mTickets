@@ -799,8 +799,13 @@
     "balancesToasts": {
       "invalidAmount": "Invalid amount",
       "creditError": "Error crediting account",
-      "voidError": "Error voiding transaction"
+      "voidError": "Error voiding transaction",
+      "reconcileError": "Error reconciling balances",
+      "reconcileDone": "{count} balance(s) corrected",
+      "reconcileNone": "All balances already match the ledger"
     },
+    "reconcileBalances": "Reconcile balances",
+    "reconcileConfirm": "Recompute every organizer's balance from its transaction ledger? This fixes balances that drifted due to concurrent approvals.",
     "communications": {
       "replyEmpty": "Reply cannot be empty.",
       "replyPlaceholder": "Type your reply...",

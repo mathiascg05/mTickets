@@ -799,8 +799,13 @@
     "balancesToasts": {
       "invalidAmount": "Monto inválido",
       "creditError": "Error al acreditar la cuenta",
-      "voidError": "Error al anular la transacción"
+      "voidError": "Error al anular la transacción",
+      "reconcileError": "Error al reconciliar los balances",
+      "reconcileDone": "{count} balance(s) corregido(s)",
+      "reconcileNone": "Todos los balances ya cuadran con el ledger"
     },
+    "reconcileBalances": "Reconciliar balances",
+    "reconcileConfirm": "¿Recalcular el balance de cada organizador desde su ledger de transacciones? Corrige balances desfasados por aprobaciones concurrentes.",
     "communications": {
       "replyEmpty": "La respuesta no puede estar vacía.",
       "replyPlaceholder": "Escribe tu respuesta...",

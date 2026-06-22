@@ -95,9 +95,11 @@ export default function SuperAdminStats({
     potentialDebt: 0,
     perEvent: [],
   });
+  const [statsLoading, setStatsLoading] = useState(true);
   useEffect(() => {
     if (!refreshToken) return;
     let cancelled = false;
+    setStatsLoading(true);
     const params = new URLSearchParams();
     if (dateFrom) params.set("from", dateFrom);
     if (dateTo) params.set("to", dateTo);
@@ -106,9 +108,14 @@ export default function SuperAdminStats({
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data: PlatformStats | null) => {
-        if (!cancelled && data) setPlatformStats(data);
+        if (cancelled) return;
+        if (data) setPlatformStats(data);
+        setStatsLoading(false);
       })
-      .catch((err) => console.error("Failed to load platform stats:", err));
+      .catch((err) => {
+        console.error("Failed to load platform stats:", err);
+        if (!cancelled) setStatsLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -597,14 +604,14 @@ export default function SuperAdminStats({
         </div>
         <div className="bg-surface border border-border rounded-xl p-5">
           <p className="text-muted text-sm">{t("admin.ticketsSold")}</p>
-          <p className="text-3xl font-bold mt-1 text-accent-light">
-            {periodStats.totalTicketsSold}
+          <p className={`text-3xl font-bold mt-1 ${statsLoading ? "text-muted animate-pulse" : "text-accent-light"}`}>
+            {statsLoading ? "…" : periodStats.totalTicketsSold}
           </p>
         </div>
         <div className="bg-surface border border-border rounded-xl p-5">
           <p className="text-muted text-sm">{t("admin.grossRevenue")}</p>
-          <p className="text-3xl font-bold mt-1">
-            ${periodStats.totalGrossRevenue.toFixed(2)}
+          <p className={`text-3xl font-bold mt-1 ${statsLoading ? "text-muted animate-pulse" : ""}`}>
+            {statsLoading ? "…" : `$${periodStats.totalGrossRevenue.toFixed(2)}`}
           </p>
         </div>
         <div className="bg-surface border border-border rounded-xl p-5">
@@ -637,9 +644,13 @@ export default function SuperAdminStats({
             <p className="text-xs text-muted">{t("admin.platformBalanceTotal")}</p>
           </div>
           <div className="border-l border-border pl-8">
-            <p className="text-2xl font-bold text-warning">
-              ${platformStats.potentialDebt.toFixed(2)}
-            </p>
+            {statsLoading ? (
+              <p className="text-2xl font-bold text-muted animate-pulse">…</p>
+            ) : (
+              <p className="text-2xl font-bold text-warning">
+                ${platformStats.potentialDebt.toFixed(2)}
+              </p>
+            )}
             <p className="text-xs text-muted">{t("admin.potentialDebt")}</p>
           </div>
           <div className="border-l border-border pl-8">
