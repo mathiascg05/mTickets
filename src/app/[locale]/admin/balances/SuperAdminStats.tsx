@@ -5,6 +5,11 @@ import { db } from "@/lib/db";
 import { useLanguage } from "@/lib/LanguageContext";
 import { dateLocale } from "@/lib/i18n";
 import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
+import {
+  fetchPlatformStats,
+  getCachedStats,
+  type PlatformStats,
+} from "./platformStatsClient";
 
 type Transaction = {
   id: string;
@@ -33,12 +38,6 @@ type Concert = {
   organizerEmail: string;
   isDemo?: boolean;
   platformFeeConfig: unknown;
-};
-
-// Order-derived stats fetched from the server.
-type PlatformStats = {
-  potentialDebt: number;
-  perEvent: { id: string; ticketsSold: number; grossRevenue: number }[];
 };
 
 interface SuperAdminStatsProps {
@@ -89,25 +88,28 @@ export default function SuperAdminStats({
   const [activePreset, setActivePreset] = useState<string>("all");
 
   // Order-derived stats come from the server (admin SDK reliably returns every
-  // order row; the equivalent nested client query does not). Refetched whenever
-  // the period changes; potentialDebt is a snapshot and ignores the period.
-  const [platformStats, setPlatformStats] = useState<PlatformStats>({
-    potentialDebt: 0,
-    perEvent: [],
-  });
-  const [statsLoading, setStatsLoading] = useState(true);
+  // order row; the equivalent nested client query does not). Cached per period
+  // at module scope: re-entering the tab shows the last value instantly while
+  // it revalidates in the background (stale-while-revalidate).
+  const [platformStats, setPlatformStats] = useState<PlatformStats>(
+    () => getCachedStats(dateFrom, dateTo) || { potentialDebt: 0, perEvent: [] },
+  );
+  // Only show skeletons when there is no cached value for this period yet.
+  const [statsLoading, setStatsLoading] = useState(
+    () => !getCachedStats(dateFrom, dateTo),
+  );
   useEffect(() => {
     if (!refreshToken) return;
     let cancelled = false;
-    setStatsLoading(true);
-    const params = new URLSearchParams();
-    if (dateFrom) params.set("from", dateFrom);
-    if (dateTo) params.set("to", dateTo);
-    fetch(`/api/admin/platform-stats?${params.toString()}`, {
-      headers: { Authorization: `Bearer ${refreshToken}` },
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: PlatformStats | null) => {
+    const cached = getCachedStats(dateFrom, dateTo);
+    if (cached) {
+      setPlatformStats(cached);
+      setStatsLoading(false);
+    } else {
+      setStatsLoading(true);
+    }
+    fetchPlatformStats(dateFrom, dateTo, refreshToken)
+      .then((data) => {
         if (cancelled) return;
         if (data) setPlatformStats(data);
         setStatsLoading(false);

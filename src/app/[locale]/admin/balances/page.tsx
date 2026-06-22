@@ -4,8 +4,9 @@ import { db } from "@/lib/db";
 import { useAuthContext } from "@/lib/AuthContext";
 import { useLanguage } from "@/lib/LanguageContext";
 import { dateLocale } from "@/lib/i18n";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SuperAdminStats from "./SuperAdminStats";
+import { fetchPlatformStats } from "./platformStatsClient";
 import OrganizerSelect, { type OrganizerOption } from "@/components/admin/OrganizerSelect";
 import { toast } from "sonner";
 
@@ -38,6 +39,13 @@ export default function BalancesPage() {
     },
     $users: {},
   });
+
+  // Warm the order-derived stats cache (default "All Time" period) while the
+  // user is on the Balances tab, so opening the Statistics tab is instant.
+  useEffect(() => {
+    if (!isSuperAdmin || !refreshToken) return;
+    fetchPlatformStats("", "", refreshToken).catch(() => {});
+  }, [isSuperAdmin, refreshToken]);
 
   if (!isSuperAdmin) {
     return (
