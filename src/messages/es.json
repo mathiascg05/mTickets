@@ -943,8 +943,8 @@
     "generatePaletteFromImage": "Generar paleta desde la imagen",
     "removePaletteRefImage": "Quitar imagen",
     "allotments": {
-      "title": "Lotes de colegios",
-      "help": "Asigna un lote de entradas a cada colegio participante. El colegio paga el lote completo y recibe sus QRs para repartir.",
+      "title": "Lotes de entradas",
+      "help": "Asigna un lote de entradas a un grupo (colegio, empresa, promotor…). El grupo paga el lote completo y recibe sus QRs para repartir.",
       "noEligibleTypes": "Crea primero un tipo de entrada sin fases de precio para poder emitir lotes.",
       "needItems": "Indica al menos una cantidad.",
       "notEnough": "No hay suficientes entradas disponibles para ese tipo.",
@@ -952,10 +952,10 @@
       "confirmAction": "¿Seguro? Esta acción no se puede deshacer.",
       "insufficientBalance": "Saldo insuficiente para aprobar el lote.",
       "suppressed": "Ese correo está bloqueado y no puede recibir el enlace.",
-      "linkSent": "Enlace enviado al colegio.",
-      "schoolName": "Nombre del colegio",
-      "contactEmail": "Correo del responsable",
-      "contactPhone": "Teléfono del responsable",
+      "linkSent": "Enlace enviado al comprador.",
+      "schoolName": "Nombre del grupo",
+      "contactEmail": "Correo de contacto",
+      "contactPhone": "Teléfono de contacto",
       "composition": "Composición del lote",
       "available": "disponibles",
       "totalPrice": "Precio total del lote ($)",
@@ -976,7 +976,8 @@
         "rejected": "Rechazado",
         "cancelled": "Cancelado"
       },
-      "toolbarButton": "Lotes de colegios"
+      "toolbarButton": "Lotes de entradas",
+      "totalPriceAuto": "Calculado automático · editable"
     }
   },
   "seo": {

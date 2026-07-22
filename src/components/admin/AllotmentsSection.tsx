@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { toast } from "sonner";
 import { useLanguage } from "@/lib/LanguageContext";
 import { getAvailability, getTodayString } from "@/lib/phases";
+import PhoneField from "@/components/PhoneField";
 
 type AllotmentTicketType = {
   id: string;
@@ -63,6 +64,7 @@ export default function AllotmentsSection({
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [totalPrice, setTotalPrice] = useState("");
+  const [priceEdited, setPriceEdited] = useState(false);
   const [qtyByType, setQtyByType] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -71,6 +73,21 @@ export default function AllotmentsSection({
 
   // Only flat-priced (no-phase) ticket types can carry allotments in v1.
   const eligibleTypes = ticketTypes.filter((tt) => (tt.phases || []).length === 0);
+
+  // Auto price: sum of (qty × unit price) across the batch. Shown in the total
+  // field unless the host manually overrides it (e.g. a bulk discount).
+  const subtotal = eligibleTypes.reduce((sum, tt) => {
+    const qty = parseInt(qtyByType[tt.id] || "0", 10);
+    return sum + (qty > 0 ? qty * tt.price : 0);
+  }, 0);
+  const effectivePrice = priceEdited
+    ? parseFloat(totalPrice || "0")
+    : subtotal;
+  const totalFieldValue = priceEdited
+    ? totalPrice
+    : subtotal > 0
+      ? String(Math.round(subtotal * 100) / 100)
+      : "";
 
   // Committed quantity per ticket type across active allotments (for the hint).
   const committedByType: Record<string, number> = {};
@@ -134,7 +151,7 @@ export default function AllotmentsSection({
           schoolName,
           contactEmail: contactEmail || undefined,
           contactPhone: contactPhone || undefined,
-          totalPrice: parseFloat(totalPrice || "0"),
+          totalPrice: effectivePrice,
           items,
         }),
       });
@@ -152,6 +169,7 @@ export default function AllotmentsSection({
       setContactEmail("");
       setContactPhone("");
       setTotalPrice("");
+      setPriceEdited(false);
       setQtyByType({});
       setShowForm(false);
     } finally {
@@ -272,11 +290,7 @@ export default function AllotmentsSection({
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">{t("admin.allotments.contactPhone")}</label>
-              <input
-                value={contactPhone}
-                onChange={(e) => setContactPhone(e.target.value)}
-                className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light text-sm"
-              />
+              <PhoneField value={contactPhone} onChange={setContactPhone} />
             </div>
           </div>
           <div className="space-y-2">
@@ -309,10 +323,14 @@ export default function AllotmentsSection({
               type="number"
               min={0}
               step="0.01"
-              value={totalPrice}
-              onChange={(e) => setTotalPrice(e.target.value)}
+              value={totalFieldValue}
+              onChange={(e) => {
+                setPriceEdited(true);
+                setTotalPrice(e.target.value);
+              }}
               className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light text-sm"
             />
+            <p className="text-xs text-muted mt-1">{t("admin.allotments.totalPriceAuto")}</p>
           </div>
           <button
             type="submit"

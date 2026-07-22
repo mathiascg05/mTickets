@@ -943,8 +943,8 @@
     "generatePaletteFromImage": "Generate palette from image",
     "removePaletteRefImage": "Remove image",
     "allotments": {
-      "title": "School allotments",
-      "help": "Assign a batch of tickets to each participating school. The school pays the whole batch and receives its QRs to distribute.",
+      "title": "Ticket batches",
+      "help": "Assign a batch of tickets to a group (school, company, promoter…). The group pays the whole batch and receives its QRs to distribute.",
       "noEligibleTypes": "Create a ticket type without price phases first to issue allotments.",
       "needItems": "Enter at least one quantity.",
       "notEnough": "Not enough tickets available for that type.",
@@ -952,8 +952,8 @@
       "confirmAction": "Are you sure? This action cannot be undone.",
       "insufficientBalance": "Insufficient balance to approve the allotment.",
       "suppressed": "That email is blocked and can't receive the link.",
-      "linkSent": "Link sent to the school.",
-      "schoolName": "School name",
+      "linkSent": "Link sent to the buyer.",
+      "schoolName": "Group name",
       "contactEmail": "Contact email",
       "contactPhone": "Contact phone",
       "composition": "Batch composition",
@@ -976,7 +976,8 @@
         "rejected": "Rejected",
         "cancelled": "Cancelled"
       },
-      "toolbarButton": "School allotments"
+      "toolbarButton": "Ticket batches",
+      "totalPriceAuto": "Auto-calculated · editable"
     }
   },
   "seo": {
