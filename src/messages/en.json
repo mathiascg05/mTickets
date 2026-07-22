@@ -975,7 +975,8 @@
         "approved": "Approved",
         "rejected": "Rejected",
         "cancelled": "Cancelled"
-      }
+      },
+      "toolbarButton": "School allotments"
     }
   },
   "seo": {

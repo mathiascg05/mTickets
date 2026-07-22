@@ -975,7 +975,8 @@
         "approved": "Aprobado",
         "rejected": "Rechazado",
         "cancelled": "Cancelado"
-      }
+      },
+      "toolbarButton": "Lotes de colegios"
     }
   },
   "seo": {

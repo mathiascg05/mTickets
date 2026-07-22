@@ -14,6 +14,7 @@ import {
 } from "@/lib/order-pricing";
 import { sendTicketEmail, sendConfirmationEmail } from "@/lib/sendTicketEmail";
 import PhoneField from "@/components/PhoneField";
+import AllotmentsSection from "@/components/admin/AllotmentsSection";
 import { useLanguage } from "@/lib/LanguageContext";
 import { dateLocale } from "@/lib/i18n";
 import Papa from "papaparse";
@@ -1805,6 +1806,7 @@ export default function ConcertOrdersPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showAllotments, setShowAllotments] = useState(false);
   const [couponOrderId, setCouponOrderId] = useState<string | null>(null);
   const [editingEmailOrderId, setEditingEmailOrderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1840,6 +1842,7 @@ export default function ConcertOrdersPage() {
         phases: {
           $: { order: { sortOrder: "asc" } },
         },
+        reservations: {},
       },
       paymentMethods: {
         $: { order: { createdAt: "asc" } },
@@ -1848,6 +1851,10 @@ export default function ConcertOrdersPage() {
         $: { order: { sortOrder: "asc" } },
       },
       coupons: {},
+      allotments: {
+        $: { order: { createdAt: "desc" } },
+        items: { ticketType: {} },
+      },
     },
     exchangeRates: {},
   });
@@ -2928,6 +2935,16 @@ export default function ConcertOrdersPage() {
         refreshToken={refreshToken}
       />
 
+      {/* School allotments (batch tickets) */}
+      {showAllotments && (
+        <AllotmentsSection
+          concertId={concertId}
+          ticketTypes={concert.ticketTypes}
+          allotments={concert.allotments || []}
+          allOrders={allOrders}
+        />
+      )}
+
       {/* Order List */}
       <div className="bg-surface border border-border rounded-xl p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -2944,6 +2961,16 @@ export default function ConcertOrdersPage() {
               className="px-3 py-1.5 border border-border hover:border-accent/50 text-muted hover:text-accent-light rounded-lg text-xs font-medium transition-colors"
             >
               {t("admin.importCsv")}
+            </button>
+            <button
+              onClick={() => setShowAllotments((v) => !v)}
+              className={`px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors ${
+                showAllotments
+                  ? "border-accent/50 text-accent-light"
+                  : "border-border hover:border-accent/50 text-muted hover:text-accent-light"
+              }`}
+            >
+              {t("admin.allotments.toolbarButton")}
             </button>
           </div>
           <div className="flex flex-wrap gap-2 items-center">
