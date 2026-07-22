@@ -406,6 +406,39 @@ const rules = {
       `auth.email == '${SUPER_ADMIN}'`,
     ],
   },
+  ticketAllotments: {
+    allow: {
+      view: "isOwner || isSuperAdmin",
+      create: "false",
+      update: "false",
+      delete: "isOwner || isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.collaborators.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+    fields: {
+      manageToken: `auth.email == '${SUPER_ADMIN}'`,
+      paymentProofPath: "isOwner || isSuperAdmin",
+      proofReferenceNumber: "isOwner || isSuperAdmin",
+    },
+  },
+  ticketAllotmentItems: {
+    allow: {
+      view: "true",
+      create: "false",
+      update: "false",
+      delete: "isOwner || isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('allotment.concert.organizerEmail') || auth.email in data.ref('allotment.concert.collaborators.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
   auditLogs: {
     allow: {
       view: "false",

@@ -188,25 +188,40 @@ function EmailGate({
   );
 }
 
-function DownloadImageButton({ orderId, email }: { orderId: string; email: string }) {
+function DownloadImageButton({
+  orderId,
+  email,
+  viewToken,
+}: {
+  orderId: string;
+  email: string;
+  viewToken?: string | null;
+}) {
   const { t } = useLanguage();
   const [downloading, setDownloading] = useState(false);
 
   const handleDownload = useCallback(async () => {
     setDownloading(true);
     try {
-      // Always request a fresh token to avoid stale/invalid tokens
-      const res = await fetch(`/api/download-token/${orderId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      if (!res.ok) throw new Error("Failed to get token");
-      const data = await res.json();
+      let href: string;
+      if (viewToken) {
+        // Anonymous allotment ticket: authorize the image with the view token.
+        href = `/api/ticket-image/${orderId}?vt=${encodeURIComponent(viewToken)}`;
+      } else {
+        // Always request a fresh token to avoid stale/invalid tokens
+        const res = await fetch(`/api/download-token/${orderId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        if (!res.ok) throw new Error("Failed to get token");
+        const data = await res.json();
+        href = `/api/ticket-image/${orderId}?token=${data.token}`;
+      }
 
       // Trigger download
       const link = document.createElement("a");
-      link.href = `/api/ticket-image/${orderId}?token=${data.token}`;
+      link.href = href;
       link.download = `entrada-${orderId}.png`;
       document.body.appendChild(link);
       link.click();
@@ -216,7 +231,7 @@ function DownloadImageButton({ orderId, email }: { orderId: string; email: strin
     } finally {
       setDownloading(false);
     }
-  }, [orderId, email]);
+  }, [orderId, email, viewToken]);
 
   return (
     <button
@@ -240,6 +255,8 @@ export default function TicketPage() {
   const searchParams = useSearchParams();
   const orderId = params.orderId as string;
   const isNewPurchase = searchParams.get("new") === "1";
+  // Anonymous allotment tickets carry an HMAC view token in the QR link.
+  const viewToken = searchParams.get("vt");
 
   const [verified, setVerified] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -249,15 +266,40 @@ export default function TicketPage() {
   const { user } = db.useAuth();
 
   useEffect(() => {
-    const isAdmin =
-      user?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
+    let cancelled = false;
+    const isAdmin = user?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
     const sessionVerified =
       sessionStorage.getItem(`ticket-verified-${orderId}`) === "true";
     if (isAdmin || sessionVerified) {
       setVerified(true);
+      setCheckingSession(false);
+    } else if (viewToken) {
+      // Verify the view token server-side (it checks the order is an allotment
+      // order and the HMAC matches) before unlocking the ticket.
+      fetch("/api/verify-ticket-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, viewToken }),
+      })
+        .then((r) => r.json())
+        .then((res) => {
+          if (cancelled) return;
+          if (res?.verified) {
+            sessionStorage.setItem(`ticket-verified-${orderId}`, "true");
+            setVerified(true);
+          }
+          setCheckingSession(false);
+        })
+        .catch(() => {
+          if (!cancelled) setCheckingSession(false);
+        });
+    } else {
+      setCheckingSession(false);
     }
-    setCheckingSession(false);
-  }, [orderId, user]);
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId, user, viewToken]);
 
   const { isLoading, error, data } = db.useQuery({
     orders: {
@@ -327,7 +369,9 @@ export default function TicketPage() {
   const displayPrice = basePrice != null ? basePrice + feeAmount : null;
   const ticketUrl =
     typeof window !== "undefined"
-      ? `${window.location.origin}/ticket/${order.id}`
+      ? `${window.location.origin}/ticket/${order.id}${
+          order.allotmentId && viewToken ? `?vt=${viewToken}` : ""
+        }`
       : "";
 
   // Filter siblings (same purchase group, different order)
@@ -395,7 +439,11 @@ export default function TicketPage() {
                 <p className="text-sm text-muted">
                   {t("ticket.showQR")}
                 </p>
-                <DownloadImageButton orderId={orderId} email={order.email} />
+                <DownloadImageButton
+                  orderId={orderId}
+                  email={order.email}
+                  viewToken={order.allotmentId ? viewToken : undefined}
+                />
                 {order.visited && (
                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-success/10 text-success border border-success/30 rounded-full">
                     {t("ticket.scanned")}

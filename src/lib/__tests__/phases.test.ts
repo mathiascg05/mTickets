@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { getAvailability, getActivePhase } from "../phases";
+import {
+  getAvailability,
+  getActivePhase,
+  committedAllotmentQty,
+} from "../phases";
 
 describe("getAvailability", () => {
   it("returns correct availability without phases", () => {
@@ -152,6 +156,81 @@ describe("getActivePhase", () => {
     const result = getAvailability(ticketType, phases, orders, "2026-03-05");
     expect(result.soldOut).toBe(true);
     expect(result.available).toBe(0);
+  });
+});
+
+describe("committedAllotmentQty", () => {
+  it("sums only items belonging to active allotments", () => {
+    const items = [
+      { quantity: 180, status: "pending" },
+      { quantity: 20, status: "submitted" },
+      { quantity: 50, status: "approved" },
+      { quantity: 30, status: "rejected" }, // released
+      { quantity: 15, status: "cancelled" }, // released
+    ];
+    expect(committedAllotmentQty(items)).toBe(250); // 180 + 20 + 50
+  });
+
+  it("returns 0 for undefined/empty", () => {
+    expect(committedAllotmentQty(undefined)).toBe(0);
+    expect(committedAllotmentQty([])).toBe(0);
+  });
+});
+
+describe("getAvailability with allotments (cross-channel oversell guard)", () => {
+  it("subtracts committed allotment quantity from open-sale availability", () => {
+    const ticketType = { price: 25, quantity: 200 };
+    // 180 committed to a school lot, no open-sale orders yet
+    const result = getAvailability(ticketType, [], [], "2026-03-05", [], 180);
+    expect(result.available).toBe(20); // 200 - 180
+    expect(result.soldOut).toBe(false);
+  });
+
+  it("does NOT double-count minted allotment orders (they carry allotmentId)", () => {
+    const ticketType = { price: 25, quantity: 200 };
+    // The lot was approved: 180 minted orders exist, all tagged with allotmentId,
+    // and the 180 committed quantity is still passed in. Must not subtract twice.
+    const orders = Array.from({ length: 180 }, (_, i) => ({
+      id: `lot-${i}`,
+      status: "approved",
+      allotmentId: "lot-1",
+    }));
+    const result = getAvailability(ticketType, [], orders, "2026-03-05", [], 180);
+    expect(result.available).toBe(20); // 200 - 180 (via committed, orders excluded)
+  });
+
+  it("open-sale orders and committed allotment stack correctly", () => {
+    const ticketType = { price: 25, quantity: 200 };
+    const orders = [
+      ...Array.from({ length: 15 }, (_, i) => ({
+        id: `open-${i}`,
+        status: "approved",
+      })),
+      ...Array.from({ length: 180 }, (_, i) => ({
+        id: `lot-${i}`,
+        status: "approved",
+        allotmentId: "lot-1",
+      })),
+    ];
+    const result = getAvailability(ticketType, [], orders, "2026-03-05", [], 180);
+    expect(result.available).toBe(5); // 200 - 15 open - 180 committed
+  });
+
+  it("releasing a lot (committed drops to 0) returns seats to open sale", () => {
+    const ticketType = { price: 25, quantity: 200 };
+    const result = getAvailability(ticketType, [], [], "2026-03-05", [], 0);
+    expect(result.available).toBe(200);
+  });
+
+  it("marks soldOut when open sale + committed reach capacity", () => {
+    const ticketType = { price: 25, quantity: 200 };
+    const orders = Array.from({ length: 20 }, (_, i) => ({
+      id: `open-${i}`,
+      status: "approved",
+    }));
+    const result = getAvailability(ticketType, [], orders, "2026-03-05", [], 180);
+    expect(result.available).toBe(0);
+    expect(result.soldOut).toBe(true);
   });
 });
 

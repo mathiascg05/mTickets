@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
-import { getAvailability, getTodayString } from "@/lib/phases";
+import {
+  getAvailability,
+  getTodayString,
+  committedAllotmentQty,
+} from "@/lib/phases";
 import { generatePrefix, generateOrderCode } from "@/lib/orderNumber";
 import { transporter, generateMessageId, EMAIL_FROM } from "@/lib/mailer";
 import {
@@ -166,6 +170,7 @@ export async function POST(req: NextRequest) {
         },
         reservations: {},
         queueEntries: {},
+        allotmentItems: {},
       },
     });
 
@@ -254,6 +259,13 @@ export async function POST(req: NextRequest) {
       (r) => r.expiresAt > Date.now() && r.id !== validatedReservationId,
     );
 
+    // Seats committed to school allotments hold inventory from creation and are
+    // invisible to the phase-aware order count, so subtract them explicitly to
+    // prevent cross-channel oversell (open sale vs allotment).
+    const committedQty = committedAllotmentQty(
+      (ticketType.allotmentItems || []) as { quantity: number; status?: string }[],
+    );
+
     const today = getTodayString();
     const { available, activePhase, price: effectivePrice } = getAvailability(
       ticketType,
@@ -261,6 +273,7 @@ export async function POST(req: NextRequest) {
       allOrders,
       today,
       activeReservations,
+      committedQty,
     );
 
     if (available < qty) {
@@ -542,17 +555,21 @@ export async function POST(req: NextRequest) {
             $: { order: { sortOrder: "asc" } },
           },
           reservations: {},
+          allotmentItems: {},
         },
       });
 
       const freshTT = freshTTs[0];
       if (freshTT) {
-        const freshOrders = freshTT.orders as { id: string; status: string; phaseId?: string; couponCode?: string }[];
+        const freshOrders = freshTT.orders as { id: string; status: string; phaseId?: string; couponCode?: string; allotmentId?: string }[];
         const freshReservations = ((freshTT.reservations || []) as { id: string; quantity: number; expiresAt: number; phaseId?: string }[])
           .filter((r) => r.expiresAt > Date.now());
         const freshPhases = (freshTT.phases || []) as { id: string; name: string; price: number; quantity: number; endDate?: string; sortOrder: number }[];
+        const freshCommitted = committedAllotmentQty(
+          (freshTT.allotmentItems || []) as { quantity: number; status?: string }[],
+        );
 
-        const freshAvail = getAvailability(freshTT, freshPhases, freshOrders, getTodayString(), freshReservations);
+        const freshAvail = getAvailability(freshTT, freshPhases, freshOrders, getTodayString(), freshReservations, freshCommitted);
 
         let rollback = false;
 

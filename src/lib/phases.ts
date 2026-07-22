@@ -12,6 +12,7 @@ type OrderForPhase = {
   status: string;
   phaseId?: string;
   priceSnapshot?: number;
+  allotmentId?: string;
 };
 
 type ReservationForPhase = {
@@ -86,17 +87,23 @@ export function getAvailability(
   allOrders: OrderForPhase[],
   today: string,
   reservations: ReservationForPhase[] = [],
+  allotmentCommittedQty = 0,
 ): Availability {
   const isArea = (ticketType.peoplePerTicket ?? 1) > 1;
 
   if (!phases || phases.length === 0) {
+    // Exclude orders minted from an allotment: the allotment block is counted
+    // once via allotmentCommittedQty (the sum of active allotment items), so
+    // counting the minted orders here too would double-subtract.
     const approvedOrPending = allOrders.filter(
       (o) =>
+        !o.allotmentId &&
         (o.status === "approved" || o.status === "pending") &&
         (!isArea || (o.priceSnapshot ?? 0) > 0),
     ).length;
     const reserved = activeReservedQty(reservations);
-    const available = ticketType.quantity - approvedOrPending - reserved;
+    const available =
+      ticketType.quantity - approvedOrPending - reserved - allotmentCommittedQty;
     return {
       price: ticketType.price,
       available,
@@ -140,4 +147,28 @@ export function getAvailability(
 
 export function getTodayString(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+// An allotment holds inventory from creation until it is rejected or cancelled.
+export const ALLOTMENT_ACTIVE_STATUSES = [
+  "pending",
+  "submitted",
+  "approved",
+] as const;
+
+export function isActiveAllotmentStatus(status: string | undefined): boolean {
+  return (ALLOTMENT_ACTIVE_STATUSES as readonly string[]).includes(status ?? "");
+}
+
+// Sum of quantities committed to schools for a ticket type. Each item mirrors
+// its parent allotment's status, so we can sum without reading the (private)
+// allotment entity — used both server-side (guards) and client-side (display).
+export function committedAllotmentQty(
+  allotmentItems: { quantity: number; status?: string }[] | undefined,
+): number {
+  if (!allotmentItems) return 0;
+  return allotmentItems.reduce(
+    (sum, item) => (isActiveAllotmentStatus(item.status) ? sum + item.quantity : sum),
+    0,
+  );
 }

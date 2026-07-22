@@ -51,7 +51,9 @@
     "buy": "Buy",
     "hidden": "Hidden",
     "visible": "Visible",
-    "select": "Select..."
+    "select": "Select...",
+    "create": "Create",
+    "error": "Something went wrong"
   },
   "home": {
     "heroTag": "Professional ticketing platform",
@@ -939,7 +941,42 @@
     "paletteRefImage": "Reference image",
     "paletteRefImageHelp": "Upload an image with the aesthetic you want (mood board, venue photo, screenshot). This image won't be published — it's only used to extract colors.",
     "generatePaletteFromImage": "Generate palette from image",
-    "removePaletteRefImage": "Remove image"
+    "removePaletteRefImage": "Remove image",
+    "allotments": {
+      "title": "School allotments",
+      "help": "Assign a batch of tickets to each participating school. The school pays the whole batch and receives its QRs to distribute.",
+      "noEligibleTypes": "Create a ticket type without price phases first to issue allotments.",
+      "needItems": "Enter at least one quantity.",
+      "notEnough": "Not enough tickets available for that type.",
+      "created": "Allotment created.",
+      "confirmAction": "Are you sure? This action cannot be undone.",
+      "insufficientBalance": "Insufficient balance to approve the allotment.",
+      "suppressed": "That email is blocked and can't receive the link.",
+      "linkSent": "Link sent to the school.",
+      "schoolName": "School name",
+      "contactEmail": "Contact email",
+      "contactPhone": "Contact phone",
+      "composition": "Batch composition",
+      "available": "available",
+      "totalPrice": "Batch total price ($)",
+      "empty": "No allotments yet.",
+      "tickets": "tickets",
+      "attendance": "Attendance",
+      "sendLink": "Send link",
+      "resendLink": "Resend link",
+      "viewProof": "View proof",
+      "approve": "Approve",
+      "reject": "Reject",
+      "cancel": "Cancel batch",
+      "downloadPdf": "Download PDF",
+      "status": {
+        "pending": "Pending payment",
+        "submitted": "Under review",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "cancelled": "Cancelled"
+      }
+    }
   },
   "seo": {
     "root": {
@@ -1438,5 +1475,24 @@
     "add": "Add",
     "sendError": "Send error",
     "sendDone": "Invites (link): {invites} · Direct tickets (QR): {tickets} · Failed {failed} · Suppressed {suppressed}"
+  },
+  "allotment": {
+    "expired": "This link has expired.",
+    "revoked": "This link is no longer available.",
+    "notFound": "We couldn't find this batch.",
+    "total": "Total",
+    "payTitle": "Pay the batch",
+    "paymentMethod": "Payment method",
+    "reference": "Reference number",
+    "proof": "Payment proof",
+    "submitPayment": "Submit payment",
+    "underReview": "Payment under review",
+    "underReviewHint": "The organizer will review your proof and approve the batch. This page updates automatically.",
+    "rejected": "This batch was rejected or cancelled.",
+    "yourTickets": "Your tickets",
+    "downloadPdf": "Download PDF",
+    "shareWhatsApp": "Share via WhatsApp",
+    "delivered": "Delivered",
+    "alreadyScanned": "Already scanned"
   }
 }

@@ -51,7 +51,9 @@
     "buy": "Comprar",
     "hidden": "Oculto",
     "visible": "Visible",
-    "select": "Seleccionar..."
+    "select": "Seleccionar...",
+    "create": "Crear",
+    "error": "Ocurrió un error"
   },
   "home": {
     "heroTag": "Plataforma profesional de ticketing",
@@ -939,7 +941,42 @@
     "paletteRefImage": "Imagen de referencia",
     "paletteRefImageHelp": "Sube una imagen con la estética que quieres (mood board, foto del local, screenshot). Esta imagen no se publica — solo se usa para extraer colores.",
     "generatePaletteFromImage": "Generar paleta desde la imagen",
-    "removePaletteRefImage": "Quitar imagen"
+    "removePaletteRefImage": "Quitar imagen",
+    "allotments": {
+      "title": "Lotes de colegios",
+      "help": "Asigna un lote de entradas a cada colegio participante. El colegio paga el lote completo y recibe sus QRs para repartir.",
+      "noEligibleTypes": "Crea primero un tipo de entrada sin fases de precio para poder emitir lotes.",
+      "needItems": "Indica al menos una cantidad.",
+      "notEnough": "No hay suficientes entradas disponibles para ese tipo.",
+      "created": "Lote creado.",
+      "confirmAction": "¿Seguro? Esta acción no se puede deshacer.",
+      "insufficientBalance": "Saldo insuficiente para aprobar el lote.",
+      "suppressed": "Ese correo está bloqueado y no puede recibir el enlace.",
+      "linkSent": "Enlace enviado al colegio.",
+      "schoolName": "Nombre del colegio",
+      "contactEmail": "Correo del responsable",
+      "contactPhone": "Teléfono del responsable",
+      "composition": "Composición del lote",
+      "available": "disponibles",
+      "totalPrice": "Precio total del lote ($)",
+      "empty": "Aún no hay lotes.",
+      "tickets": "entradas",
+      "attendance": "Asistencia",
+      "sendLink": "Enviar enlace",
+      "resendLink": "Reenviar enlace",
+      "viewProof": "Ver comprobante",
+      "approve": "Aprobar",
+      "reject": "Rechazar",
+      "cancel": "Cancelar lote",
+      "downloadPdf": "Descargar PDF",
+      "status": {
+        "pending": "Pendiente de pago",
+        "submitted": "En revisión",
+        "approved": "Aprobado",
+        "rejected": "Rechazado",
+        "cancelled": "Cancelado"
+      }
+    }
   },
   "seo": {
     "root": {
@@ -1438,5 +1475,24 @@
     "add": "Agregar",
     "sendError": "Error enviando",
     "sendDone": "Invitaciones (link): {invites} · Entradas directas (QR): {tickets} · Fallidas {failed} · Suprimidas {suppressed}"
+  },
+  "allotment": {
+    "expired": "Este enlace expiró.",
+    "revoked": "Este enlace ya no está disponible.",
+    "notFound": "No encontramos este lote.",
+    "total": "Total",
+    "payTitle": "Pagar el lote",
+    "paymentMethod": "Método de pago",
+    "reference": "Número de referencia",
+    "proof": "Comprobante de pago",
+    "submitPayment": "Enviar pago",
+    "underReview": "Pago en revisión",
+    "underReviewHint": "El organizador revisará tu comprobante y aprobará el lote. Esta página se actualiza sola.",
+    "rejected": "Este lote fue rechazado o cancelado.",
+    "yourTickets": "Tus entradas",
+    "downloadPdf": "Descargar PDF",
+    "shareWhatsApp": "Compartir por WhatsApp",
+    "delivered": "Entregada",
+    "alreadyScanned": "Ya fue escaneada"
   }
 }

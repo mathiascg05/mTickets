@@ -3,6 +3,7 @@ import { ImageResponse } from "next/og";
 import QRCode from "qrcode";
 import { adminDb } from "@/lib/adminDb";
 import { verifyDownloadToken } from "@/lib/downloadToken";
+import { verifyTicketViewToken } from "@/lib/ticketViewToken";
 import sharp from "sharp";
 import fs from "fs";
 import path from "path";
@@ -41,8 +42,10 @@ export async function GET(
 ) {
   const { orderId } = await params;
   const token = request.nextUrl.searchParams.get("token");
+  const vt = request.nextUrl.searchParams.get("vt");
 
-  if (!token || !verifyDownloadToken(orderId, token)) {
+  const tokenOk = !!token && verifyDownloadToken(orderId, token);
+  if (!tokenOk && !vt) {
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 403 });
   }
 
@@ -56,6 +59,14 @@ export async function GET(
   const order = orders[0];
   if (!order || order.status !== "approved") {
     return NextResponse.json({ error: "Order not found or not approved" }, { status: 404 });
+  }
+
+  // Anonymous allotment tickets authorize via the HMAC view token instead of an
+  // email-bound download token.
+  if (!tokenOk) {
+    if (!order.allotmentId || !vt || !verifyTicketViewToken(orderId, vt)) {
+      return NextResponse.json({ error: "Invalid or expired token" }, { status: 403 });
+    }
   }
 
   const rawTT = order.ticketType as unknown;
@@ -128,7 +139,12 @@ export async function GET(
 
   // Generate QR code as data URI
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const ticketUrl = `${appUrl}/ticket/${orderId}`;
+  // Allotment tickets embed the view token so a scanned QR opens the ticket
+  // without the email gate (the door scanner reads the orderId from the path
+  // either way).
+  const ticketUrl = order.allotmentId
+    ? `${appUrl}/ticket/${orderId}?vt=${vt ?? ""}`
+    : `${appUrl}/ticket/${orderId}`;
   const qrDataUrl = await QRCode.toDataURL(ticketUrl, {
     width: 400,
     margin: 2,
