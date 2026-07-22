@@ -60,6 +60,7 @@ export default function AllotmentsSection({
   const { t } = useLanguage();
   const { user } = db.useAuth();
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [schoolName, setSchoolName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -99,6 +100,20 @@ export default function AllotmentsSection({
     }
   }
 
+  // When editing a lot, its own committed quantity is released back to us.
+  const editingLot = editingId
+    ? allotments.find((a) => a.id === editingId)
+    : undefined;
+  const editingOwnQtyByType: Record<string, number> = {};
+  if (editingLot) {
+    for (const it of editingLot.items || []) {
+      const tt = Array.isArray(it.ticketType) ? it.ticketType[0] : it.ticketType;
+      if (tt)
+        editingOwnQtyByType[tt.id] =
+          (editingOwnQtyByType[tt.id] || 0) + it.quantity;
+    }
+  }
+
   function availableFor(tt: AllotmentTicketType): number {
     const activeReservations = (tt.reservations || [])
       .filter((r) => r.expiresAt > Date.now())
@@ -114,7 +129,44 @@ export default function AllotmentsSection({
       activeReservations,
       committedByType[tt.id] || 0,
     );
-    return available;
+    return available + (editingOwnQtyByType[tt.id] || 0);
+  }
+
+  function resetForm() {
+    setSchoolName("");
+    setContactEmail("");
+    setContactPhone("");
+    setTotalPrice("");
+    setPriceEdited(false);
+    setQtyByType({});
+  }
+
+  function openCreate() {
+    setEditingId(null);
+    resetForm();
+    setShowForm(true);
+  }
+
+  function openEdit(a: AllotmentData) {
+    setEditingId(a.id);
+    setSchoolName(a.schoolName);
+    setContactEmail(a.contactEmail || "");
+    setContactPhone(a.contactPhone || "");
+    setTotalPrice(String(a.totalPrice));
+    setPriceEdited(true);
+    const q: Record<string, string> = {};
+    for (const it of a.items || []) {
+      const tt = Array.isArray(it.ticketType) ? it.ticketType[0] : it.ticketType;
+      if (tt) q[tt.id] = String((parseInt(q[tt.id] || "0", 10)) + it.quantity);
+    }
+    setQtyByType(q);
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+    resetForm();
   }
 
   function attendanceFor(allotmentId: string): { total: number; visited: number } {
@@ -133,7 +185,7 @@ export default function AllotmentsSection({
     });
   }
 
-  async function handleCreate(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const items = eligibleTypes
       .map((tt) => ({ ticketTypeId: tt.id, quantity: parseInt(qtyByType[tt.id] || "0", 10) }))
@@ -142,36 +194,63 @@ export default function AllotmentsSection({
       toast.error(t("admin.allotments.needItems"));
       return;
     }
-    setBusy("create");
+    setBusy("form");
     try {
-      const res = await authFetch("/api/allotments", {
-        method: "POST",
-        body: JSON.stringify({
-          concertId,
-          schoolName,
-          contactEmail: contactEmail || undefined,
-          contactPhone: contactPhone || undefined,
-          totalPrice: effectivePrice,
-          items,
-        }),
-      });
+      const res = editingId
+        ? await authFetch(`/api/allotments/${editingId}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              schoolName,
+              contactEmail: contactEmail || null,
+              contactPhone: contactPhone || null,
+              totalPrice: effectivePrice,
+              items,
+            }),
+          })
+        : await authFetch("/api/allotments", {
+            method: "POST",
+            body: JSON.stringify({
+              concertId,
+              schoolName,
+              contactEmail: contactEmail || undefined,
+              contactPhone: contactPhone || undefined,
+              totalPrice: effectivePrice,
+              items,
+            }),
+          });
       const data = await res.json();
       if (!res.ok) {
         toast.error(
           data.error === "NOT_ENOUGH_TICKETS"
             ? t("admin.allotments.notEnough")
-            : data.error || t("common.error"),
+            : data.error === "ALREADY_GENERATED"
+              ? t("admin.allotments.cantEditApproved")
+              : data.error || t("common.error"),
         );
         return;
       }
-      toast.success(t("admin.allotments.created"));
-      setSchoolName("");
-      setContactEmail("");
-      setContactPhone("");
-      setTotalPrice("");
-      setPriceEdited(false);
-      setQtyByType({});
-      setShowForm(false);
+      toast.success(editingId ? t("admin.allotments.saved") : t("admin.allotments.created"));
+      closeForm();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function copyLink(allotmentId: string) {
+    setBusy(allotmentId);
+    try {
+      const res = await authFetch(`/api/allotments/${allotmentId}/link`, {
+        method: "GET",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        toast.error(data.error || t("common.error"));
+        return;
+      }
+      await navigator.clipboard.writeText(data.url);
+      toast.success(t("admin.allotments.copied"));
+    } catch {
+      toast.error(t("common.error"));
     } finally {
       setBusy(null);
     }
@@ -250,7 +329,7 @@ export default function AllotmentsSection({
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold">{t("admin.allotments.title")}</h2>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => (showForm ? closeForm() : openCreate())}
           className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
           disabled={eligibleTypes.length === 0}
         >
@@ -266,9 +345,12 @@ export default function AllotmentsSection({
 
       {showForm && eligibleTypes.length > 0 && (
         <form
-          onSubmit={handleCreate}
+          onSubmit={handleSubmit}
           className="bg-background border border-border rounded-lg p-4 mb-4 space-y-3"
         >
+          {editingId && (
+            <p className="text-sm font-semibold">{t("admin.allotments.edit")}</p>
+          )}
           <div>
             <label className="block text-sm font-medium mb-1">{t("admin.allotments.schoolName")}</label>
             <input
@@ -334,10 +416,14 @@ export default function AllotmentsSection({
           </div>
           <button
             type="submit"
-            disabled={busy === "create"}
+            disabled={busy === "form"}
             className="w-full py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium disabled:opacity-50"
           >
-            {busy === "create" ? t("common.loading") : t("common.create")}
+            {busy === "form"
+              ? t("common.loading")
+              : editingId
+                ? t("common.save")
+                : t("common.create")}
           </button>
         </form>
       )}
@@ -373,6 +459,15 @@ export default function AllotmentsSection({
               )}
 
               <div className="flex flex-wrap gap-2 mt-3">
+                {a.status !== "rejected" && a.status !== "cancelled" && (
+                  <button
+                    onClick={() => copyLink(a.id)}
+                    disabled={busy === a.id}
+                    className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-surface disabled:opacity-50"
+                  >
+                    {t("admin.allotments.copyLink")}
+                  </button>
+                )}
                 {a.contactEmail && a.status !== "rejected" && a.status !== "cancelled" && (
                   <button
                     onClick={() => sendLink(a.id)}
@@ -380,6 +475,15 @@ export default function AllotmentsSection({
                     className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-surface disabled:opacity-50"
                   >
                     {a.inviteSentAt ? t("admin.allotments.resendLink") : t("admin.allotments.sendLink")}
+                  </button>
+                )}
+                {(a.status === "pending" || a.status === "submitted") && (
+                  <button
+                    onClick={() => openEdit(a)}
+                    disabled={busy === a.id}
+                    className="px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-surface disabled:opacity-50"
+                  >
+                    {t("admin.allotments.edit")}
                   </button>
                 )}
                 {a.paymentProofPath && (

@@ -1918,6 +1918,23 @@ export default function ConcertOrdersPage() {
   );
   allOrders.sort((a, b) => b.createdAt - a.createdAt);
 
+  // Allotment (batch) group names, to label anonymous batch orders in the list.
+  const allotmentNameById = new Map<string, string>(
+    (concert.allotments || []).map((a) => [a.id, a.schoolName]),
+  );
+  const orderDisplayName = (o: {
+    firstName: string;
+    lastName: string;
+    allotmentId?: string;
+    allotmentSeq?: number;
+  }): string =>
+    o.allotmentId
+      ? t("admin.allotments.orderLabel", {
+          group: allotmentNameById.get(o.allotmentId) || "—",
+          seq: String(o.allotmentSeq ?? 0).padStart(3, "0"),
+        })
+      : `${o.firstName} ${o.lastName}`;
+
   // Map payment method name → convertCurrency for Bs calculation
   const pmCurrencyMap: Record<string, string> = {};
   const pmCustomRateMap: Record<string, number> = {};
@@ -2894,7 +2911,7 @@ export default function ConcertOrdersPage() {
                           <span className="text-xs font-mono text-accent-light mr-2">
                             {order.orderNumber || "---"}
                           </span>
-                          {order.firstName} {order.lastName}
+                          {orderDisplayName(order)}
                         </p>
                         <p className="text-xs text-muted truncate">
                           {order.email} &middot; {order.cedula}
@@ -3143,7 +3160,7 @@ export default function ConcertOrdersPage() {
                       {order.ticketTypeName}
                     </span>
                   </div>
-                  <p className="font-medium text-sm">{order.firstName} {order.lastName}</p>
+                  <p className="font-medium text-sm">{orderDisplayName(order)}</p>
                   {editingEmailOrderId === order.id ? (
                     <EmailInlineEdit
                       currentEmail={order.email}

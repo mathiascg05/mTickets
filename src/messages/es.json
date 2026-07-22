@@ -977,7 +977,13 @@
         "cancelled": "Cancelado"
       },
       "toolbarButton": "Lotes de entradas",
-      "totalPriceAuto": "Calculado automático · editable"
+      "totalPriceAuto": "Calculado automático · editable",
+      "copyLink": "Copiar enlace",
+      "copied": "Enlace copiado",
+      "edit": "Editar lote",
+      "saved": "Lote actualizado",
+      "cantEditApproved": "No se puede cambiar la composición de un lote ya aprobado.",
+      "orderLabel": "Lote {group} #{seq}"
     }
   },
   "seo": {

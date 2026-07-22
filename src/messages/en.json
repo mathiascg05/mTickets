@@ -977,7 +977,13 @@
         "cancelled": "Cancelled"
       },
       "toolbarButton": "Ticket batches",
-      "totalPriceAuto": "Auto-calculated · editable"
+      "totalPriceAuto": "Auto-calculated · editable",
+      "copyLink": "Copy link",
+      "copied": "Link copied",
+      "edit": "Edit batch",
+      "saved": "Batch updated",
+      "cantEditApproved": "Can't change the composition of an approved batch.",
+      "orderLabel": "Batch {group} #{seq}"
     }
   },
   "seo": {
