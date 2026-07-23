@@ -1502,6 +1502,8 @@
     "downloadPdf": "Download PDF",
     "shareWhatsApp": "Share via WhatsApp",
     "delivered": "Delivered",
-    "alreadyScanned": "Already scanned"
+    "alreadyScanned": "Already scanned",
+    "share": "Share",
+    "linkCopied": "Link copied"
   }
 }

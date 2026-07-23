@@ -1502,6 +1502,8 @@
     "downloadPdf": "Descargar PDF",
     "shareWhatsApp": "Compartir por WhatsApp",
     "delivered": "Entregada",
-    "alreadyScanned": "Ya fue escaneada"
+    "alreadyScanned": "Ya fue escaneada",
+    "share": "Compartir",
+    "linkCopied": "Enlace copiado"
   }
 }

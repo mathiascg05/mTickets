@@ -6,6 +6,7 @@ import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import EventTheme from "@/components/EventTheme";
 import { QRCodeSVG } from "qrcode.react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 async function uploadWithRetry(path: string, file: File) {
   try {
@@ -89,6 +90,7 @@ export default function AllotmentManagePage({
   const [referenceNumber, setReferenceNumber] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [sharingId, setSharingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/allotments/by-token/${token}`);
@@ -149,6 +151,62 @@ export default function AllotmentManagePage({
       await load();
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  // Share a single ticket the easiest way for the person distributing: the OS
+  // native share sheet with the QR as an image (WhatsApp/Telegram/Mail/…), with
+  // graceful fallbacks for browsers without the Web Share API.
+  async function shareTicket(tk: Ticket) {
+    const ticketUrl = `${window.location.origin}/ticket/${tk.orderId}?vt=${tk.viewToken}`;
+    const label = `#${pad(tk.seq)} · ${tk.ticketTypeName}`;
+    const nav = navigator as Navigator & {
+      canShare?: (data?: unknown) => boolean;
+      share?: (data?: unknown) => Promise<void>;
+    };
+    setSharingId(tk.orderId);
+    try {
+      // 1) Share the QR image as a file (best UX on mobile).
+      if (nav.share) {
+        try {
+          const res = await fetch(
+            `/api/ticket-image/${tk.orderId}?vt=${encodeURIComponent(tk.viewToken)}`,
+          );
+          if (res.ok) {
+            const blob = await res.blob();
+            const imgFile = new File([blob], `entrada-${pad(tk.seq)}.png`, {
+              type: blob.type || "image/png",
+            });
+            if (nav.canShare && nav.canShare({ files: [imgFile] })) {
+              await nav.share({ files: [imgFile], title: label, text: ticketUrl });
+              return;
+            }
+          }
+        } catch {
+          /* fall through to link share */
+        }
+        // 2) Native share of the link.
+        try {
+          await nav.share({ title: label, text: ticketUrl, url: ticketUrl });
+          return;
+        } catch {
+          /* user cancelled or unsupported — fall through */
+        }
+      }
+      // 3) Desktop fallback: copy link + open WhatsApp Web.
+      try {
+        await navigator.clipboard.writeText(ticketUrl);
+        toast.success(t("allotment.linkCopied"));
+      } catch {
+        /* ignore clipboard errors */
+      }
+      window.open(
+        `https://wa.me/?text=${encodeURIComponent(ticketUrl)}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    } finally {
+      setSharingId(null);
     }
   }
 
@@ -347,7 +405,6 @@ export default function AllotmentManagePage({
             <div className="grid sm:grid-cols-2 gap-4">
               {tickets.map((tk) => {
                 const url = `${origin}/ticket/${tk.orderId}?vt=${tk.viewToken}`;
-                const wa = `https://wa.me/?text=${encodeURIComponent(url)}`;
                 return (
                   <div
                     key={tk.orderId}
@@ -364,14 +421,16 @@ export default function AllotmentManagePage({
                         {t("allotment.alreadyScanned")}
                       </div>
                     )}
-                    <a
-                      href={wa}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full py-2 border border-border rounded-lg text-xs font-medium hover:border-accent/50 hover:text-accent-light transition-colors"
+                    <button
+                      onClick={() => shareTicket(tk)}
+                      disabled={sharingId === tk.orderId}
+                      className="w-full py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-semibold transition-colors shadow-lg shadow-accent/20 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
                     >
-                      {t("allotment.shareWhatsApp")}
-                    </a>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                      {sharingId === tk.orderId ? t("common.loading") : t("allotment.share")}
+                    </button>
                     <label className="mt-2.5 flex items-center gap-2 text-xs text-muted cursor-pointer">
                       <input
                         type="checkbox"
