@@ -384,7 +384,7 @@ export default function AllotmentsSection({
                 <span className="flex-1 text-sm">
                   {tt.name}{" "}
                   <span className="text-muted">
-                    ({t("admin.allotments.available")}: {availableFor(tt)})
+                    · ${tt.price} · {t("admin.allotments.available")}: {availableFor(tt)}
                   </span>
                 </span>
                 <input

@@ -7,6 +7,8 @@ import EventTheme from "@/components/EventTheme";
 import { QRCodeCanvas } from "qrcode.react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { parseBank, formatBank } from "@/lib/pago-movil";
+import { dateLocale } from "@/lib/i18n";
 
 async function uploadWithRetry(path: string, file: File) {
   try {
@@ -28,6 +30,10 @@ type PaymentMethod = {
   name: string;
   instructions?: string;
   convertCurrency?: string;
+  customRate?: number;
+  showConversionDetail?: boolean;
+  requireReferenceNumber?: boolean;
+  requireScreenshot?: boolean;
   zelleEmail?: string;
   zelleName?: string;
   pmCedula?: string;
@@ -79,7 +85,7 @@ export default function AllotmentManagePage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = use(params);
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   const [data, setData] = useState<AllotmentResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +96,9 @@ export default function AllotmentManagePage({
   const [referenceNumber, setReferenceNumber] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // BCV rate per currency (fetched when a converting method is selected).
+  const [rateByCurrency, setRateByCurrency] = useState<Record<string, number>>({});
+  const [rateLoading, setRateLoading] = useState(false);
   // QR canvas containers per ticket, to read pixels synchronously when sharing.
   const qrBoxRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -124,6 +133,33 @@ export default function AllotmentManagePage({
     };
   }, [status, load]);
 
+  // Fetch the BCV rate when a currency-converting method is selected (and the
+  // organizer didn't set a fixed customRate). The endpoint returns dolarapi's
+  // raw JSON with `promedio`; no InstantDB session needed on this token page.
+  const selectedPm = (data?.paymentMethods || []).find((m) => m.id === paymentMethodId);
+  const convertCurrency = selectedPm?.convertCurrency;
+  useEffect(() => {
+    if (!convertCurrency || selectedPm?.customRate || rateByCurrency[convertCurrency] != null) {
+      return;
+    }
+    let cancelled = false;
+    setRateLoading(true);
+    fetch(`/api/exchange-rates?currency=${encodeURIComponent(convertCurrency)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.promedio) {
+          setRateByCurrency((prev) => ({ ...prev, [convertCurrency]: d.promedio }));
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setRateLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [convertCurrency, selectedPm?.customRate, rateByCurrency]);
+
   async function handleSubmitProof(e: React.FormEvent) {
     e.preventDefault();
     if (!file && !referenceNumber) return;
@@ -135,6 +171,13 @@ export default function AllotmentManagePage({
         paymentProofPath = `payment-proofs/${Date.now()}-${safeName}`;
         await uploadWithRetry(paymentProofPath, file);
       }
+      const pm = (data?.paymentMethods || []).find((m) => m.id === paymentMethodId);
+      const cur = pm?.convertCurrency;
+      const rate = pm?.customRate ?? (cur ? rateByCurrency[cur] : undefined);
+      const amountBs =
+        rate != null && data
+          ? Math.round(data.allotment.totalPrice * rate * 100) / 100
+          : undefined;
       const res = await fetch(`/api/allotments/by-token/${token}/proof`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -142,6 +185,13 @@ export default function AllotmentManagePage({
           paymentMethodId: paymentMethodId || undefined,
           paymentProofPath,
           proofReferenceNumber: referenceNumber || undefined,
+          ...(rate != null
+            ? {
+                purchaseRate: rate,
+                purchaseRateCurrency: pm?.customRate ? "USD" : cur,
+                purchaseAmountBs: amountBs,
+              }
+            : {}),
         }),
       });
       if (!res.ok) {
@@ -287,6 +337,22 @@ export default function AllotmentManagePage({
     "w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors";
   const cardClass = "bg-surface border border-border rounded-2xl p-6 sm:p-8";
 
+  // Payment method + Bs conversion (mirrors the buyer purchase page).
+  const pmSelected = paymentMethods.find((m) => m.id === paymentMethodId);
+  const pmCurrency = pmSelected?.convertCurrency;
+  const rateValue = pmSelected?.customRate ?? (pmCurrency ? rateByCurrency[pmCurrency] : undefined);
+  const totalBs = rateValue != null ? Math.round(allotment.totalPrice * rateValue * 100) / 100 : null;
+  const bsFmt = (n: number) =>
+    n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const pmCompact = pmSelected?.type === "pago_movil" && pmSelected?.showConversionDetail === false;
+  const needsScreenshot = !!pmSelected && pmSelected.requireScreenshot !== false;
+  const needsReference = !!pmSelected && pmSelected.requireReferenceNumber === true;
+  const canSubmitProof =
+    !!pmSelected &&
+    (!needsScreenshot || !!file) &&
+    (!needsReference || referenceNumber.trim().length > 0) &&
+    (!!file || referenceNumber.trim().length > 0);
+
   return (
     <EventTheme concert={{ primaryColor: concert?.primaryColor, themeColors: concert?.themeColors }}>
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
@@ -346,27 +412,75 @@ export default function AllotmentManagePage({
                   <option value="">—</option>
                   {paymentMethods.map((pm) => (
                     <option key={pm.id} value={pm.id}>
-                      {pm.name}
+                      {pm.type === "pago_movil" ? "Pago Móvil" : pm.name}
                     </option>
                   ))}
                 </select>
-                {paymentMethodId && (
-                  <div className="mt-3 text-sm text-muted whitespace-pre-wrap bg-accent/5 border border-accent/20 rounded-xl p-4">
-                    {(() => {
-                      const pm = paymentMethods.find((m) => m.id === paymentMethodId);
-                      if (!pm) return null;
-                      return (
+                {pmSelected && (
+                  <div className="mt-3 text-sm bg-accent/5 border border-accent/20 rounded-xl p-4 space-y-1">
+                    {pmSelected.type === "zelle" &&
+                      (pmSelected.zelleName || pmSelected.zelleEmail) && (
                         <>
-                          {pm.instructions && <p>{pm.instructions}</p>}
-                          {pm.zelleEmail && <p>Zelle: {pm.zelleEmail} ({pm.zelleName})</p>}
-                          {pm.pmPhone && (
+                          {pmSelected.zelleName && (
                             <p>
-                              {pm.pmBank} · {pm.pmCedula} · {pm.pmPhone}
+                              <span className="text-muted">{t("checkout.zelleNameLabel")}</span>{" "}
+                              {pmSelected.zelleName}
+                            </p>
+                          )}
+                          {pmSelected.zelleEmail && (
+                            <p className="select-all">
+                              <span className="text-muted">{t("checkout.zelleEmailLabel")}</span>{" "}
+                              {pmSelected.zelleEmail}
                             </p>
                           )}
                         </>
-                      );
-                    })()}
+                      )}
+                    {pmSelected.type === "pago_movil" && (
+                      <>
+                        {pmSelected.pmCedula && (
+                          <p className="select-all">{pmSelected.pmCedula}</p>
+                        )}
+                        {pmSelected.pmPhone && (
+                          <p className="select-all">{pmSelected.pmPhone}</p>
+                        )}
+                        {pmSelected.pmBank && (
+                          <p>{formatBank(parseBank(pmSelected.pmBank))}</p>
+                        )}
+                      </>
+                    )}
+                    {pmSelected.instructions && (
+                      <p className="whitespace-pre-wrap text-muted">{pmSelected.instructions}</p>
+                    )}
+                    {/* Bs conversion */}
+                    {pmCurrency &&
+                      (rateLoading && rateValue == null ? (
+                        <p className="text-muted pt-1">{t("checkout.loadingRate")}</p>
+                      ) : totalBs != null ? (
+                        <div className="pt-2 mt-1 border-t border-accent/20">
+                          <p className="font-semibold text-accent">
+                            {pmCompact
+                              ? t("checkout.totalBsOnly", { bs: bsFmt(totalBs) })
+                              : t("checkout.totalBs", {
+                                  symbol: "$",
+                                  total: allotment.totalPrice.toFixed(2),
+                                  bs: bsFmt(totalBs),
+                                })}
+                          </p>
+                          {!pmCompact && (
+                            <p className="text-xs text-muted mt-0.5">
+                              {pmSelected.customRate
+                                ? t("checkout.customRate", { rate: rateValue!.toFixed(2) })
+                                : t("checkout.bcvRate", {
+                                    rate: rateValue!.toFixed(2),
+                                    currency: pmCurrency,
+                                    updated: new Date().toLocaleString(dateLocale(lang)),
+                                  })}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-muted pt-1">{t("checkout.rateError")}</p>
+                      ))}
                   </div>
                 )}
               </div>
@@ -374,6 +488,7 @@ export default function AllotmentManagePage({
             <div>
               <label className="block text-sm font-medium mb-1.5">
                 {t("allotment.reference")}
+                {needsReference && <span className="text-danger"> *</span>}
               </label>
               <input
                 value={referenceNumber}
@@ -384,6 +499,7 @@ export default function AllotmentManagePage({
             <div>
               <label className="block text-sm font-medium mb-1.5">
                 {t("allotment.proof")}
+                {needsScreenshot && <span className="text-danger"> *</span>}
               </label>
               <input
                 type="file"
@@ -394,7 +510,7 @@ export default function AllotmentManagePage({
             </div>
             <button
               type="submit"
-              disabled={submitting || (!file && !referenceNumber)}
+              disabled={submitting || !canSubmitProof}
               className="w-full py-3 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-semibold transition-colors shadow-lg shadow-accent/20"
             >
               {submitting ? t("common.loading") : t("allotment.submitPayment")}

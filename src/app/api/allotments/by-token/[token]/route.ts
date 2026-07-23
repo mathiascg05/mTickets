@@ -65,23 +65,30 @@ export async function GET(
       return { quantity: it.quantity, ticketTypeName: tt?.name || "" };
     });
 
-    // Payment methods (the host's), shown so the school knows how to pay.
-    const paymentMethods = (concert?.paymentMethods || []).map((pm) => {
-      const m = pm as Record<string, unknown>;
-      return {
-        id: m.id,
-        type: m.type,
-        name: m.name,
-        instructions: m.instructions,
-        convertCurrency: m.convertCurrency,
-        customRate: m.customRate,
-        zelleEmail: m.zelleEmail,
-        zelleName: m.zelleName,
-        pmCedula: m.pmCedula,
-        pmPhone: m.pmPhone,
-        pmBank: m.pmBank,
-      };
-    });
+    // Payment methods (the host's), shown so the group knows how to pay —
+    // mirrors what a normal buyer sees (rate/Bs conversion, structured details).
+    const paymentMethods = (concert?.paymentMethods || [])
+      .map((pm) => {
+        const m = pm as Record<string, unknown>;
+        return {
+          id: m.id,
+          type: m.type,
+          name: m.name,
+          instructions: m.instructions,
+          convertCurrency: m.convertCurrency,
+          customRate: m.customRate,
+          showConversionDetail: m.showConversionDetail,
+          requireReferenceNumber: m.requireReferenceNumber,
+          requireScreenshot: m.requireScreenshot,
+          zelleEmail: m.zelleEmail,
+          zelleName: m.zelleName,
+          pmCedula: m.pmCedula,
+          pmPhone: m.pmPhone,
+          pmBank: m.pmBank,
+          createdAt: m.createdAt as number | undefined,
+        };
+      })
+      .sort((x, y) => (x.createdAt ?? 0) - (y.createdAt ?? 0));
 
     // Minted tickets (only once approved), with a per-order view token so the
     // school can render/share each QR without an account.
