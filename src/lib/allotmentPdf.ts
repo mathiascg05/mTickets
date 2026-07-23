@@ -28,20 +28,23 @@ function fit(text: string, font: PDFFont, size: number, maxWidth: number): strin
 export async function buildAllotmentPdf(
   appUrl: string,
   eventName: string,
+  groupName: string,
   tickets: AllotmentTicket[],
 ): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-  // A4 portrait, 2 columns × 4 rows = 8 tickets per page.
+  // A4 portrait, page title header + 2 columns × 3 rows = 6 tickets per page.
   const PAGE_W = 595.28;
   const PAGE_H = 841.89;
   const MARGIN = 32;
+  const HEADER_H = 52;
   const COLS = 2;
-  const ROWS = 4;
+  const ROWS = 3;
+  const gridTop = PAGE_H - MARGIN - HEADER_H; // grid area starts below the title
   const cellW = (PAGE_W - MARGIN * 2) / COLS;
-  const cellH = (PAGE_H - MARGIN * 2) / ROWS;
+  const cellH = (gridTop - MARGIN) / ROWS;
   const perPage = COLS * ROWS;
 
   const ink = rgb(0.102, 0.169, 0.29); // #1a2b4a
@@ -50,15 +53,42 @@ export async function buildAllotmentPdf(
 
   const sorted = [...tickets].sort((a, b) => a.seq - b.seq);
 
+  function drawHeader(page: import("pdf-lib").PDFPage) {
+    // Recipient group name as the document title, event name beneath it.
+    const titleSize = 16;
+    const title = fit(groupName || "", fontBold, titleSize, PAGE_W - MARGIN * 2);
+    page.drawText(title, {
+      x: PAGE_W / 2 - fontBold.widthOfTextAtSize(title, titleSize) / 2,
+      y: PAGE_H - MARGIN - 14,
+      size: titleSize,
+      font: fontBold,
+      color: ink,
+    });
+    if (eventName) {
+      const evSize = 10;
+      const ev = fit(eventName, font, evSize, PAGE_W - MARGIN * 2);
+      page.drawText(ev, {
+        x: PAGE_W / 2 - font.widthOfTextAtSize(ev, evSize) / 2,
+        y: PAGE_H - MARGIN - 32,
+        size: evSize,
+        font,
+        color: muted,
+      });
+    }
+  }
+
   for (let i = 0; i < sorted.length; i++) {
-    if (i % perPage === 0) pdf.addPage([PAGE_W, PAGE_H]);
+    if (i % perPage === 0) {
+      const p = pdf.addPage([PAGE_W, PAGE_H]);
+      drawHeader(p);
+    }
     const page = pdf.getPage(pdf.getPageCount() - 1);
     const t = sorted[i];
     const idx = i % perPage;
     const col = idx % COLS;
     const row = Math.floor(idx / COLS);
     const cellX = MARGIN + col * cellW;
-    const cellTop = PAGE_H - MARGIN - row * cellH; // y measured from bottom
+    const cellTop = gridTop - row * cellH; // y measured from bottom
     const cellBottom = cellTop - cellH;
     const centerX = cellX + cellW / 2;
 
@@ -73,33 +103,25 @@ export async function buildAllotmentPdf(
       borderWidth: 0.75,
     });
 
-    // Event name (top, small, muted).
-    const evSize = 8;
-    const evText = fit(eventName, font, evSize, cellW - 24);
-    page.drawText(evText, {
-      x: centerX - font.widthOfTextAtSize(evText, evSize) / 2,
-      y: cellTop - 20,
-      size: evSize,
-      font,
-      color: muted,
-    });
-
-    // QR.
+    // QR — anchored near the top of the cell (not centered), leaving a clear
+    // gap above the number/type at the bottom.
+    const qrTop = cellTop - 18;
+    const qrSize = Math.min(cellW - 44, cellH - 62);
+    const qrY = qrTop - qrSize; // bottom of the QR image
     const qrPng = await QRCode.toBuffer(
       `${appUrl}/ticket/${t.orderId}?vt=${generateTicketViewToken(t.orderId)}`,
-      { width: 300, margin: 0, errorCorrectionLevel: "M", color: { dark: "#1a2b4a", light: "#ffffff" } },
+      { width: 320, margin: 0, errorCorrectionLevel: "M", color: { dark: "#1a2b4a", light: "#ffffff" } },
     );
     const qrImg = await pdf.embedPng(qrPng);
-    const qrSize = Math.min(cellW - 48, cellH - 78);
     page.drawImage(qrImg, {
       x: centerX - qrSize / 2,
-      y: cellBottom + (cellH - qrSize) / 2 - 2,
+      y: qrY,
       width: qrSize,
       height: qrSize,
     });
 
-    // Ticket number (bold) + type, below the QR.
-    const numSize = 13;
+    // Ticket number (bold) + type, at the bottom of the cell (clear of the QR).
+    const numSize = 14;
     const numText = `#${pad(t.seq)}`;
     page.drawText(numText, {
       x: centerX - fontBold.widthOfTextAtSize(numText, numSize) / 2,

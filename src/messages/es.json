@@ -983,7 +983,8 @@
       "edit": "Editar lote",
       "saved": "Lote actualizado",
       "cantEditApproved": "No se puede cambiar la composición de un lote ya aprobado.",
-      "orderLabel": "Lote {group} #{seq}"
+      "orderLabel": "Lote {group} #{seq}",
+      "sentTo": "Enviado a"
     }
   },
   "seo": {

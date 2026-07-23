@@ -983,7 +983,8 @@
       "edit": "Edit batch",
       "saved": "Batch updated",
       "cantEditApproved": "Can't change the composition of an approved batch.",
-      "orderLabel": "Batch {group} #{seq}"
+      "orderLabel": "Batch {group} #{seq}",
+      "sentTo": "Sent to"
     }
   },
   "seo": {

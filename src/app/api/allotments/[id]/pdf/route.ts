@@ -82,7 +82,8 @@ export async function GET(
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const pdfBytes = await buildAllotmentPdf(appUrl, concert.name || "", tickets);
+    const groupName = (allotment.schoolName as string) || "";
+    const pdfBytes = await buildAllotmentPdf(appUrl, concert.name || "", groupName, tickets);
 
     return new NextResponse(Buffer.from(pdfBytes), {
       headers: {

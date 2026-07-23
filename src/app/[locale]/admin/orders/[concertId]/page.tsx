@@ -1918,9 +1918,19 @@ export default function ConcertOrdersPage() {
   );
   allOrders.sort((a, b) => b.createdAt - a.createdAt);
 
-  // Allotment (batch) group names, to label anonymous batch orders in the list.
-  const allotmentNameById = new Map<string, string>(
-    (concert.allotments || []).map((a) => [a.id, a.schoolName]),
+  // Allotment (batch) info, to label anonymous batch orders and show the
+  // group's contact email ("sent to") in the list.
+  const allotmentById = new Map<
+    string,
+    { schoolName: string; contactEmail?: string }
+  >(
+    (concert.allotments || []).map((a) => [
+      a.id,
+      {
+        schoolName: a.schoolName,
+        contactEmail: (a as { contactEmail?: string }).contactEmail,
+      },
+    ]),
   );
   const orderDisplayName = (o: {
     firstName: string;
@@ -1930,7 +1940,7 @@ export default function ConcertOrdersPage() {
   }): string =>
     o.allotmentId
       ? t("admin.allotments.orderLabel", {
-          group: allotmentNameById.get(o.allotmentId) || "—",
+          group: allotmentById.get(o.allotmentId)?.schoolName || "—",
           seq: String(o.allotmentSeq ?? 0).padStart(3, "0"),
         })
       : `${o.firstName} ${o.lastName}`;
@@ -3161,28 +3171,37 @@ export default function ConcertOrdersPage() {
                     </span>
                   </div>
                   <p className="font-medium text-sm">{orderDisplayName(order)}</p>
-                  {editingEmailOrderId === order.id ? (
-                    <EmailInlineEdit
-                      currentEmail={order.email}
-                      onSave={(newEmail) => {
-                        db.transact(db.tx.orders[order.id].update({ email: newEmail }));
-                        setEditingEmailOrderId(null);
-                      }}
-                      onCancel={() => setEditingEmailOrderId(null)}
-                    />
-                  ) : (
-                    <p
-                      className="text-xs text-muted cursor-pointer hover:text-accent-light transition-colors group inline-flex items-center gap-1"
-                      onClick={() => setEditingEmailOrderId(order.id)}
-                      title={t("admin.ordersTooltips.clickToEditEmail")}
-                    >
-                      {order.email}
-                      <svg className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
+                  {order.allotmentId ? (
+                    <p className="text-xs text-muted">
+                      {t("admin.allotments.sentTo")}:{" "}
+                      {allotmentById.get(order.allotmentId)?.contactEmail || "—"}
                     </p>
+                  ) : (
+                    <>
+                      {editingEmailOrderId === order.id ? (
+                        <EmailInlineEdit
+                          currentEmail={order.email}
+                          onSave={(newEmail) => {
+                            db.transact(db.tx.orders[order.id].update({ email: newEmail }));
+                            setEditingEmailOrderId(null);
+                          }}
+                          onCancel={() => setEditingEmailOrderId(null)}
+                        />
+                      ) : (
+                        <p
+                          className="text-xs text-muted cursor-pointer hover:text-accent-light transition-colors group inline-flex items-center gap-1"
+                          onClick={() => setEditingEmailOrderId(order.id)}
+                          title={t("admin.ordersTooltips.clickToEditEmail")}
+                        >
+                          {order.email}
+                          <svg className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </p>
+                      )}
+                      <p className="text-xs text-muted">{t("common.cedula")}: {order.cedula}</p>
+                    </>
                   )}
-                  <p className="text-xs text-muted">{t("common.cedula")}: {order.cedula}</p>
                   {order.phone && (
                     <p className="text-xs text-muted">
                       {t("common.phone")}:{" "}
