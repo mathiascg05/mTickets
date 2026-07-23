@@ -153,7 +153,9 @@ export default function AllotmentsSection({
     setContactEmail(a.contactEmail || "");
     setContactPhone(a.contactPhone || "");
     setTotalPrice(String(a.totalPrice));
-    setPriceEdited(true);
+    // Auto-recalc price from quantities (same as create); typing a custom price
+    // still overrides it via the field's onChange (priceEdited → true).
+    setPriceEdited(false);
     const q: Record<string, string> = {};
     for (const it of a.items || []) {
       const tt = Array.isArray(it.ticketType) ? it.ticketType[0] : it.ticketType;
