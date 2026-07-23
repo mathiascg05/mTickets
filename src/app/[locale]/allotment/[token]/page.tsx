@@ -137,7 +137,10 @@ export default function AllotmentManagePage({
   // organizer didn't set a fixed customRate). The endpoint returns dolarapi's
   // raw JSON with `promedio`; no InstantDB session needed on this token page.
   const selectedPm = (data?.paymentMethods || []).find((m) => m.id === paymentMethodId);
-  const convertCurrency = selectedPm?.convertCurrency;
+  // Only Pago Móvil is paid in bolívares — USD methods (Zelle/Efectivo) never
+  // show a Bs conversion, even if convertCurrency is (mis)configured on them.
+  const convertCurrency =
+    selectedPm?.type === "pago_movil" ? selectedPm?.convertCurrency : undefined;
   useEffect(() => {
     if (!convertCurrency || selectedPm?.customRate || rateByCurrency[convertCurrency] != null) {
       return;
@@ -172,7 +175,7 @@ export default function AllotmentManagePage({
         await uploadWithRetry(paymentProofPath, file);
       }
       const pm = (data?.paymentMethods || []).find((m) => m.id === paymentMethodId);
-      const cur = pm?.convertCurrency;
+      const cur = pm?.type === "pago_movil" ? pm?.convertCurrency : undefined;
       const rate = pm?.customRate ?? (cur ? rateByCurrency[cur] : undefined);
       const amountBs =
         rate != null && data
@@ -339,7 +342,8 @@ export default function AllotmentManagePage({
 
   // Payment method + Bs conversion (mirrors the buyer purchase page).
   const pmSelected = paymentMethods.find((m) => m.id === paymentMethodId);
-  const pmCurrency = pmSelected?.convertCurrency;
+  const pmCurrency =
+    pmSelected?.type === "pago_movil" ? pmSelected?.convertCurrency : undefined;
   const rateValue = pmSelected?.customRate ?? (pmCurrency ? rateByCurrency[pmCurrency] : undefined);
   const totalBs = rateValue != null ? Math.round(allotment.totalPrice * rateValue * 100) / 100 : null;
   const bsFmt = (n: number) =>
