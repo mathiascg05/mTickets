@@ -216,7 +216,6 @@ export async function mintAllotmentOrders(
           visited: false,
           allotmentId: allotment.id,
           allotmentSeq: seq,
-          purchaseGroupId: allotment.id,
           orderNumber: nextOrderNumber(),
           priceSnapshot: price,
           feePercentSnapshot: 0,

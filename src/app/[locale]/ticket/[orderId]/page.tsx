@@ -312,7 +312,9 @@ export default function TicketPage() {
   });
 
   const order = data?.orders?.[0];
-  const purchaseGroupId = order?.purchaseGroupId;
+  // Allotment orders all share the lot's group id; a participant must NOT see
+  // the other tickets in the lot, so never load siblings for allotment orders.
+  const purchaseGroupId = order?.allotmentId ? undefined : order?.purchaseGroupId;
 
   // Always call useQuery (rules of hooks) — use dummy query when no group ID
   const { data: siblingData } = db.useQuery(
