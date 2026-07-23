@@ -4,7 +4,7 @@ import { use, useCallback, useEffect, useRef, useState } from "react";
 import { db } from "@/lib/db";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import EventTheme from "@/components/EventTheme";
-import { QRCodeSVG } from "qrcode.react";
+import { QRCodeCanvas } from "qrcode.react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -90,7 +90,8 @@ export default function AllotmentManagePage({
   const [referenceNumber, setReferenceNumber] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [sharingId, setSharingId] = useState<string | null>(null);
+  // QR canvas containers per ticket, to read pixels synchronously when sharing.
+  const qrBoxRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/allotments/by-token/${token}`);
@@ -154,9 +155,53 @@ export default function AllotmentManagePage({
     }
   }
 
+  // Compose a shareable PNG (QR + ticket number + type + event) on an offscreen
+  // canvas — fully synchronous, so it works inside the click gesture that iOS
+  // Safari requires for navigator.share().
+  function composeTicketImage(tk: Ticket): File | null {
+    const box = qrBoxRefs.current.get(tk.orderId);
+    const qr = box?.querySelector("canvas");
+    if (!qr) return null;
+    const W = 620;
+    const H = 760;
+    const c = document.createElement("canvas");
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext("2d");
+    if (!ctx) return null;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = "center";
+    // Event name (top, muted).
+    if (data?.concert?.name) {
+      ctx.fillStyle = "#7a8599";
+      ctx.font = "26px -apple-system, Helvetica, Arial, sans-serif";
+      ctx.fillText(data.concert.name, W / 2, 52);
+    }
+    // QR centered.
+    const qrSize = 460;
+    ctx.drawImage(qr, (W - qrSize) / 2, 90, qrSize, qrSize);
+    // Ticket number (bold) + type at the bottom, for reference.
+    ctx.fillStyle = "#1a2b4a";
+    ctx.font = "bold 60px -apple-system, Helvetica, Arial, sans-serif";
+    ctx.fillText(`#${pad(tk.seq)}`, W / 2, 90 + qrSize + 70);
+    if (tk.ticketTypeName) {
+      ctx.fillStyle = "#7a8599";
+      ctx.font = "30px -apple-system, Helvetica, Arial, sans-serif";
+      ctx.fillText(tk.ticketTypeName, W / 2, 90 + qrSize + 112);
+    }
+    const dataUrl = c.toDataURL("image/png");
+    const [, b64] = dataUrl.split(",");
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new File([bytes], `entrada-${pad(tk.seq)}.png`, { type: "image/png" });
+  }
+
   // Share a single ticket the easiest way for the person distributing: the OS
-  // native share sheet with the QR as an image (WhatsApp/Telegram/Mail/…), with
-  // graceful fallbacks for browsers without the Web Share API.
+  // native share sheet with the labeled QR image (WhatsApp/Telegram/Mail/…).
+  // Everything up to navigator.share() is synchronous to preserve the iOS
+  // Safari user-activation requirement.
   async function shareTicket(tk: Ticket) {
     const ticketUrl = `${window.location.origin}/ticket/${tk.orderId}?vt=${tk.viewToken}`;
     const label = `#${pad(tk.seq)} · ${tk.ticketTypeName}`;
@@ -164,36 +209,18 @@ export default function AllotmentManagePage({
       canShare?: (data?: unknown) => boolean;
       share?: (data?: unknown) => Promise<void>;
     };
-    setSharingId(tk.orderId);
     try {
-      // 1) Share the QR image as a file (best UX on mobile).
       if (nav.share) {
-        try {
-          const res = await fetch(
-            `/api/ticket-image/${tk.orderId}?vt=${encodeURIComponent(tk.viewToken)}`,
-          );
-          if (res.ok) {
-            const blob = await res.blob();
-            const imgFile = new File([blob], `entrada-${pad(tk.seq)}.png`, {
-              type: blob.type || "image/png",
-            });
-            if (nav.canShare && nav.canShare({ files: [imgFile] })) {
-              await nav.share({ files: [imgFile], title: label, text: ticketUrl });
-              return;
-            }
-          }
-        } catch {
-          /* fall through to link share */
-        }
-        // 2) Native share of the link.
-        try {
-          await nav.share({ title: label, text: ticketUrl, url: ticketUrl });
+        const file = composeTicketImage(tk);
+        if (file && nav.canShare && nav.canShare({ files: [file] })) {
+          await nav.share({ files: [file], title: label, text: ticketUrl });
           return;
-        } catch {
-          /* user cancelled or unsupported — fall through */
         }
+        // No file sharing — share the link (still native, choose any method).
+        await nav.share({ title: label, text: ticketUrl, url: ticketUrl });
+        return;
       }
-      // 3) Desktop fallback: copy link + open WhatsApp Web.
+      // Desktop fallback: copy link + open WhatsApp Web.
       try {
         await navigator.clipboard.writeText(ticketUrl);
         toast.success(t("allotment.linkCopied"));
@@ -205,8 +232,9 @@ export default function AllotmentManagePage({
         "_blank",
         "noopener,noreferrer",
       );
-    } finally {
-      setSharingId(null);
+    } catch (err) {
+      // User cancelled the share sheet — not an error.
+      if (err instanceof DOMException && err.name === "AbortError") return;
     }
   }
 
@@ -413,8 +441,20 @@ export default function AllotmentManagePage({
                     <div className="text-sm font-semibold">
                       #{pad(tk.seq)} · {tk.ticketTypeName}
                     </div>
-                    <div className="my-3 inline-block p-3 bg-white rounded-2xl shadow-lg shadow-accent/10">
-                      <QRCodeSVG value={url} size={140} level="H" fgColor="#1a2b4a" />
+                    <div
+                      ref={(el) => {
+                        if (el) qrBoxRefs.current.set(tk.orderId, el);
+                        else qrBoxRefs.current.delete(tk.orderId);
+                      }}
+                      className="my-3 inline-block p-3 bg-white rounded-2xl shadow-lg shadow-accent/10"
+                    >
+                      <QRCodeCanvas
+                        value={url}
+                        size={512}
+                        level="H"
+                        fgColor="#1a2b4a"
+                        style={{ width: 140, height: 140 }}
+                      />
                     </div>
                     {tk.visited && (
                       <div className="text-xs text-danger mb-1 font-medium">
@@ -423,13 +463,12 @@ export default function AllotmentManagePage({
                     )}
                     <button
                       onClick={() => shareTicket(tk)}
-                      disabled={sharingId === tk.orderId}
-                      className="w-full py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-semibold transition-colors shadow-lg shadow-accent/20 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+                      className="w-full py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-xs font-semibold transition-colors shadow-lg shadow-accent/20 inline-flex items-center justify-center gap-1.5"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                       </svg>
-                      {sharingId === tk.orderId ? t("common.loading") : t("allotment.share")}
+                      {t("allotment.share")}
                     </button>
                     <label className="mt-2.5 flex items-center gap-2 text-xs text-muted cursor-pointer">
                       <input
