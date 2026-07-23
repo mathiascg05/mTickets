@@ -9,10 +9,6 @@ function firstOf<T>(raw: unknown): T | undefined {
   return (Array.isArray(raw) ? raw[0] : raw) as T | undefined;
 }
 
-function pad(n: number): string {
-  return String(n).padStart(3, "0");
-}
-
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -34,6 +30,7 @@ export async function GET(
     }
     const concert = firstOf<{
       id: string;
+      name: string;
       organizerEmail: string;
       collaborators?: { email: string }[];
     }>(allotment.concert);
@@ -72,22 +69,20 @@ export async function GET(
     const tickets: AllotmentTicket[] = orders
       .map((o) => {
         const tt = firstOf<{ name: string }>(o.ticketType);
-        const seq = (o.allotmentSeq as number) ?? 0;
         return {
-          seq,
           orderId: o.id,
-          label: `#${pad(seq)}${tt?.name ? ` ${tt.name}` : ""}`,
+          seq: (o.allotmentSeq as number) ?? 0,
+          ticketTypeName: tt?.name || "",
         };
       })
-      .sort((a, b) => a.seq - b.seq)
-      .map(({ orderId, label }) => ({ orderId, label }));
+      .sort((a, b) => a.seq - b.seq);
 
     if (tickets.length === 0) {
       return NextResponse.json({ error: "No tickets" }, { status: 404 });
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const pdfBytes = await buildAllotmentPdf(appUrl, tickets);
+    const pdfBytes = await buildAllotmentPdf(appUrl, concert.name || "", tickets);
 
     return new NextResponse(Buffer.from(pdfBytes), {
       headers: {

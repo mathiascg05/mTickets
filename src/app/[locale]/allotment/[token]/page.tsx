@@ -2,8 +2,10 @@
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { db } from "@/lib/db";
-import { useLanguage } from "@/lib/LanguageContext";
+import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
+import EventTheme from "@/components/EventTheme";
 import { QRCodeSVG } from "qrcode.react";
+import Link from "next/link";
 
 async function uploadWithRetry(path: string, file: File) {
   try {
@@ -59,6 +61,7 @@ type AllotmentResponse = {
     flyerUrl?: string;
     logoUrl?: string;
     primaryColor?: string;
+    themeColors?: string;
   } | null;
   items: { quantity: number; ticketTypeName: string }[];
   paymentMethods: PaymentMethod[];
@@ -170,7 +173,7 @@ export default function AllotmentManagePage({
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-pulse text-muted">{t("common.loading")}</div>
       </div>
     );
@@ -178,13 +181,15 @@ export default function AllotmentManagePage({
 
   if (error || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 text-center">
-        <div className="text-danger">
-          {error === "TOKEN_EXPIRED"
-            ? t("allotment.expired")
-            : error === "TOKEN_REVOKED"
-              ? t("allotment.revoked")
-              : t("allotment.notFound")}
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <div className="bg-surface border border-border rounded-2xl p-8 text-center max-w-md">
+          <p className="text-danger font-medium">
+            {error === "TOKEN_EXPIRED"
+              ? t("allotment.expired")
+              : error === "TOKEN_REVOKED"
+                ? t("allotment.revoked")
+                : t("allotment.notFound")}
+          </p>
         </div>
       </div>
     );
@@ -192,27 +197,47 @@ export default function AllotmentManagePage({
 
   const { allotment, concert, items, paymentMethods, tickets } = data;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const inputClass =
+    "w-full px-4 py-2.5 bg-field border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors";
+  const cardClass = "bg-surface border border-border rounded-2xl p-6 sm:p-8";
 
   return (
-    <div className="min-h-screen">
+    <EventTheme concert={{ primaryColor: concert?.primaryColor, themeColors: concert?.themeColors }}>
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
-        <div className="max-w-2xl mx-auto px-4 py-4">
-          <span className="text-xl font-bold tracking-wide">
-            ma<span className="text-white/60">Tickets</span>
-          </span>
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="text-xl font-bold tracking-wide text-white">
+              ma<span className="text-white/60">Tickets</span>
+            </Link>
+            {concert?.logoUrl && (
+              <>
+                <span className="text-white/30">|</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={concert.logoUrl} alt="" className="h-9 w-auto object-contain" />
+              </>
+            )}
+          </div>
+          <LanguageToggle className="border-white/30 text-white/80 hover:text-white" />
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-        <div className="bg-surface border border-border rounded-xl p-6">
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        {concert?.flyerUrl && (
+          <div className="rounded-2xl overflow-hidden border border-border shadow-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={concert.flyerUrl} alt={concert.name} className="w-full object-cover" />
+          </div>
+        )}
+
+        <div className={cardClass}>
           <h1 className="text-2xl font-bold">{concert?.name}</h1>
-          <p className="text-muted">{concert?.venue}</p>
-          <div className="mt-4 space-y-1 text-sm">
-            <div className="font-medium">{allotment.schoolName}</div>
-            <div>
+          {concert?.venue && <p className="text-muted mt-1">{concert.venue}</p>}
+          <div className="mt-4 space-y-1.5 text-sm">
+            <div className="font-semibold">{allotment.schoolName}</div>
+            <div className="text-muted">
               {items.map((it) => `${it.quantity}× ${it.ticketTypeName}`).join(" · ")}
             </div>
-            <div className="text-lg font-bold mt-2">
+            <div className="text-xl font-bold text-accent pt-1">
               {t("allotment.total")}: ${allotment.totalPrice}
             </div>
           </div>
@@ -220,20 +245,17 @@ export default function AllotmentManagePage({
 
         {/* Payment / status */}
         {allotment.status === "pending" && (
-          <form
-            onSubmit={handleSubmitProof}
-            className="bg-surface border border-border rounded-xl p-6 space-y-4"
-          >
+          <form onSubmit={handleSubmitProof} className={`${cardClass} space-y-4`}>
             <h2 className="text-lg font-semibold">{t("allotment.payTitle")}</h2>
             {paymentMethods.length > 0 && (
               <div>
-                <label className="block text-sm font-medium mb-1">
+                <label className="block text-sm font-medium mb-1.5">
                   {t("allotment.paymentMethod")}
                 </label>
                 <select
                   value={paymentMethodId}
                   onChange={(e) => setPaymentMethodId(e.target.value)}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm"
+                  className={inputClass}
                 >
                   <option value="">—</option>
                   {paymentMethods.map((pm) => (
@@ -243,7 +265,7 @@ export default function AllotmentManagePage({
                   ))}
                 </select>
                 {paymentMethodId && (
-                  <div className="mt-2 text-sm text-muted whitespace-pre-wrap">
+                  <div className="mt-3 text-sm text-muted whitespace-pre-wrap bg-accent/5 border border-accent/20 rounded-xl p-4">
                     {(() => {
                       const pm = paymentMethods.find((m) => m.id === paymentMethodId);
                       if (!pm) return null;
@@ -264,30 +286,30 @@ export default function AllotmentManagePage({
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-medium mb-1.5">
                 {t("allotment.reference")}
               </label>
               <input
                 value={referenceNumber}
                 onChange={(e) => setReferenceNumber(e.target.value)}
-                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm"
+                className={inputClass}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-medium mb-1.5">
                 {t("allotment.proof")}
               </label>
               <input
                 type="file"
                 accept="image/*"
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="w-full text-sm"
+                className="w-full text-sm file:mr-4 file:px-3 file:py-1.5 file:rounded-md file:bg-field file:border file:border-border file:font-medium file:text-foreground"
               />
             </div>
             <button
               type="submit"
               disabled={submitting || (!file && !referenceNumber)}
-              className="w-full py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium disabled:opacity-50"
+              className="w-full py-3 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-semibold transition-colors shadow-lg shadow-accent/20"
             >
               {submitting ? t("common.loading") : t("allotment.submitPayment")}
             </button>
@@ -295,28 +317,28 @@ export default function AllotmentManagePage({
         )}
 
         {allotment.status === "submitted" && (
-          <div className="bg-surface border border-border rounded-xl p-6 text-center">
-            <p className="font-medium">{t("allotment.underReview")}</p>
+          <div className={`${cardClass} text-center`}>
+            <p className="font-semibold">{t("allotment.underReview")}</p>
             <p className="text-sm text-muted mt-1">{t("allotment.underReviewHint")}</p>
           </div>
         )}
 
         {(allotment.status === "rejected" || allotment.status === "cancelled") && (
-          <div className="bg-surface border border-border rounded-xl p-6 text-center">
-            <p className="font-medium text-danger">{t("allotment.rejected")}</p>
+          <div className={`${cardClass} text-center`}>
+            <p className="font-semibold text-danger">{t("allotment.rejected")}</p>
           </div>
         )}
 
         {/* Tickets */}
         {allotment.status === "approved" && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">
                 {t("allotment.yourTickets")} ({tickets.length})
               </h2>
               <a
                 href={`/api/allotments/${allotment.id}/pdf?token=${token}`}
-                className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium"
+                className="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-semibold transition-colors shadow-lg shadow-accent/20 whitespace-nowrap"
               >
                 {t("allotment.downloadPdf")}
               </a>
@@ -329,34 +351,33 @@ export default function AllotmentManagePage({
                 return (
                   <div
                     key={tk.orderId}
-                    className="bg-surface border border-border rounded-xl p-4 flex flex-col items-center text-center"
+                    className="bg-surface border border-border rounded-2xl p-5 flex flex-col items-center text-center"
                   >
-                    <div className="text-sm font-medium">
+                    <div className="text-sm font-semibold">
                       #{pad(tk.seq)} · {tk.ticketTypeName}
                     </div>
-                    <div className="my-3 bg-white p-2 rounded-lg">
-                      <QRCodeSVG value={url} size={140} />
+                    <div className="my-3 inline-block p-3 bg-white rounded-2xl shadow-lg shadow-accent/10">
+                      <QRCodeSVG value={url} size={140} level="H" fgColor="#1a2b4a" />
                     </div>
                     {tk.visited && (
-                      <div className="text-xs text-danger mb-1">
+                      <div className="text-xs text-danger mb-1 font-medium">
                         {t("allotment.alreadyScanned")}
                       </div>
                     )}
-                    <div className="flex gap-2 w-full">
-                      <a
-                        href={wa}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 py-1.5 border border-border rounded-lg text-xs hover:bg-background"
-                      >
-                        {t("allotment.shareWhatsApp")}
-                      </a>
-                    </div>
-                    <label className="mt-2 flex items-center gap-2 text-xs text-muted">
+                    <a
+                      href={wa}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-2 border border-border rounded-lg text-xs font-medium hover:border-accent/50 hover:text-accent-light transition-colors"
+                    >
+                      {t("allotment.shareWhatsApp")}
+                    </a>
+                    <label className="mt-2.5 flex items-center gap-2 text-xs text-muted cursor-pointer">
                       <input
                         type="checkbox"
                         checked={tk.delivered}
                         onChange={(e) => toggleDelivered(tk.orderId, e.target.checked)}
+                        className="accent-accent"
                       />
                       {t("allotment.delivered")}
                     </label>
@@ -367,6 +388,6 @@ export default function AllotmentManagePage({
           </div>
         )}
       </main>
-    </div>
+    </EventTheme>
   );
 }
