@@ -1140,7 +1140,8 @@ export default function BuyPage() {
                           </p>
                         ) : (cachedRate || selectedPmCustomRate) ? ((() => {
                           const compact =
-                            (selectedPm as { type?: string }).type === "pago_movil" &&
+                            ((selectedPm as { type?: string }).type === "pago_movil" ||
+                              (selectedPm as { type?: string }).type === "punto_de_venta") &&
                             (selectedPm as { showConversionDetail?: boolean }).showConversionDetail === false;
                           const isCustom = !!selectedPmCustomRate;
                           const sourceCurrency = isCustom ? "USD" : cachedRate!.currency;

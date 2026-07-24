@@ -10,6 +10,10 @@ import { toast } from "sonner";
 import { parseBank, formatBank } from "@/lib/pago-movil";
 import { dateLocale } from "@/lib/i18n";
 
+// Métodos pagados en bolívares que muestran conversión Bs (Pago Móvil, Punto de Venta).
+const supportsConversion = (type?: string) =>
+  type === "pago_movil" || type === "punto_de_venta";
+
 async function uploadWithRetry(path: string, file: File) {
   try {
     await db.storage.upload(path, file);
@@ -137,10 +141,10 @@ export default function AllotmentManagePage({
   // organizer didn't set a fixed customRate). The endpoint returns dolarapi's
   // raw JSON with `promedio`; no InstantDB session needed on this token page.
   const selectedPm = (data?.paymentMethods || []).find((m) => m.id === paymentMethodId);
-  // Only Pago Móvil is paid in bolívares — USD methods (Zelle/Efectivo) never
-  // show a Bs conversion, even if convertCurrency is (mis)configured on them.
+  // Solo los métodos pagados en bolívares (Pago Móvil, Punto de Venta) muestran
+  // conversión Bs — Zelle/Efectivo nunca, aunque tengan convertCurrency mal configurado.
   const convertCurrency =
-    selectedPm?.type === "pago_movil" ? selectedPm?.convertCurrency : undefined;
+    supportsConversion(selectedPm?.type) ? selectedPm?.convertCurrency : undefined;
   useEffect(() => {
     if (!convertCurrency || selectedPm?.customRate || rateByCurrency[convertCurrency] != null) {
       return;
@@ -175,7 +179,7 @@ export default function AllotmentManagePage({
         await uploadWithRetry(paymentProofPath, file);
       }
       const pm = (data?.paymentMethods || []).find((m) => m.id === paymentMethodId);
-      const cur = pm?.type === "pago_movil" ? pm?.convertCurrency : undefined;
+      const cur = supportsConversion(pm?.type) ? pm?.convertCurrency : undefined;
       const rate = pm?.customRate ?? (cur ? rateByCurrency[cur] : undefined);
       const amountBs =
         rate != null && data
@@ -343,12 +347,12 @@ export default function AllotmentManagePage({
   // Payment method + Bs conversion (mirrors the buyer purchase page).
   const pmSelected = paymentMethods.find((m) => m.id === paymentMethodId);
   const pmCurrency =
-    pmSelected?.type === "pago_movil" ? pmSelected?.convertCurrency : undefined;
+    supportsConversion(pmSelected?.type) ? pmSelected?.convertCurrency : undefined;
   const rateValue = pmSelected?.customRate ?? (pmCurrency ? rateByCurrency[pmCurrency] : undefined);
   const totalBs = rateValue != null ? Math.round(allotment.totalPrice * rateValue * 100) / 100 : null;
   const bsFmt = (n: number) =>
     n.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const pmCompact = pmSelected?.type === "pago_movil" && pmSelected?.showConversionDetail === false;
+  const pmCompact = supportsConversion(pmSelected?.type) && pmSelected?.showConversionDetail === false;
   const needsScreenshot = !!pmSelected && pmSelected.requireScreenshot !== false;
   const needsReference = !!pmSelected && pmSelected.requireReferenceNumber === true;
   const canSubmitProof =

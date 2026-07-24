@@ -24,7 +24,12 @@ const BASE_METHODS = [
   { type: "efectivo", name: "Efectivo" },
   { type: "zelle", name: "Zelle" },
   { type: "pago_movil", name: "Pago Móvil" },
+  { type: "punto_de_venta", name: "Punto de Venta" },
 ] as const;
+
+// Métodos que soportan la conversión Bs (tasa BCV / tasa custom).
+const supportsConversion = (type?: string) =>
+  type === "pago_movil" || type === "punto_de_venta";
 
 const FIELD_TYPE_VALUES = [
   "text",
@@ -1037,7 +1042,7 @@ function PaymentMethodCard({
             requireScreenshot: true,
             requireReferenceNumber: base.type !== "efectivo",
             sortOrder: 0,
-            ...(base.type === "pago_movil" ? { convertCurrency: "USD" } : {}),
+            ...(supportsConversion(base.type) ? { convertCurrency: "USD" } : {}),
             createdAt: Date.now(),
           })
           .link({ event: eventId }),
@@ -1047,7 +1052,7 @@ function PaymentMethodCard({
 
   function saveConfig() {
     if (!existing) return;
-    const isCustom = base.type === "pago_movil" && rateMode === "custom";
+    const isCustom = supportsConversion(base.type) && rateMode === "custom";
     const parsedCustomRate = isCustom ? parseFloat(customRate) : NaN;
     if (isCustom && (!Number.isFinite(parsedCustomRate) || parsedCustomRate <= 0)) {
       setCustomRateError(t("admin.customRateInvalid"));
@@ -1068,10 +1073,10 @@ function PaymentMethodCard({
     }
     const effectiveConvertCurrency = isCustom
       ? "USD"
-      : base.type === "pago_movil"
+      : supportsConversion(base.type)
         ? (convertCurrency || "USD")
         : (convertCurrency || "");
-    if (base.type === "pago_movil" && !convertCurrency) {
+    if (supportsConversion(base.type) && !convertCurrency) {
       setConvertCurrency("USD");
     }
     db.transact([
@@ -1082,7 +1087,7 @@ function PaymentMethodCard({
         requireReferenceNumber: base.type === "efectivo" ? false : requireReferenceNumber,
         discountType: discountEnabled ? discountType : null,
         discountValue: parsedDiscountValue,
-        ...(base.type === "pago_movil" ? {
+        ...(supportsConversion(base.type) ? {
           showConversionDetail,
           customRate: isCustom ? parsedCustomRate : null,
         } : {}),
@@ -1121,7 +1126,7 @@ function PaymentMethodCard({
         </div>
         {enabled && (
           <div className="flex items-center gap-2">
-            {base.type === "pago_movil" && existing?.convertCurrency && (
+            {supportsConversion(base.type) && existing?.convertCurrency && (
               <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent/15 text-accent-light">
                 {existing.convertCurrency} &rarr; Bs
               </span>
@@ -1196,7 +1201,7 @@ function PaymentMethodCard({
               placeholder={t("admin.instructionsOptional")}
             />
           </div>
-          {base.type === "pago_movil" && (
+          {supportsConversion(base.type) && (
             <div>
               <label className="block text-sm font-medium mb-1">{t("admin.currencyConversion")}</label>
               <select
@@ -1237,7 +1242,7 @@ function PaymentMethodCard({
               )}
             </div>
           )}
-          {base.type === "pago_movil" && (
+          {supportsConversion(base.type) && (
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
