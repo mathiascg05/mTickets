@@ -470,11 +470,17 @@ function FindMyTickets({ concertId }: { concertId: string }) {
     }
   }, [email, concertId, t]);
 
-  const handleResend = useCallback(async (orderId: string) => {
+  const handleResend = useCallback(async (orderId: string, status: string) => {
     const trimmed = email.trim().toLowerCase();
     setResendCooldowns((prev) => ({ ...prev, [orderId]: Date.now() + 60_000 }));
     try {
-      const res = await fetch("/api/resend-ticket", {
+      // Approved orders have a ticket → resend the ticket email. Pending orders
+      // have no ticket yet → resend the confirmation email (link to their order).
+      const endpoint =
+        status === "approved"
+          ? "/api/resend-ticket"
+          : "/api/resend-confirmation";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId, email: trimmed }),
@@ -587,13 +593,17 @@ function FindMyTickets({ concertId }: { concertId: string }) {
                     {order.firstName} {order.lastName} &middot; {order.ticketTypeName}
                   </p>
                 </div>
-                {order.status === "approved" && (
+                {(order.status === "approved" || order.status === "pending") && (
                   <button
-                    onClick={() => handleResend(order.id)}
+                    onClick={() => handleResend(order.id, order.status)}
                     disabled={cooldown}
                     className="px-4 py-2 text-sm font-medium bg-accent/10 text-accent rounded-md hover:bg-accent/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                   >
-                    {cooldown ? t("event.sent") : t("event.resendEmail")}
+                    {cooldown
+                      ? t("event.sent")
+                      : order.status === "approved"
+                        ? t("event.resendEmail")
+                        : t("event.resendConfirmation")}
                   </button>
                 )}
               </div>

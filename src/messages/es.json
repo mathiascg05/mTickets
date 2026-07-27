@@ -140,6 +140,7 @@
     "noOrders": "No se encontraron ordenes para este correo.",
     "tooManyRequests": "Demasiadas solicitudes. Espera un momento e intenta de nuevo.",
     "resendEmail": "Reenviar correo",
+    "resendConfirmation": "Reenviar confirmación",
     "sent": "¡Enviado!",
     "contactOrganizer": "Contactar Organizador",
     "contactSub": "¿Tienes una pregunta sobre este evento? Envía un mensaje al organizador.",

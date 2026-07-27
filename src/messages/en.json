@@ -140,6 +140,7 @@
     "noOrders": "No orders found for this email.",
     "tooManyRequests": "Too many requests. Please wait a moment and try again.",
     "resendEmail": "Resend Email",
+    "resendConfirmation": "Resend confirmation",
     "sent": "Sent!",
     "contactOrganizer": "Contact Organizer",
     "contactSub": "Have a question about this event? Send a message to the organizer.",
