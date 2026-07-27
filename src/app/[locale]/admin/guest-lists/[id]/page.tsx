@@ -2,6 +2,13 @@
 
 import { db } from "@/lib/db";
 import { useAuthContext } from "@/lib/AuthContext";
+import { getEventRole, roleCan } from "@/lib/authHelpers";
+import {
+  RoleBadge,
+  RoleSelect,
+  roleDescKey,
+  type CollaboratorRoleValue,
+} from "@/components/admin/CollaboratorRoleControls";
 import { useLanguage } from "@/lib/LanguageContext";
 import { useStorageUrl } from "@/lib/useStorageUrl";
 import { extractDominantColor, extractPalette, mapPaletteToTheme } from "@/lib/colorExtract";
@@ -126,10 +133,13 @@ export default function AdminGuestListDetailPage({
       </div>
     );
   }
-  const isOwner = isSuperAdmin || event.organizerEmail === email;
-  if (!isOwner) {
+  // Per-event role. Box-office collaborators get operational access (entries,
+  // invites, orders, check-in) but not the configuration sections.
+  const myRole = getEventRole(email, event as { organizerEmail: string; collaborators?: { email: string; role?: string }[] });
+  if (!myRole) {
     return <div className="text-muted">{t("common.forbidden")}</div>;
   }
+  const canConfig = roleCan(myRole, "manage_config");
 
   const entries = (event.entries || []) as unknown as Entry[];
   const totalInvited = entries.filter((e) => e.status === "invited").length;
@@ -193,6 +203,16 @@ export default function AdminGuestListDetailPage({
       </Link>
       <h1 className="text-3xl font-bold mb-2">{event.name}</h1>
 
+      {!canConfig && (
+        <div className="mt-4 rounded-xl border border-border bg-surface p-5">
+          <p className="text-sm font-medium">{t("admin.boxOfficeEventTitle")}</p>
+          <p className="text-sm text-muted mt-1">
+            {t("admin.boxOfficeEventDesc")}
+          </p>
+        </div>
+      )}
+
+      {canConfig && (
       <div className="grid lg:grid-cols-2 gap-6 mt-6">
         <div className="space-y-6">
           <EventForm
@@ -261,6 +281,7 @@ export default function AdminGuestListDetailPage({
           />
         </div>
       </div>
+      )}
 
       {/* === Guest-list-specific zone: invitados / entradas / órdenes === */}
       <div className="mt-8 space-y-6">
@@ -421,6 +442,7 @@ type CustomField = {
 type Collaborator = {
   id: string;
   email: string;
+  role?: string;
   invitedAt: number;
   invitedByEmail: string;
 };
@@ -1686,8 +1708,13 @@ function CollaboratorsSection({
   isPrimaryOwner: boolean;
   t: (key: string, vars?: Record<string, string | number>) => string;
 }) {
+  const { user } = db.useAuth();
   const [newEmail, setNewEmail] = useState("");
+  const [roleInput, setRoleInput] = useState<CollaboratorRoleValue>(
+    "co_organizer",
+  );
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   async function addCollab(e: React.FormEvent) {
     e.preventDefault();
@@ -1702,20 +1729,58 @@ function CollaboratorsSection({
       setError(t("guestList.collabDuplicate"));
       return;
     }
-    const id = genId();
+    const token = user?.refresh_token;
+    if (!token) return;
+    setBusy(true);
     try {
-      await db.transact(
-        db.tx.guestListCollaborators[id]
-          .update({
-            email,
-            invitedAt: Date.now(),
-            invitedByEmail: ownerEmail,
-          })
-          .link({ event: eventId }),
-      );
+      const res = await fetch("/api/guest-list/manage-collaborator", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          eventId,
+          action: "create",
+          email,
+          role: roleInput,
+        }),
+      });
+      if (!res.ok) {
+        setError(t("admin.collaboratorInviteError"));
+        return;
+      }
       setNewEmail("");
     } catch (err) {
       setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function changeRole(c: Collaborator, role: CollaboratorRoleValue) {
+    const token = user?.refresh_token;
+    if (!token) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/guest-list/manage-collaborator", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          eventId,
+          action: "setRole",
+          collaboratorId: c.id,
+          role,
+        }),
+      });
+      if (!res.ok) toast.error(t("admin.collaboratorInviteError"));
+    } catch {
+      toast.error(t("admin.collaboratorInviteError"));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -1729,21 +1794,29 @@ function CollaboratorsSection({
       <h3 className="text-base font-semibold mb-2">{t("guestList.collabTitle")}</h3>
       <p className="text-xs text-muted mb-3">{t("guestList.collabHelp")}</p>
       {isPrimaryOwner && (
-        <form onSubmit={addCollab} className="flex gap-2 mb-3">
-          <input
-            type="email"
-            placeholder="email@example.com"
-            value={newEmail}
-            onChange={(e) => setNewEmail(e.target.value)}
-            className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm"
-          />
-          <button
-            type="submit"
-            disabled={!newEmail.trim()}
-            className="px-3 py-2 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg text-sm font-medium"
-          >
-            {t("common.add")}
-          </button>
+        <form onSubmit={addCollab} className="mb-3">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="email"
+              placeholder="email@example.com"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm"
+            />
+            <RoleSelect
+              value={roleInput}
+              onChange={setRoleInput}
+              className="px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-accent-light disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={!newEmail.trim() || busy}
+              className="px-3 py-2 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg text-sm font-medium"
+            >
+              {t("common.add")}
+            </button>
+          </div>
+          <p className="text-xs text-muted mt-2">{t(roleDescKey(roleInput))}</p>
         </form>
       )}
       {error && <p className="text-sm text-danger mb-2">{error}</p>}
@@ -1754,17 +1827,31 @@ function CollaboratorsSection({
           {collaborators.map((c) => (
             <div
               key={c.id}
-              className="flex items-center justify-between p-2 bg-background rounded-lg border border-border"
+              className="flex items-center justify-between gap-2 p-2 bg-background rounded-lg border border-border"
             >
-              <span className="text-sm font-mono">{c.email}</span>
-              {isPrimaryOwner && (
-                <button
-                  onClick={() => removeCollab(c)}
-                  className="text-xs text-danger hover:underline"
-                >
-                  {t("common.remove") || "Quitar"}
-                </button>
-              )}
+              <span className="text-sm font-mono truncate">{c.email}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                {isPrimaryOwner ? (
+                  <RoleSelect
+                    value={
+                      c.role === "box_office" ? "box_office" : "co_organizer"
+                    }
+                    onChange={(role) => changeRole(c, role)}
+                    disabled={busy}
+                    className="px-2 py-1 bg-surface border border-border rounded-lg text-xs focus:outline-none focus:border-accent-light disabled:opacity-50"
+                  />
+                ) : (
+                  <RoleBadge role={c.role} />
+                )}
+                {isPrimaryOwner && (
+                  <button
+                    onClick={() => removeCollab(c)}
+                    className="text-xs text-danger hover:underline"
+                  >
+                    {t("common.remove") || "Quitar"}
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>

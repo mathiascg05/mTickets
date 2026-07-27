@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { useAuthContext } from "@/lib/AuthContext";
 import { useLanguage } from "@/lib/LanguageContext";
 import { getEventRevenue } from "@/lib/order-pricing";
+import { normalizeCollaboratorRole, roleCan } from "@/lib/authHelpers";
 import Link from "next/link";
 import type { InstaQLEntity } from "@instantdb/react";
 import type { AppSchema } from "@/instant.schema";
@@ -23,8 +24,10 @@ type GuestListEventWithEntries = InstaQLEntity<
 
 const ConcertOrderRow = memo(function ConcertOrderRow({
   concert,
+  showRevenue,
 }: {
   concert: ConcertWithOrders;
+  showRevenue: boolean;
 }) {
   const stats = useMemo(() => {
     let total = 0;
@@ -83,12 +86,14 @@ const ConcertOrderRow = memo(function ConcertOrderRow({
             <p className="font-bold text-danger">{stats.rejected}</p>
           </div>
         )}
-        <div className="text-center">
-          <p className="text-xs text-muted">Revenue</p>
-          <p className="font-bold text-accent-light">
-            ${stats.revenue.toFixed(2)}
-          </p>
-        </div>
+        {showRevenue && (
+          <div className="text-center">
+            <p className="text-xs text-muted">Revenue</p>
+            <p className="font-bold text-accent-light">
+              ${stats.revenue.toFixed(2)}
+            </p>
+          </div>
+        )}
       </div>
     </Link>
   );
@@ -228,6 +233,21 @@ export default function AdminOrdersPage() {
 
   const guestListEvents = guestListData?.guestListEvents ?? [];
 
+  // Concert ids where the user is a box-office collaborator: aggregate revenue
+  // is hidden for them (they still see order counts). Owned/super-admin always
+  // show revenue.
+  const hideRevenueIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const ec of collabData?.eventCollaborators ?? []) {
+      const cid = ec.concert?.id;
+      if (!cid) continue;
+      if (!roleCan(normalizeCollaboratorRole(ec.role), "view_revenue")) {
+        set.add(cid);
+      }
+    }
+    return set;
+  }, [collabData]);
+
   if (isLoading || !data) {
     return <div className="animate-pulse text-muted">Loading...</div>;
   }
@@ -241,7 +261,15 @@ export default function AdminOrdersPage() {
         ) : (
           <div className="space-y-3">
             {concerts.map((concert) => (
-              <ConcertOrderRow key={concert.id} concert={concert} />
+              <ConcertOrderRow
+                key={concert.id}
+                concert={concert}
+                showRevenue={
+                  isSuperAdmin ||
+                  concert.organizerEmail === email ||
+                  !hideRevenueIds.has(concert.id)
+                }
+              />
             ))}
           </div>
         )}

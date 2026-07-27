@@ -16,6 +16,7 @@ import { sendTicketEmail, sendConfirmationEmail } from "@/lib/sendTicketEmail";
 import PhoneField from "@/components/PhoneField";
 import AllotmentsSection from "@/components/admin/AllotmentsSection";
 import { useLanguage } from "@/lib/LanguageContext";
+import { getEventRole, roleCan } from "@/lib/authHelpers";
 import { dateLocale } from "@/lib/i18n";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
@@ -1851,6 +1852,7 @@ export default function ConcertOrdersPage() {
         $: { order: { sortOrder: "asc" } },
       },
       coupons: {},
+      collaborators: {},
       allotments: {
         $: { order: { createdAt: "desc" } },
         items: { ticketType: {} },
@@ -1891,6 +1893,14 @@ export default function ConcertOrdersPage() {
   if (!concert) {
     return <div className="text-muted">{t("admin.eventNotFound")}</div>;
   }
+
+  // Box-office collaborators see order counts and individual order amounts (needed
+  // to approve payments) but not aggregate money figures (total revenue, revenue
+  // by type, payment/status money matrices).
+  const canViewRevenue = roleCan(
+    getEventRole(user?.email, concert),
+    "view_revenue",
+  );
 
   // Build a live lookup for order fields (especially 'visited') from the direct subscription
   const liveOrderMap = new Map(
@@ -2273,12 +2283,14 @@ export default function ConcertOrdersPage() {
             <p className="text-sm text-muted">{t("admin.ticketsIssued")}</p>
             <p className="text-3xl font-bold text-success">{totalTicketsIssued}</p>
           </div>
-          <div className="border-l-4 border-accent-light pl-4">
-            <p className="text-sm text-muted">{t("admin.totalRevenue")}</p>
-            <p className="text-3xl font-bold text-accent-light">
-              ${totalRevenue.toFixed(2)}
-            </p>
-          </div>
+          {canViewRevenue && (
+            <div className="border-l-4 border-accent-light pl-4">
+              <p className="text-sm text-muted">{t("admin.totalRevenue")}</p>
+              <p className="text-3xl font-bold text-accent-light">
+                ${totalRevenue.toFixed(2)}
+              </p>
+            </div>
+          )}
           <div className="border-l-4 border-warning pl-4">
             <p className="text-sm text-muted">{t("admin.pendingApproval")}</p>
             <p className="text-3xl font-bold text-warning">{pendingCount}</p>
@@ -2364,8 +2376,8 @@ export default function ConcertOrdersPage() {
         </div>
       </div>
 
-      {/* Platform Balance & Fee Info */}
-      {platformFeeConfig && (() => {
+      {/* Platform Balance & Fee Info (financial → managers only) */}
+      {canViewRevenue && platformFeeConfig && (() => {
         // Project the fees that *will* be charged to approve all pending
         // orders. Uses each order's snapshot when present so the projection
         // matches what approveOrder will actually deduct.
@@ -2493,8 +2505,8 @@ export default function ConcertOrdersPage() {
       </>);
       })()}
 
-      {/* Per-ticket-type breakdown: Status x Payment Method */}
-      {concert.ticketTypes.map((tt) => {
+      {/* Per-ticket-type breakdown: Status x Payment Method (aggregate money → managers only) */}
+      {canViewRevenue && concert.ticketTypes.map((tt) => {
         const pmNames = (concert.paymentMethods || []).map((pm) => pm.name);
         const statuses = [
           { key: "approved", label: t("common.approved"), color: "text-success", headerBg: "bg-success/10 border-success/30" },

@@ -1,5 +1,12 @@
 import { adminDb } from "./adminDb";
-import { isSuperAdmin } from "./authHelpers";
+import {
+  isSuperAdmin,
+  roleCan,
+  getEventRole,
+  type Capability,
+  type EventRole,
+  type CollaboratorInfo,
+} from "./authHelpers";
 
 type AuthFailure = { ok: false; status: number; error: string };
 type AuthSuccess<T> = { ok: true; data: T };
@@ -17,7 +24,7 @@ type GuestListEventInfo = {
   primaryColor?: string;
   scannerPin?: string;
   capacity?: number;
-  collaborators?: { email: string }[];
+  collaborators?: CollaboratorInfo[];
 };
 
 function userHasAccess(userEmail: string, event: GuestListEventInfo): boolean {
@@ -27,6 +34,23 @@ function userHasAccess(userEmail: string, event: GuestListEventInfo): boolean {
   return (event.collaborators || []).some(
     (c) => c.email.toLowerCase() === lower,
   );
+}
+
+/** Effective role of a user on a guest-list event (mirrors getEventRole for concerts). */
+export function getGuestListEventRole(
+  userEmail: string | undefined | null,
+  event: GuestListEventInfo,
+): EventRole | null {
+  return getEventRole(userEmail, event);
+}
+
+/** Can `userEmail` perform `capability` on this guest-list event? */
+export function guestListUserCanPerform(
+  userEmail: string | undefined | null,
+  event: GuestListEventInfo,
+  capability: Capability,
+): boolean {
+  return roleCan(getEventRole(userEmail, event), capability);
 }
 
 export async function assertOrganizerCanAccessGuestListEvent(

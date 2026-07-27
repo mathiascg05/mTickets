@@ -228,6 +228,9 @@ const _schema = i.schema({
     }),
     eventCollaborators: i.entity({
       email: i.string().indexed(),
+      // "co_organizer" (full config access) | "box_office" (operational only).
+      // Optional/absent is treated as "co_organizer" for backwards compat.
+      role: i.string().optional().indexed(),
       invitedAt: i.number().indexed(),
       invitedByEmail: i.string(),
       inviteSentAt: i.number().optional(),
@@ -371,6 +374,9 @@ const _schema = i.schema({
     }),
     guestListCollaborators: i.entity({
       email: i.string().indexed(),
+      // "co_organizer" (full config access) | "box_office" (operational only).
+      // Optional/absent is treated as "co_organizer" for backwards compat.
+      role: i.string().optional().indexed(),
       invitedAt: i.number().indexed(),
       invitedByEmail: i.string(),
     }),
@@ -616,6 +622,22 @@ const _schema = i.schema({
         label: "collaborators",
       },
     },
+    // Manager tier: subset of collaborators (role "co_organizer") who may edit
+    // event configuration. Enforced in instant.perms.ts via data.ref('...managers.email').
+    // Maintained server-side only (link added/removed alongside role changes).
+    concertManagers: {
+      forward: {
+        on: "eventCollaborators",
+        has: "one",
+        label: "managerConcert",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "concerts",
+        has: "many",
+        label: "managers",
+      },
+    },
     concertBroadcasts: {
       forward: {
         on: "broadcasts",
@@ -705,6 +727,21 @@ const _schema = i.schema({
         on: "guestListEvents",
         has: "many",
         label: "collaborators",
+      },
+    },
+    // Manager tier for guest lists: subset of collaborators (role "co_organizer")
+    // allowed to edit configuration. Maintained server-side only.
+    guestListManagers: {
+      forward: {
+        on: "guestListCollaborators",
+        has: "one",
+        label: "managerEvent",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "guestListEvents",
+        has: "many",
+        label: "managers",
       },
     },
     guestListTicketTypesEvent: {

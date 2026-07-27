@@ -12,29 +12,35 @@ const rules = {
     allow: {
       view: "true",
       create: "auth.email != null",
-      update: "isOwner || isSuperAdmin",
+      // Editing event config is manager-tier (organizer + co_organizer collaborators).
+      // Box-office collaborators are excluded here.
+      update: "isManager || isSuperAdmin",
       delete: "isSuperAdmin",
     },
     bind: [
       "isOwner",
       "auth.email == data.organizerEmail || auth.email in data.ref('collaborators.email')",
+      "isManager",
+      "auth.email == data.organizerEmail || auth.email in data.ref('managers.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
     fields: {
-      scannerPin: "isOwner || isSuperAdmin",
+      scannerPin: "isManager || isSuperAdmin",
     },
   },
   ticketTypes: {
     allow: {
       view: "data.ref('concert.status') == ['active'] || isOwner || isSuperAdmin",
-      create: "isOwner || isSuperAdmin",
-      update: "isOwner || isSuperAdmin",
-      delete: "isOwner || isSuperAdmin",
+      create: "isManager || isSuperAdmin",
+      update: "isManager || isSuperAdmin",
+      delete: "isManager || isSuperAdmin",
     },
     bind: [
       "isOwner",
       "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.collaborators.email')",
+      "isManager",
+      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.managers.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -60,13 +66,15 @@ const rules = {
   paymentMethods: {
     allow: {
       view: "data.ref('concert.status') == ['active'] || isOwner || isSuperAdmin",
-      create: "isOwner || isSuperAdmin",
-      update: "isOwner || isSuperAdmin",
-      delete: "isOwner || isSuperAdmin",
+      create: "isManager || isSuperAdmin",
+      update: "isManager || isSuperAdmin",
+      delete: "isManager || isSuperAdmin",
     },
     bind: [
       "isOwner",
       "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.collaborators.email')",
+      "isManager",
+      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.managers.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -74,13 +82,13 @@ const rules = {
   customFields: {
     allow: {
       view: "true",
-      create: "isOwner || isSuperAdmin",
-      update: "isOwner || isSuperAdmin",
-      delete: "isOwner || isSuperAdmin",
+      create: "isManager || isSuperAdmin",
+      update: "isManager || isSuperAdmin",
+      delete: "isManager || isSuperAdmin",
     },
     bind: [
-      "isOwner",
-      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.collaborators.email')",
+      "isManager",
+      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.managers.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -88,13 +96,13 @@ const rules = {
   ticketPhases: {
     allow: {
       view: "true",
-      create: "isOwner || isSuperAdmin",
-      update: "isOwner || isSuperAdmin",
-      delete: "isOwner || isSuperAdmin",
+      create: "isManager || isSuperAdmin",
+      update: "isManager || isSuperAdmin",
+      delete: "isManager || isSuperAdmin",
     },
     bind: [
-      "isOwner",
-      "auth.email in data.ref('ticketType.concert.organizerEmail') || auth.email in data.ref('ticketType.concert.collaborators.email')",
+      "isManager",
+      "auth.email in data.ref('ticketType.concert.organizerEmail') || auth.email in data.ref('ticketType.concert.managers.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -102,13 +110,13 @@ const rules = {
   coupons: {
     allow: {
       view: "true",
-      create: "isOwner || isSuperAdmin",
-      update: "isOwner || isSuperAdmin",
-      delete: "isOwner || isSuperAdmin",
+      create: "isManager || isSuperAdmin",
+      update: "isManager || isSuperAdmin",
+      delete: "isManager || isSuperAdmin",
     },
     bind: [
-      "isOwner",
-      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.collaborators.email')",
+      "isManager",
+      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.managers.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -289,19 +297,21 @@ const rules = {
     allow: {
       view: "data.status == 'active' || isOwner || isSuperAdmin",
       create: "auth.email != null",
-      update: "isOwner || isSuperAdmin",
+      update: "isManager || isSuperAdmin",
       delete: "isPrimaryOwner || isSuperAdmin",
     },
     bind: [
       "isOwner",
       "auth.email == data.organizerEmail || auth.email in data.ref('collaborators.email')",
+      "isManager",
+      "auth.email == data.organizerEmail || auth.email in data.ref('managers.email')",
       "isPrimaryOwner",
       "auth.email == data.organizerEmail",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
     fields: {
-      scannerPin: "isOwner || isSuperAdmin",
+      scannerPin: "isManager || isSuperAdmin",
     },
   },
   guestListEntries: {
@@ -335,13 +345,15 @@ const rules = {
   guestListPaymentMethods: {
     allow: {
       view: "data.ref('event.status') == ['active'] || isOwner || isSuperAdmin",
-      create: "isOwner || isSuperAdmin",
-      update: "isOwner || isSuperAdmin",
-      delete: "isOwner || isSuperAdmin",
+      create: "isManager || isSuperAdmin",
+      update: "isManager || isSuperAdmin",
+      delete: "isManager || isSuperAdmin",
     },
     bind: [
       "isOwner",
       "auth.email in data.ref('event.organizerEmail') || auth.email in data.ref('event.collaborators.email')",
+      "isManager",
+      "auth.email in data.ref('event.organizerEmail') || auth.email in data.ref('event.managers.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -349,13 +361,13 @@ const rules = {
   guestListCustomFields: {
     allow: {
       view: "true",
-      create: "isOwner || isSuperAdmin",
-      update: "isOwner || isSuperAdmin",
-      delete: "isOwner || isSuperAdmin",
+      create: "isManager || isSuperAdmin",
+      update: "isManager || isSuperAdmin",
+      delete: "isManager || isSuperAdmin",
     },
     bind: [
-      "isOwner",
-      "auth.email in data.ref('event.organizerEmail') || auth.email in data.ref('event.collaborators.email')",
+      "isManager",
+      "auth.email in data.ref('event.organizerEmail') || auth.email in data.ref('event.managers.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],
@@ -363,13 +375,13 @@ const rules = {
   guestListTicketTypes: {
     allow: {
       view: "true",
-      create: "isOwner || isSuperAdmin",
-      update: "isOwner || isSuperAdmin",
-      delete: "isOwner || isSuperAdmin",
+      create: "isManager || isSuperAdmin",
+      update: "isManager || isSuperAdmin",
+      delete: "isManager || isSuperAdmin",
     },
     bind: [
-      "isOwner",
-      "auth.email in data.ref('event.organizerEmail') || auth.email in data.ref('event.collaborators.email')",
+      "isManager",
+      "auth.email in data.ref('event.organizerEmail') || auth.email in data.ref('event.managers.email')",
       "isSuperAdmin",
       `auth.email == '${SUPER_ADMIN}'`,
     ],

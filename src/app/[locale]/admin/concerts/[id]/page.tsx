@@ -18,6 +18,13 @@ import { useEffect, useRef, useState } from "react";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { getFieldTypeLabel } from "@/lib/i18n";
 import { useAuthContext } from "@/lib/AuthContext";
+import { getEventRole, roleCan } from "@/lib/authHelpers";
+import {
+  RoleBadge,
+  RoleSelect,
+  roleDescKey,
+  type CollaboratorRoleValue,
+} from "@/components/admin/CollaboratorRoleControls";
 import { toast } from "sonner";
 
 export default function AdminConcertEditPage() {
@@ -89,31 +96,64 @@ export default function AdminConcertEditPage() {
     return <div className="text-muted">{t("admin.eventNotFound")}</div>;
   }
 
+  // Per-event role: box-office collaborators may not edit configuration, so the
+  // config sections are hidden (the DB rules also block the writes). They still
+  // manage orders and check-in from the Orders / Scanner areas.
+  const myRole = getEventRole(currentUserEmail, concert);
+  const canConfig = roleCan(myRole, "manage_config");
+
   return (
     <div>
       <h1 className="text-3xl font-bold mb-2">{concert.name}</h1>
       <EventLink slug={concert.slug} />
 
+      {!canConfig && (
+        <div className="mt-4 rounded-xl border border-border bg-surface p-5">
+          <p className="text-sm font-medium">{t("admin.boxOfficeEventTitle")}</p>
+          <p className="text-sm text-muted mt-1">
+            {t("admin.boxOfficeEventDesc")}
+          </p>
+          <div className="flex gap-2 mt-3">
+            <Link
+              href={`/admin/orders/${concertId}`}
+              className="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium"
+            >
+              {t("admin.orders")}
+            </Link>
+            <Link
+              href="/scan"
+              className="px-3 py-1.5 border border-border rounded-lg text-sm font-medium hover:bg-background"
+            >
+              {t("admin.scanner")}
+            </Link>
+          </div>
+        </div>
+      )}
+
       <div className="grid lg:grid-cols-2 gap-6 mt-6">
         <div className="space-y-6">
-          <ConcertEditForm concert={concert} isSuperAdmin={isSuperAdmin} />
-          <PaymentMethodsSection
-            concertId={concertId}
-            paymentMethods={concert.paymentMethods}
-          />
-          <CustomFieldsSection
-            concertId={concertId}
-            customFields={concert.customFields}
-          />
-          <CouponsSection
-            concertId={concertId}
-            coupons={concert.coupons}
-            allOrders={concert.ticketTypes.flatMap((tt) => tt.orders)}
-          />
-          <ScannerPinSection
-            concertId={concertId}
-            currentPin={concert.scannerPin}
-          />
+          {canConfig && (
+            <>
+              <ConcertEditForm concert={concert} isSuperAdmin={isSuperAdmin} />
+              <PaymentMethodsSection
+                concertId={concertId}
+                paymentMethods={concert.paymentMethods}
+              />
+              <CustomFieldsSection
+                concertId={concertId}
+                customFields={concert.customFields}
+              />
+              <CouponsSection
+                concertId={concertId}
+                coupons={concert.coupons}
+                allOrders={concert.ticketTypes.flatMap((tt) => tt.orders)}
+              />
+              <ScannerPinSection
+                concertId={concertId}
+                currentPin={concert.scannerPin}
+              />
+            </>
+          )}
           <CollaboratorsSection
             concertId={concertId}
             organizerEmail={concert.organizerEmail}
@@ -121,33 +161,39 @@ export default function AdminConcertEditPage() {
             isSuperAdmin={isSuperAdmin}
             collaborators={concert.collaborators}
           />
-          <BrandingSection
-            concertId={concertId}
-            flyerPath={concert.flyerPath}
-            logoPath={concert.logoPath}
-            primaryColor={concert.primaryColor}
-            themeColors={concert.themeColors}
-            paletteRefPath={concert.paletteRefPath}
-          />
-          <PlatformFeeSection
-            concertId={concertId}
-            feeConfig={concert.platformFeeConfig}
-            isSuperAdmin={isSuperAdmin}
-            isDemo={!!concert.isDemo}
-          />
+          {canConfig && (
+            <>
+              <BrandingSection
+                concertId={concertId}
+                flyerPath={concert.flyerPath}
+                logoPath={concert.logoPath}
+                primaryColor={concert.primaryColor}
+                themeColors={concert.themeColors}
+                paletteRefPath={concert.paletteRefPath}
+              />
+              <PlatformFeeSection
+                concertId={concertId}
+                feeConfig={concert.platformFeeConfig}
+                isSuperAdmin={isSuperAdmin}
+                isDemo={!!concert.isDemo}
+              />
+            </>
+          )}
         </div>
-        <div className="space-y-6">
-          <TicketTypesSection
-            concertId={concertId}
-            ticketTypes={concert.ticketTypes}
-          />
-          <FeesSection
-            concertId={concertId}
-            ticketTypes={concert.ticketTypes}
-            paymentMethods={concert.paymentMethods}
-            feeMode={concert.feeMode}
-          />
-        </div>
+        {canConfig && (
+          <div className="space-y-6">
+            <TicketTypesSection
+              concertId={concertId}
+              ticketTypes={concert.ticketTypes}
+            />
+            <FeesSection
+              concertId={concertId}
+              ticketTypes={concert.ticketTypes}
+              paymentMethods={concert.paymentMethods}
+              feeMode={concert.feeMode}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2572,6 +2618,7 @@ function CollaboratorsSection({
   collaborators: Array<{
     id: string;
     email: string;
+    role?: string;
     invitedAt: number;
     invitedByEmail: string;
     inviteSentAt?: number;
@@ -2581,8 +2628,12 @@ function CollaboratorsSection({
   const { t, lang } = useLanguage();
   const { user } = db.useAuth();
   const [emailInput, setEmailInput] = useState("");
+  const [roleInput, setRoleInput] = useState<CollaboratorRoleValue>(
+    "co_organizer",
+  );
   const [error, setError] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const lowerCurrent = currentUserEmail.toLowerCase();
   const lowerOrganizer = organizerEmail.toLowerCase();
@@ -2632,19 +2683,67 @@ function CollaboratorsSection({
       setError(t("admin.collaboratorAlreadyInvited"));
       return;
     }
-    const newId = id();
-    await db.transact(
-      db.tx.eventCollaborators[newId]
-        .update({
+    const token = user?.refresh_token;
+    if (!token) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/concerts/manage-collaborator", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          concertId,
+          action: "create",
           email: trimmed,
-          invitedAt: Date.now(),
-          invitedByEmail: currentUserEmail,
-        })
-        .link({ concert: concertId }),
-    );
-    setEmailInput("");
-    // Auto-send the access invitation email on first add.
-    sendInvite(newId, trimmed);
+          role: roleInput,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.collaboratorId) {
+        setError(t("admin.collaboratorInviteError"));
+        return;
+      }
+      setEmailInput("");
+      // Auto-send the access invitation email on first add.
+      sendInvite(data.collaboratorId, trimmed);
+    } catch {
+      setError(t("admin.collaboratorInviteError"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleChangeRole(
+    collaboratorId: string,
+    role: CollaboratorRoleValue,
+  ) {
+    const token = user?.refresh_token;
+    if (!token) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/concerts/manage-collaborator", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          concertId,
+          action: "setRole",
+          collaboratorId,
+          role,
+        }),
+      });
+      if (!res.ok) {
+        toast.error(t("admin.collaboratorInviteError"));
+      }
+    } catch {
+      toast.error(t("admin.collaboratorInviteError"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   function handleRemove(collaboratorId: string) {
@@ -2665,7 +2764,7 @@ function CollaboratorsSection({
 
       {canManage && (
         <div className="mb-4">
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="email"
               value={emailInput}
@@ -2682,17 +2781,17 @@ function CollaboratorsSection({
               placeholder={t("admin.collaboratorEmailPlaceholder")}
               className="flex-1 px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
             />
+            <RoleSelect value={roleInput} onChange={setRoleInput} />
             <button
               onClick={handleAdd}
-              disabled={!emailInput.trim()}
+              disabled={!emailInput.trim() || busy}
               className="px-4 py-2.5 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors text-sm disabled:opacity-50"
             >
               {t("admin.invite")}
             </button>
           </div>
-          {error && (
-            <p className="text-sm text-danger mt-2">{error}</p>
-          )}
+          <p className="text-xs text-muted mt-2">{t(roleDescKey(roleInput))}</p>
+          {error && <p className="text-sm text-danger mt-2">{error}</p>}
         </div>
       )}
 
@@ -2719,13 +2818,14 @@ function CollaboratorsSection({
               className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-background border border-border"
             >
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate">
-                  {c.email}
+                <p className="text-sm font-medium truncate flex items-center gap-2">
+                  <span className="truncate">{c.email}</span>
                   {c.email.toLowerCase() === lowerCurrent && (
-                    <span className="ml-1 text-muted">
+                    <span className="text-muted">
                       {t("admin.collaboratorYou")}
                     </span>
                   )}
+                  <RoleBadge role={c.role} />
                 </p>
                 <p className="text-xs text-muted">
                   {t("admin.invitedOn")} {formatDate(c.invitedAt)}
@@ -2749,6 +2849,16 @@ function CollaboratorsSection({
               </div>
               {canManage && (
                 <div className="flex items-center gap-2 shrink-0">
+                  <RoleSelect
+                    value={
+                      (c.role as CollaboratorRoleValue) === "box_office"
+                        ? "box_office"
+                        : "co_organizer"
+                    }
+                    onChange={(role) => handleChangeRole(c.id, role)}
+                    disabled={busy}
+                    className="px-2 py-1.5 bg-background border border-border rounded-lg text-xs focus:outline-none focus:border-accent-light transition-colors disabled:opacity-50"
+                  />
                   <button
                     onClick={() => sendInvite(c.id, c.email)}
                     disabled={sendingId === c.id}
