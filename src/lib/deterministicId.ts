@@ -24,3 +24,35 @@ export function deterministicUuid(namespace: string, input: string): string {
 export function allotmentOrderId(allotmentId: string, seq: number): string {
   return deterministicUuid(ALLOTMENT_NAMESPACE, `${allotmentId}:${seq}`);
 }
+
+// Deterministic id for a platform-fee balanceTransaction, derived from the
+// order it charges. Because the id is stable, two concurrent (or repeated)
+// approvals of the same order upsert the SAME ledger row instead of inserting a
+// second `fee` transaction — guaranteeing at most ONE fee charge per order even
+// though InstantDB has no conditional writes. `kind` namespaces the different
+// order types (concert order / guest-list order / allotment) so their ids never
+// collide.
+const FEE_TXN_NAMESPACE = "matickets:fee-txn:v1";
+export function feeTxnId(
+  kind: "order" | "guestListOrder" | "allotment",
+  entityId: string,
+): string {
+  return deterministicUuid(FEE_TXN_NAMESPACE, `${kind}:${entityId}`);
+}
+
+// Deterministic id for the Nth order of a checkout submission. A retry or
+// double-submit that reuses the same client-generated submissionId regenerates
+// the SAME order ids, so the create upserts the same N rows instead of creating
+// duplicates.
+const ORDER_NAMESPACE = "matickets:order:v1";
+export function orderIdFor(submissionId: string, index: number): string {
+  return deterministicUuid(ORDER_NAMESPACE, `${submissionId}:${index}`);
+}
+
+// A guest-list entry redeems into exactly one order, so its order id is derived
+// from the entry id: concurrent redemptions of one invite upsert the same row
+// instead of creating duplicate orders.
+const GUESTLIST_ORDER_NAMESPACE = "matickets:guestlist-order:v1";
+export function guestListOrderIdFor(entryId: string): string {
+  return deterministicUuid(GUESTLIST_ORDER_NAMESPACE, entryId);
+}

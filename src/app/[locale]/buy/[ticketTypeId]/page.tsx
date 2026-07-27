@@ -7,7 +7,7 @@ import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { dateLocale } from "@/lib/i18n";
 import { db } from "@/lib/db";
 import { useStorageUrl } from "@/lib/useStorageUrl";
-import { getAvailability, getTodayString } from "@/lib/phases";
+import type { Availability } from "@/lib/phases";
 import { getPeoplePerTicket, isAreaTicket } from "@/lib/ticketTypeKind";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
 import { parseBank, formatBank } from "@/lib/pago-movil";
@@ -100,6 +100,9 @@ export default function BuyPage() {
     for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
     return code;
   });
+  // Stable per-checkout id → create-order idempotency (double-click / retry
+  // resolves to the same orders instead of duplicating). Generated once per mount.
+  const [submissionId] = useState(() => id());
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -142,7 +145,6 @@ export default function BuyPage() {
           $: { where: { active: true } },
         },
       },
-      orders: {},
       phases: {
         $: { order: { sortOrder: "asc" } },
       },
@@ -151,6 +153,32 @@ export default function BuyPage() {
     },
     exchangeRates: {},
   });
+
+  // Availability is computed server-side (orders are no longer world-readable).
+  // Exclude our own reservation so our hold doesn't reduce our shown availability.
+  const [ttAvailability, setTtAvailability] = useState<Availability | null>(null);
+  const eventSlug = data?.ticketTypes?.[0]?.concert?.slug;
+  useEffect(() => {
+    if (!eventSlug) return;
+    let cancelled = false;
+    async function load() {
+      try {
+        const url = `/api/events/${eventSlug}/availability${reservationId ? `?excludeReservation=${reservationId}` : ""}`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled) setTtAvailability(json.availability?.[ticketTypeId] ?? null);
+      } catch {
+        /* best-effort; hard gate is create-reservation/create-order */
+      }
+    }
+    load();
+    const interval = setInterval(load, 20000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [eventSlug, ticketTypeId, reservationId]);
 
   const logoUrl = useStorageUrl(data?.ticketTypes?.[0]?.concert?.logoPath);
   const areaImageUrl = useStorageUrl(data?.ticketTypes?.[0]?.imagePath);
@@ -383,23 +411,14 @@ export default function BuyPage() {
   const paymentMethods = concert?.paymentMethods || [];
   const customFields = (concert?.customFields || []).sort((a, b) => a.sortOrder - b.sortOrder);
   const coupons = concert?.coupons || [];
-  const allOrders = ticketType.orders;
   const selectedPm = paymentMethods.find((pm) => pm.id === selectedPaymentMethod);
 
-  const today = getTodayString();
   const phases = ticketType.phases || [];
-  const allReservations = (ticketType.reservations || []) as {
-    id: string;
-    quantity: number;
-    expiresAt: number;
-    phaseId?: string;
-  }[];
-  // Exclude own reservation so our hold doesn't reduce our own displayed availability
-  const otherReservations = allReservations.filter(
-    (r) => r.id !== reservationId && r.expiresAt > Date.now(),
-  );
-  const { price: effectivePrice, available, activePhase } =
-    getAvailability(ticketType, phases, allOrders, today, otherReservations);
+  // Server-computed availability (no order PII). Fallback while loading assumes
+  // open at the base price so the UI is not blocked; the hard gate is the server.
+  const effectivePrice = ttAvailability?.price ?? ticketType.price;
+  const available = ttAvailability?.available ?? qty;
+  const activePhase = ttAvailability?.activePhase ?? null;
 
   if (available < qty) {
     return (
@@ -495,17 +514,9 @@ export default function BuyPage() {
       setCouponError(t("checkout.couponInactive"));
       return;
     }
-    if (coupon.maxUses != null) {
-      const usageCount = allOrders.filter(
-        (o: { couponCode?: string; status: string }) =>
-          o.couponCode === coupon.code &&
-          (o.status === "approved" || o.status === "pending"),
-      ).length;
-      if (usageCount >= coupon.maxUses) {
-        setCouponError(t("checkout.couponLimit"));
-        return;
-      }
-    }
+    // maxUses is enforced server-side at create-order (rollback on overuse);
+    // the client can't count orders anymore (PII lockdown), so we optimistically
+    // apply and let the server reject if the coupon is exhausted.
     setAppliedCoupon({
       code: coupon.code,
       discountType: coupon.discountType,
@@ -625,6 +636,7 @@ export default function BuyPage() {
               : referenceNumber.trim() || undefined,
           paymentProofPath: filePath || undefined,
           purchaseGroupId,
+          submissionId,
           queueToken: queueToken || undefined,
           ...((selectedPmCustomRate || cachedRate) ? {
             purchaseRate: rateValue,

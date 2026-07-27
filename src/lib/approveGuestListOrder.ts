@@ -2,6 +2,7 @@ import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { sendGuestListTicketEmail } from "@/lib/guestListTicketSender";
 import { assignGuestListOrderNumber } from "@/lib/guestListOrderNumber";
+import { feeTxnId } from "@/lib/deterministicId";
 
 type ApproveResult = {
   success: boolean;
@@ -175,7 +176,8 @@ export async function approveGuestListOrderInternal(
       };
     }
     const newBalance = Math.round((balance.balance - platformFee) * 100) / 100;
-    const txnId = genId();
+    // Deterministic id → idempotent fee charge (no double-charge on concurrent approve).
+    const txnId = feeTxnId("guestListOrder", orderId);
     await adminDb.transact([
       adminDb.tx.guestListOrders[orderId].update({ status: "approved" }),
       adminDb.tx.organizerBalances[balance.id].update({
@@ -197,7 +199,8 @@ export async function approveGuestListOrderInternal(
   } else {
     const currentBalance = balance?.balance || 0;
     const newBalance = Math.round((currentBalance - platformFee) * 100) / 100;
-    const txnId = genId();
+    // Deterministic id → idempotent fee charge (no double-charge on concurrent approve).
+    const txnId = feeTxnId("guestListOrder", orderId);
     if (balance) {
       await adminDb.transact([
         adminDb.tx.guestListOrders[orderId].update({ status: "approved" }),

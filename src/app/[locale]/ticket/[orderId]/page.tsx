@@ -5,9 +5,21 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { useState, useEffect, useCallback } from "react";
+import type { InstaQLEntity } from "@instantdb/react";
+import type { AppSchema } from "@/instant.schema";
 
-import { SUPER_ADMIN_EMAIL } from "@/lib/authHelpers";
 import { useLanguage } from "@/lib/LanguageContext";
+
+type OrderView = InstaQLEntity<
+  AppSchema,
+  "orders",
+  { ticketType: { concert: object; phases: object } }
+>;
+type SiblingView = InstaQLEntity<
+  AppSchema,
+  "orders",
+  { ticketType: { phases: object } }
+>;
 
 function StatusBadge({ status }: { status: string }) {
   const { t } = useLanguage();
@@ -102,7 +114,7 @@ function EmailGate({
   onVerified,
 }: {
   orderId: string;
-  onVerified: () => void;
+  onVerified: (email: string) => void;
 }) {
   const { t } = useLanguage();
   const [email, setEmail] = useState("");
@@ -113,18 +125,20 @@ function EmailGate({
     e.preventDefault();
     setError("");
     setChecking(true);
+    const trimmed = email.trim();
 
-    // We need to verify against the order's email via the API
-    fetch(`/api/verify-ticket-email`, {
+    // Verify against the order's email; the same endpoint returns the order
+    // data only when authorized (orders are no longer client-readable).
+    fetch(`/api/order/view`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId, email: email.trim() }),
+      body: JSON.stringify({ orderId, email: trimmed }),
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.verified) {
-          sessionStorage.setItem(`ticket-verified-${orderId}`, "true");
-          onVerified();
+        if (data.authorized) {
+          sessionStorage.setItem(`ticket-email-${orderId}`, trimmed);
+          onVerified(trimmed);
         } else {
           setError(t("ticket.emailMismatch"));
         }
@@ -139,9 +153,9 @@ function EmailGate({
     <div className="min-h-screen">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4">
-          <a href="/" className="text-xl font-bold tracking-wide text-white">
+          <Link href="/" className="text-xl font-bold tracking-wide text-white">
             ma<span className="text-white/60">Tickets</span>
-          </a>
+          </Link>
         </div>
       </header>
 
@@ -261,74 +275,67 @@ export default function TicketPage() {
   const [verified, setVerified] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [showConfirmation, setShowConfirmation] = useState(isNewPurchase);
+  const [orderData, setOrderData] = useState<{
+    order: OrderView;
+    siblings: SiblingView[];
+  } | null>(null);
+  // Email that unlocked this ticket (from the gate or a prior session).
+  const [verifiedEmail, setVerifiedEmail] = useState<string | undefined>(
+    undefined,
+  );
 
-  // Check sessionStorage and admin auth on mount
   const { user } = db.useAuth();
 
+  // Restore a previously verified email for this order.
+  useEffect(() => {
+    const stored = sessionStorage.getItem(`ticket-email-${orderId}`) || undefined;
+    if (stored) setVerifiedEmail(stored);
+  }, [orderId]);
+
+  // Fetch the order via the authorized server route (orders aren't client-
+  // readable anymore). Credentials tried: view token (allotment), verified
+  // email, or the logged-in user's Bearer (admin / organizer / collaborator).
   useEffect(() => {
     let cancelled = false;
-    const isAdmin = user?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
-    const sessionVerified =
-      sessionStorage.getItem(`ticket-verified-${orderId}`) === "true";
-    if (isAdmin || sessionVerified) {
-      setVerified(true);
+    const bearer = user?.refresh_token;
+    const storedEmail =
+      verifiedEmail || sessionStorage.getItem(`ticket-email-${orderId}`) || undefined;
+    if (!viewToken && !storedEmail && !bearer) {
+      // No credential available → show the email gate.
       setCheckingSession(false);
-    } else if (viewToken) {
-      // Verify the view token server-side (it checks the order is an allotment
-      // order and the HMAC matches) before unlocking the ticket.
-      fetch("/api/verify-ticket-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, viewToken }),
-      })
-        .then((r) => r.json())
-        .then((res) => {
-          if (cancelled) return;
-          if (res?.verified) {
-            sessionStorage.setItem(`ticket-verified-${orderId}`, "true");
-            setVerified(true);
-          }
-          setCheckingSession(false);
-        })
-        .catch(() => {
-          if (!cancelled) setCheckingSession(false);
-        });
-    } else {
-      setCheckingSession(false);
+      return;
     }
+    async function load() {
+      try {
+        const res = await fetch("/api/order/view", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+          },
+          body: JSON.stringify({ orderId, email: storedEmail, viewToken }),
+        });
+        const json = await res.json();
+        if (cancelled) return;
+        if (json.authorized && json.order) {
+          setOrderData({ order: json.order, siblings: json.siblings ?? [] });
+          setVerified(true);
+        }
+      } catch {
+        /* fall through to gate */
+      } finally {
+        if (!cancelled) setCheckingSession(false);
+      }
+    }
+    load();
     return () => {
       cancelled = true;
     };
-  }, [orderId, user, viewToken]);
+  }, [orderId, user, viewToken, verifiedEmail]);
 
-  const { isLoading, error, data } = db.useQuery({
-    orders: {
-      $: { where: { id: orderId } },
-      ticketType: {
-        concert: {},
-        phases: {},
-      },
-    },
-  });
+  const order = orderData?.order;
 
-  const order = data?.orders?.[0];
-  // Allotment orders all share the lot's group id; a participant must NOT see
-  // the other tickets in the lot, so never load siblings for allotment orders.
-  const purchaseGroupId = order?.allotmentId ? undefined : order?.purchaseGroupId;
-
-  // Always call useQuery (rules of hooks) — use dummy query when no group ID
-  const { data: siblingData } = db.useQuery(
-    purchaseGroupId
-      ? {
-          orders: {
-            $: { where: { purchaseGroupId } },
-            ticketType: { phases: {} },
-          },
-        }
-      : { orders: { $: { where: { id: "___none___" } } } },
-  );
-
-  if (checkingSession || isLoading) {
+  if (checkingSession) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-pulse text-muted">{t("common.loading")}</div>
@@ -336,26 +343,13 @@ export default function TicketPage() {
     );
   }
 
-  if (error) {
+  // Show email gate if not verified / no data.
+  if (!verified || !order) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-danger">{t("ticket.error")}: {error.message}</div>
-      </div>
-    );
-  }
-
-  if (!order) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted">{t("ticket.notFound")}</div>
-      </div>
-    );
-  }
-
-  // Show email gate if not verified — only show status + event name
-  if (!verified) {
-    return (
-      <EmailGate orderId={orderId} onVerified={() => setVerified(true)} />
+      <EmailGate
+        orderId={orderId}
+        onVerified={(email) => setVerifiedEmail(email)}
+      />
     );
   }
 
@@ -377,7 +371,7 @@ export default function TicketPage() {
       : "";
 
   // Filter siblings (same purchase group, different order)
-  const siblings = (siblingData?.orders || [])
+  const siblings = (orderData?.siblings || [])
     .filter((o) => o.id !== orderId)
     .sort((a, b) => a.createdAt - b.createdAt);
 
@@ -385,9 +379,9 @@ export default function TicketPage() {
     <div className="min-h-screen">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4">
-          <a href="/" className="text-xl font-bold tracking-wide text-white">
+          <Link href="/" className="text-xl font-bold tracking-wide text-white">
             ma<span className="text-white/60">Tickets</span>
-          </a>
+          </Link>
         </div>
       </header>
 

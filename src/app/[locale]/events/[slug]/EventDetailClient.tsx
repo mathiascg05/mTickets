@@ -5,14 +5,13 @@ import { db } from "@/lib/db";
 import { useStorageUrl } from "@/lib/useStorageUrl";
 import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { dateLocale, type Lang } from "@/lib/i18n";
-import { getAvailability, getTodayString } from "@/lib/phases";
-import type { Phase } from "@/lib/phases";
+import type { Phase, Availability } from "@/lib/phases";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
 import { isAuthorizedForConcert } from "@/lib/authHelpers";
 import { getPeoplePerTicket, isAreaTicket } from "@/lib/ticketTypeKind";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { id } from "@instantdb/react";
 import emailSpellChecker from "@zootools/email-spell-checker";
 import EventConcluded from "./EventConcluded";
@@ -68,14 +67,13 @@ export default function EventDetailClient() {
   const { user } = db.useAuth();
   const userEmail = user?.email ?? "";
 
+  // NOTE: `orders` is intentionally NOT queried here — it is world-readable no
+  // longer (PII). Availability is computed server-side (no PII) and fetched below.
   const { isLoading, error, data } = db.useQuery({
     concerts: {
       $: { where: { slug: slugParam } },
       collaborators: {},
       ticketTypes: {
-        orders: {
-          $: { where: { or: [{ status: "approved" }, { status: "pending" }] } },
-        },
         phases: {
           $: { order: { sortOrder: "asc" } },
         },
@@ -84,6 +82,30 @@ export default function EventDetailClient() {
       },
     },
   });
+
+  // Server-computed availability by ticketTypeId (replaces the client orders read).
+  const [availabilityMap, setAvailabilityMap] = useState<
+    Record<string, Availability>
+  >({});
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch(`/api/events/${slugParam}/availability`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled) setAvailabilityMap(json.availability ?? {});
+      } catch {
+        /* availability is best-effort; the hard gate is create-reservation */
+      }
+    }
+    load();
+    const interval = setInterval(load, 20000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [slugParam]);
 
   const flyerUrl = useStorageUrl(data?.concerts[0]?.flyerPath);
   const logoUrl = useStorageUrl(data?.concerts[0]?.logoPath);
@@ -238,6 +260,7 @@ export default function EventDetailClient() {
                   <TicketTypeRow
                     key={ticketType.id}
                     ticketType={ticketType}
+                    availability={availabilityMap[ticketType.id]}
                   />
                 ))}
               </div>
@@ -255,6 +278,7 @@ export default function EventDetailClient() {
 
 function TicketTypeRow({
   ticketType,
+  availability,
 }: {
   ticketType: {
     id: string;
@@ -267,11 +291,12 @@ function TicketTypeRow({
     peoplePerTicket?: number;
     imagePath?: string;
     imageUrl?: string;
-    orders: { id: string; status: string; phaseId?: string; priceSnapshot?: number }[];
     phases: Phase[];
     reservations: { id: string; quantity: number; expiresAt: number; phaseId?: string }[];
     queueEntries: { id: string; status: string; expiresAt: number }[];
   };
+  // Server-computed availability (no order PII). Undefined until the fetch lands.
+  availability?: Availability;
 }) {
   const [qty, setQty] = useState(1);
   const { t } = useLanguage();
@@ -280,13 +305,18 @@ function TicketTypeRow({
   const areaImageUrl = useStorageUrl(ticketType.imagePath);
 
   const now = Date.now();
-  const today = getTodayString();
   const activeReservations = (ticketType.reservations || []).filter(
     (r) => r.expiresAt > now,
   );
-  const availability = getAvailability(ticketType, ticketType.phases || [], ticketType.orders, today, activeReservations);
-  const { price, available, totalCapacity, activePhase, displayPhase } = availability;
-  const soldOut = ticketType.visibility === "soldOutOverride" || availability.soldOut;
+  // Fallback while availability loads: assume open at the base price so the UI
+  // is not blocked; the real numbers arrive from the server fetch.
+  const price = availability?.price ?? ticketType.price;
+  const available = availability?.available ?? ticketType.quantity;
+  const totalCapacity = availability?.totalCapacity ?? ticketType.quantity;
+  const activePhase = availability?.activePhase ?? null;
+  const displayPhase = availability?.displayPhase ?? null;
+  const soldOut =
+    ticketType.visibility === "soldOutOverride" || (availability?.soldOut ?? false);
   // V1: las áreas se compran de a una.
   const maxQty = isArea ? 1 : Math.min(available, 5);
 

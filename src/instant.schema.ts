@@ -83,6 +83,9 @@ const _schema = i.schema({
       allotmentSeq: i.number().optional(),
       delivered: i.boolean().optional(),
       orderNumber: i.string().optional().unique().indexed(),
+      // Client checkout submission id. Shared by all orders of one submission;
+      // powers create-order idempotency (indexed, NOT unique).
+      idempotencyKey: i.string().optional().indexed(),
       purchaseGroupId: i.string().optional().indexed(),
       purchaseRate: i.number().optional(),
       purchaseRateCurrency: i.string().optional(),

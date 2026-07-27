@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
-import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
+import { guestListOrderIdFor } from "@/lib/deterministicId";
 import { generateOrderToken, isValidToken } from "@/lib/guestListTokens";
 import { isValidName } from "@/lib/validation";
 import { detectLocale } from "@/lib/serverLocale";
@@ -266,7 +266,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const orderId = genId();
+    // Deterministic id keyed on the entry → concurrent redemptions of one
+    // invite upsert the same order instead of creating duplicates.
+    const orderId = guestListOrderIdFor(entry.id);
     const orderToken = generateOrderToken();
     const orderLanguage = detectLocale(req);
 

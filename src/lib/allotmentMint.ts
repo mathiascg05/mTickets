@@ -1,6 +1,6 @@
 import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
-import { allotmentOrderId } from "@/lib/deterministicId";
+import { allotmentOrderId, feeTxnId } from "@/lib/deterministicId";
 import { generateOrderCode, generatePrefix } from "@/lib/orderNumber";
 import { computePlatformFeeAtPurchase } from "@/lib/order-pricing";
 
@@ -235,7 +235,9 @@ export async function mintAllotmentOrders(
   const finalize: unknown[] = [];
 
   if (!isDemo && totalFee > 0) {
-    const txnId = genId();
+    // Deterministic id → a concurrent mint or retry upserts the same fee row
+    // instead of charging the platform fee twice for one allotment.
+    const txnId = feeTxnId("allotment", allotment.id);
     if (balanceRow) {
       const newBalance = Math.round((balanceRow.balance - totalFee) * 100) / 100;
       finalize.push(

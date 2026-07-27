@@ -2,6 +2,7 @@ import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
 import { sendTicketEmailForOrder } from "@/lib/ticketEmailSender";
 import { getPlatformFeeForOrder } from "@/lib/order-pricing";
+import { feeTxnId } from "@/lib/deterministicId";
 
 type ApproveResult = {
   success: boolean;
@@ -152,7 +153,9 @@ export async function approveOrderInternal(
 
       const newBalance =
         Math.round((balance.balance - platformFee) * 100) / 100;
-      const txnId = genId();
+      // Deterministic id → a concurrent/repeat approval upserts the same ledger
+    // row instead of charging the fee twice.
+    const txnId = feeTxnId("order", orderId);
 
       await adminDb.transact([
         adminDb.tx.orders[orderId].update({ status: "approved" }),
@@ -178,7 +181,9 @@ export async function approveOrderInternal(
       const currentBalance = balance?.balance || 0;
       const newBalance =
         Math.round((currentBalance - platformFee) * 100) / 100;
-      const txnId = genId();
+      // Deterministic id → a concurrent/repeat approval upserts the same ledger
+    // row instead of charging the fee twice.
+    const txnId = feeTxnId("order", orderId);
 
       if (balance) {
         await adminDb.transact([

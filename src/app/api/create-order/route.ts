@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
+import { orderIdFor } from "@/lib/deterministicId";
 import {
   getAvailability,
   getTodayString,
@@ -50,6 +51,7 @@ type CreateOrderBody = {
   referenceNumber?: string;
   paymentProofPath?: string;
   purchaseGroupId?: string;
+  submissionId?: string;
   queueToken?: string;
   purchaseRate?: number;
   purchaseRateCurrency?: string;
@@ -76,6 +78,7 @@ export async function POST(req: NextRequest) {
       referenceNumber,
       paymentProofPath,
       purchaseGroupId,
+      submissionId,
       queueToken,
       purchaseRate,
       purchaseRateCurrency,
@@ -113,6 +116,27 @@ export async function POST(req: NextRequest) {
     }
     if (purchaseGroupId && !isValidUUID(purchaseGroupId)) {
       return errorResponse(req, "INVALID_INPUT", 400);
+    }
+    if (submissionId && !isValidUUID(submissionId)) {
+      return errorResponse(req, "INVALID_INPUT", 400);
+    }
+    // Idempotency short-circuit: if this exact checkout submission already
+    // produced orders (double-click / retry), return them instead of creating
+    // duplicates or re-charging a coupon. Orders carry idempotencyKey =
+    // submissionId, and their ids are derived from it (orderIdFor) so a truly
+    // concurrent retry upserts the same rows rather than inserting new ones.
+    if (submissionId) {
+      const { orders: prior } = await adminDb.query({
+        orders: {
+          $: { where: { idempotencyKey: submissionId } },
+        },
+      });
+      if (prior.length > 0) {
+        return NextResponse.json(
+          { orderIds: prior.map((o) => o.id) },
+          { status: 200 },
+        );
+      }
     }
     if (paymentProofPath && !/^payment-proofs\/\d+-[a-zA-Z0-9._-]+$/.test(paymentProofPath)) {
       return errorResponse(req, "INVALID_INPUT", 400);
@@ -416,7 +440,9 @@ export async function POST(req: NextRequest) {
       // a precio 0. Para tickets individuales: peoplePerTicket=1, cada attendee es
       // su propia primary (comportamiento legacy).
       const orderTxns = trimmedAttendees.map((attendee, idx) => {
-        const orderId = genId();
+        // Deterministic order id when a submissionId is present → a retry/
+        // double-submit upserts the SAME rows instead of duplicating them.
+        const orderId = submissionId ? orderIdFor(submissionId, idx) : genId();
         const orderNumber = `${prefix}-${generateOrderCode()}`;
         orderIds.push(orderId);
         orderNumbers.push(orderNumber);
@@ -501,6 +527,7 @@ export async function POST(req: NextRequest) {
             ...(groupId ? { purchaseGroupId: groupId } : {}),
             ...(acceptedTermsVersion ? { acceptedTermsVersion } : {}),
             ...(acceptedPrivacyVersion ? { acceptedPrivacyVersion } : {}),
+            ...(submissionId ? { idempotencyKey: submissionId } : {}),
           })
           .link({ ticketType: ticketTypeId });
       });

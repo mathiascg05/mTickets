@@ -47,7 +47,11 @@ const rules = {
   },
   orders: {
     allow: {
-      view: "true",
+      // Orders carry customer PII (name, cedula, email, phone). Locked to the
+      // event owner/collaborators + super admin, mirroring guestListOrders.
+      // Public reads (ticket page, availability, door scanner) go through
+      // server routes that authorize via email/token/scanner-PIN.
+      view: "isOwner || isSuperAdmin",
       create: "false",
       update: "isOwner || isSuperAdmin",
       delete: "isOwner || isSuperAdmin",
@@ -109,7 +113,10 @@ const rules = {
   },
   coupons: {
     allow: {
-      view: "true",
+      // Codes are only exposed on the public checkout of an ACTIVE event (where
+      // a buyer could type them anyway); otherwise manager/owner only. Avoids
+      // leaking every coupon code to anyone.
+      view: "data.ref('concert.status') == ['active'] || isManager || isSuperAdmin",
       create: "isManager || isSuperAdmin",
       update: "isManager || isSuperAdmin",
       delete: "isManager || isSuperAdmin",

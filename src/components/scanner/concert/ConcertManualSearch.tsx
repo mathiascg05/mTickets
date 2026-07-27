@@ -1,44 +1,44 @@
 "use client";
 
-import { db } from "@/lib/db";
 import { useMemo, useState } from "react";
 import { extractConcertOrderId, normalize } from "../extractors";
 import { SearchUI, type SearchableOrder } from "../SearchUI";
 
+// Scan-relevant order shape returned by /api/scan/data.
+export type ScanOrder = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  cedula: string;
+  status: string;
+  visited: boolean;
+  visitedAt?: number | null;
+  orderNumber?: string | null;
+  ticketType?: { id: string; name: string } | null;
+};
+
 export function ConcertManualSearch({
-  concertId,
+  orders,
   onSelect,
 }: {
-  concertId: string;
+  orders: ScanOrder[];
   onSelect: (orderId: string) => void;
 }) {
   const [query, setQuery] = useState("");
 
-  const { data } = db.useQuery({
-    concerts: {
-      $: { where: { id: concertId } },
-      ticketTypes: {
-        orders: {},
-      },
-    },
-  });
-
   const allOrders: SearchableOrder[] = useMemo(() => {
-    const concert = data?.concerts?.[0];
-    if (!concert) return [];
-    return concert.ticketTypes.flatMap((tt) =>
-      tt.orders.map((o) => ({
-        id: o.id,
-        firstName: o.firstName,
-        lastName: o.lastName,
-        cedula: o.cedula,
-        orderNumber: o.orderNumber ?? undefined,
-        status: o.status,
-        visited: o.visited,
-        ticketTypeName: tt.name,
-      })),
-    );
-  }, [data]);
+    return orders.map((o) => ({
+      id: o.id,
+      firstName: o.firstName,
+      lastName: o.lastName,
+      cedula: o.cedula,
+      orderNumber: o.orderNumber ?? undefined,
+      status: o.status,
+      visited: o.visited,
+      ticketTypeName: o.ticketType?.name ?? "",
+    }));
+  }, [orders]);
 
   const trimmed = query.trim();
   const results: SearchableOrder[] = useMemo(() => {
