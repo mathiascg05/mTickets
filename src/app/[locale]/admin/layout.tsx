@@ -12,6 +12,7 @@ import {
 import { LegalGate, hasAcceptedCurrentLegalTerms } from "@/components/LegalGate";
 import { ContactGate } from "@/components/ContactGate";
 import { hasContactInfo } from "@/lib/organizerProfile";
+import { fullName, nameOrEmail } from "@/lib/userNames";
 import PhoneField from "@/components/PhoneField";
 import { isValidName, isValidPhone } from "@/lib/validation";
 import Link from "next/link";
@@ -445,6 +446,17 @@ export default function AdminLayout({
   const hasAcceptedLegal = hasAcceptedCurrentLegalTerms(currentUser);
   const refreshToken = (user as { refresh_token?: string } | null)?.refresh_token ?? "";
 
+  // Header avatar: initials from the name when we have it, else the email's.
+  const accountLabel = nameOrEmail(fullName(currentUser), userEmail);
+  const accountInitials =
+    [currentUser?.firstName, currentUser?.lastName]
+      .filter(Boolean)
+      .map((n) => n!.trim()[0])
+      .join("")
+      .toUpperCase() ||
+    userEmail.trim()[0]?.toUpperCase() ||
+    "?";
+
   const navItems = [
     { href: "/admin", label: t("admin.dashboard") },
     { href: "/admin/concerts", label: t("admin.events") },
@@ -495,6 +507,11 @@ export default function AdminLayout({
   ) {
     return (
       <ContactGate
+        initial={{
+          firstName: currentUser?.firstName,
+          lastName: currentUser?.lastName,
+          phone: currentUser?.phone,
+        }}
         refreshToken={refreshToken}
         onSignOut={() => db.auth.signOut()}
       />
@@ -506,16 +523,21 @@ export default function AdminLayout({
     <div className="min-h-screen bg-background">
       <header className="bg-accent text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-0 flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <Link href="/admin" className="text-xl font-bold tracking-wide py-4">
+          <div className="flex items-center gap-6 min-w-0">
+            <Link
+              href="/admin"
+              className="text-xl font-bold tracking-wide py-4 shrink-0"
+            >
               ma<span className="text-white/60">Tickets</span>
             </Link>
-            <nav className="hidden sm:flex items-center gap-1">
+            {/* Below lg the tabs don't fit without wrapping, so the scrollable
+                bar underneath takes over. */}
+            <nav className="hidden lg:flex items-center gap-1">
               {navItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`px-4 py-4 text-sm font-medium transition-colors border-b-2 ${
+                  className={`px-3 py-4 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
                     pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href))
                       ? "border-white text-white"
                       : "border-transparent text-white/60 hover:text-white hover:border-white/40"
@@ -526,23 +548,32 @@ export default function AdminLayout({
               ))}
             </nav>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 shrink-0">
             <LanguageToggle className="border-white/30 text-white/70 hover:text-white" />
+            {/* Compact avatar: the full name/email would crowd the tabs. */}
+            <Link
+              href="/admin/account"
+              title={accountLabel}
+              aria-label={t("admin.account")}
+              className="w-8 h-8 shrink-0 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-sm font-semibold text-white transition-colors"
+            >
+              {accountInitials}
+            </Link>
             <Link
               href="/"
-              className="text-sm text-white/60 hover:text-white transition-colors"
+              className="hidden sm:block text-sm text-white/60 hover:text-white transition-colors whitespace-nowrap"
             >
               {t("admin.viewSite")}
             </Link>
             <button
               onClick={() => db.auth.signOut()}
-              className="text-sm text-white/60 hover:text-white transition-colors"
+              className="text-sm text-white/60 hover:text-white transition-colors whitespace-nowrap"
             >
               {t("admin.signOut")}
             </button>
           </div>
         </div>
-        <nav className="sm:hidden bg-accent-dark px-4 py-2 flex gap-1 overflow-x-auto">
+        <nav className="lg:hidden bg-accent-dark px-4 py-2 flex gap-1 overflow-x-auto">
           {navItems.map((item) => (
             <Link
               key={item.href}

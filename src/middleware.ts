@@ -19,6 +19,7 @@ const RATE_LIMITS: Record<string, { max: number; windowMs: number }> = {
   "/api/exchange-rates": { max: 30, windowMs: 60_000 },
   "/api/admin-auth": { max: 10, windowMs: 60_000 },
   "/api/reset-password": { max: 3, windowMs: 60_000 },
+  "/api/organizer-contact": { max: 20, windowMs: 60_000 },
 };
 
 // Prefix-based limits (per IP). Useful for routes with dynamic path segments.
