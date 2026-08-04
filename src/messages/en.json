@@ -308,7 +308,7 @@
     "noEvents": "No events yet. Create your first one!",
     "createEvent": "Create Event",
     "completeContactTitle": "Complete your organizer details",
-    "completeContactIntro": "To create an event we need your first name, last name and contact phone.",
+    "completeContactIntro": "We need your first name, last name and contact phone to continue.",
     "completeContactSave": "Save and continue",
     "completeContactSaving": "Saving...",
     "completeContactError": "We couldn't save your details. Please try again.",

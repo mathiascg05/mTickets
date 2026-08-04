@@ -19,6 +19,8 @@ import { useLanguage, LanguageToggle } from "@/lib/LanguageContext";
 import { getFieldTypeLabel } from "@/lib/i18n";
 import { useAuthContext } from "@/lib/AuthContext";
 import { getEventRole, roleCan } from "@/lib/authHelpers";
+import { nameOrEmail } from "@/lib/userNames";
+import { useTeamNames } from "@/lib/useTeamNames";
 import {
   RoleBadge,
   RoleSelect,
@@ -2639,6 +2641,15 @@ function CollaboratorsSection({
   const lowerOrganizer = organizerEmail.toLowerCase();
   const canManage = isSuperAdmin || lowerCurrent === lowerOrganizer;
 
+  // Names live on $users, which the client can't read for other people, so they
+  // are resolved server-side. Falls back to the email when unknown (e.g. an
+  // invited person who hasn't signed up yet).
+  const teamNames = useTeamNames({ concertId }, [
+    organizerEmail,
+    ...collaborators.map((c) => c.email),
+  ]);
+  const nameOf = (email: string) => teamNames[email.toLowerCase()];
+
   async function sendInvite(collaboratorId: string, email: string) {
     const token = user?.refresh_token;
     if (!token) return;
@@ -2798,7 +2809,12 @@ function CollaboratorsSection({
       <ul className="space-y-2">
         <li className="flex items-center justify-between px-3 py-2 rounded-lg bg-background border border-border">
           <div className="min-w-0">
-            <p className="text-sm font-medium truncate">{organizerEmail}</p>
+            <p className="text-sm font-medium truncate">
+              {nameOrEmail(nameOf(organizerEmail), organizerEmail)}
+            </p>
+            {nameOf(organizerEmail) && (
+              <p className="text-xs text-muted truncate">{organizerEmail}</p>
+            )}
             <p className="text-xs text-muted">
               {t("admin.collaboratorPrimary")}
               {lowerCurrent === lowerOrganizer && (
@@ -2819,7 +2835,9 @@ function CollaboratorsSection({
             >
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate flex items-center gap-2">
-                  <span className="truncate">{c.email}</span>
+                  <span className="truncate">
+                    {nameOrEmail(nameOf(c.email), c.email)}
+                  </span>
                   {c.email.toLowerCase() === lowerCurrent && (
                     <span className="text-muted">
                       {t("admin.collaboratorYou")}
@@ -2827,6 +2845,9 @@ function CollaboratorsSection({
                   )}
                   <RoleBadge role={c.role} />
                 </p>
+                {nameOf(c.email) && (
+                  <p className="text-xs text-muted truncate">{c.email}</p>
+                )}
                 <p className="text-xs text-muted">
                   {t("admin.invitedOn")} {formatDate(c.invitedAt)}
                   {c.inviteSentAt

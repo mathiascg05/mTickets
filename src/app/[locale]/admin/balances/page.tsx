@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { useAuthContext } from "@/lib/AuthContext";
 import { useLanguage } from "@/lib/LanguageContext";
 import { dateLocale } from "@/lib/i18n";
+import { fullName, nameOrEmail } from "@/lib/userNames";
 import { useEffect, useState } from "react";
 import SuperAdminStats from "./SuperAdminStats";
 import { fetchPlatformStats } from "./platformStatsClient";
@@ -80,11 +81,8 @@ export default function BalancesPage() {
       });
     }
   }
-  const organizerName = (email: string): string => {
-    const u = orgByEmail.get(email.toLowerCase());
-    const full = [u?.firstName, u?.lastName].filter(Boolean).join(" ").trim();
-    return full || email;
-  };
+  const organizerName = (email: string): string =>
+    nameOrEmail(fullName(orgByEmail.get(email.toLowerCase())), email);
 
   // Get unique organizer emails from concerts
   const organizerEmails = [

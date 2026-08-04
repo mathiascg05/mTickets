@@ -3,6 +3,8 @@
 import { db } from "@/lib/db";
 import { useAuthContext } from "@/lib/AuthContext";
 import { getEventRole, roleCan } from "@/lib/authHelpers";
+import { nameOrEmail } from "@/lib/userNames";
+import { useTeamNames } from "@/lib/useTeamNames";
 import {
   RoleBadge,
   RoleSelect,
@@ -1716,6 +1718,14 @@ function CollaboratorsSection({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // $users names are resolved server-side (the client can't read other people's
+  // rows); falls back to the email for people who haven't signed up yet.
+  const teamNames = useTeamNames({ guestListEventId: eventId }, [
+    ownerEmail,
+    ...collaborators.map((c) => c.email),
+  ]);
+  const nameOf = (email: string) => teamNames[email.toLowerCase()];
+
   async function addCollab(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -1829,7 +1839,16 @@ function CollaboratorsSection({
               key={c.id}
               className="flex items-center justify-between gap-2 p-2 bg-background rounded-lg border border-border"
             >
-              <span className="text-sm font-mono truncate">{c.email}</span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {nameOrEmail(nameOf(c.email), c.email)}
+                </p>
+                {nameOf(c.email) && (
+                  <p className="text-xs font-mono text-muted truncate">
+                    {c.email}
+                  </p>
+                )}
+              </div>
               <div className="flex items-center gap-2 shrink-0">
                 {isPrimaryOwner ? (
                   <RoleSelect

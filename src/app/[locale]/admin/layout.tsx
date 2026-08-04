@@ -10,6 +10,8 @@ import {
   PRIVACY_VERSION,
 } from "@/lib/legalVersions";
 import { LegalGate, hasAcceptedCurrentLegalTerms } from "@/components/LegalGate";
+import { ContactGate } from "@/components/ContactGate";
+import { hasContactInfo } from "@/lib/organizerProfile";
 import PhoneField from "@/components/PhoneField";
 import { isValidName, isValidPhone } from "@/lib/validation";
 import Link from "next/link";
@@ -477,6 +479,23 @@ export default function AdminLayout({
         onAccepted={() => {
           // The $users query is reactive; acceptance will re-render automatically.
         }}
+        onSignOut={() => db.auth.signOut()}
+      />
+    );
+  }
+
+  // Accounts created before we asked for name/phone (and collaborators invited
+  // by email) reach the panel without contact details. Ask for them once, then
+  // the reactive $users query drops the gate. Super admin is exempt.
+  if (
+    userRecordLoaded &&
+    !userIsSuperAdmin &&
+    !hasContactInfo(currentUser) &&
+    !pathname.includes("/admin/reset-password")
+  ) {
+    return (
+      <ContactGate
+        refreshToken={refreshToken}
         onSignOut={() => db.auth.signOut()}
       />
     );

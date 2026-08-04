@@ -4,17 +4,12 @@ import { db } from "@/lib/db";
 import { useAuthContext } from "@/lib/AuthContext";
 import { useLanguage } from "@/lib/LanguageContext";
 import { toSlug } from "@/lib/slug";
-import { hasContactInfo } from "@/lib/organizerProfile";
-import { isValidName, isValidPhone } from "@/lib/validation";
-import PhoneField from "@/components/PhoneField";
 import { id } from "@instantdb/react";
 import Link from "next/link";
 import { useState } from "react";
 
 export default function AdminGuestListsPage() {
   const { email, isSuperAdmin } = useAuthContext();
-  const { user } = db.useAuth();
-  const refreshToken = user?.refresh_token || "";
   const { t } = useLanguage();
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
@@ -24,17 +19,9 @@ export default function AdminGuestListsPage() {
   const [defaultPrice, setDefaultPrice] = useState("0");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [showContactForm, setShowContactForm] = useState(false);
-  const [cFirstName, setCFirstName] = useState("");
-  const [cLastName, setCLastName] = useState("");
-  const [cPhone, setCPhone] = useState("");
-  const [savingContact, setSavingContact] = useState(false);
-  const [contactError, setContactError] = useState<string | null>(null);
 
-  const { data: meData } = db.useQuery(
-    email ? { $users: { $: { where: { email } } } } : null,
-  );
-  const profileComplete = isSuperAdmin || hasContactInfo(meData?.$users?.[0]);
+  // Contact details (name / phone) are enforced globally by the ContactGate in
+  // the admin layout, so no per-page check is needed here.
 
   const { isLoading, data } = db.useQuery({
     guestListEvents: {
@@ -51,65 +38,12 @@ export default function AdminGuestListsPage() {
   }
 
   function handleNewEventClick() {
-    if (showForm) {
-      setShowForm(false);
-      return;
-    }
-    if (!profileComplete) {
-      setContactError(null);
-      setShowContactForm(true);
-      return;
-    }
-    setShowForm(true);
-  }
-
-  async function handleSaveContact(e: React.FormEvent) {
-    e.preventDefault();
-    setContactError(null);
-    if (!isValidName(cFirstName) || !isValidName(cLastName)) {
-      setContactError(t("auth.nameRequired"));
-      return;
-    }
-    if (!isValidPhone(cPhone)) {
-      setContactError(t("auth.phoneRequired"));
-      return;
-    }
-    setSavingContact(true);
-    try {
-      const res = await fetch("/api/organizer-contact", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${refreshToken}`,
-        },
-        body: JSON.stringify({
-          firstName: cFirstName.trim(),
-          lastName: cLastName.trim(),
-          phone: cPhone.trim(),
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setContactError(body.error || t("admin.completeContactError"));
-      } else {
-        setShowContactForm(false);
-        setShowForm(true);
-      }
-    } catch {
-      setContactError(t("admin.completeContactError"));
-    } finally {
-      setSavingContact(false);
-    }
+    setShowForm(!showForm);
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (creating) return;
-    if (!profileComplete) {
-      setShowForm(false);
-      setShowContactForm(true);
-      return;
-    }
     setCreating(true);
     setCreateError(null);
     try {
@@ -157,65 +91,6 @@ export default function AdminGuestListsPage() {
           {showForm ? t("common.cancel") : t("guestList.newEvent")}
         </button>
       </div>
-
-      {showContactForm && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <form
-            onSubmit={handleSaveContact}
-            className="bg-surface border border-border rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4"
-          >
-            <div>
-              <h2 className="text-xl font-bold">{t("admin.completeContactTitle")}</h2>
-              <p className="text-sm text-muted mt-1">{t("admin.completeContactIntro")}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-1.5">{t("auth.firstName")}</label>
-                <input
-                  type="text"
-                  required
-                  value={cFirstName}
-                  onChange={(e) => setCFirstName(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
-                  placeholder={t("auth.firstNamePlaceholder")}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1.5">{t("auth.lastName")}</label>
-                <input
-                  type="text"
-                  required
-                  value={cLastName}
-                  onChange={(e) => setCLastName(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:outline-none focus:border-accent-light focus:ring-1 focus:ring-accent-light/30 transition-colors"
-                  placeholder={t("auth.lastNamePlaceholder")}
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">{t("auth.phoneLabel")}</label>
-              <PhoneField value={cPhone} onChange={setCPhone} />
-            </div>
-            {contactError && <p className="text-danger text-sm">{contactError}</p>}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowContactForm(false)}
-                className="text-sm text-muted hover:text-foreground transition-colors"
-              >
-                {t("common.cancel")}
-              </button>
-              <button
-                type="submit"
-                disabled={savingContact}
-                className="px-5 py-2.5 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
-              >
-                {savingContact ? t("admin.completeContactSaving") : t("admin.completeContactSave")}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       <p className="text-sm text-muted mb-6 max-w-2xl">{t("guestList.intro")}</p>
 
