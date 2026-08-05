@@ -7,7 +7,7 @@
  */
 
 export function fullName(
-  u?: { firstName?: string; lastName?: string } | null,
+  u?: { firstName?: string | null; lastName?: string | null } | null,
 ): string {
   return [u?.firstName, u?.lastName].filter(Boolean).join(" ").trim();
 }

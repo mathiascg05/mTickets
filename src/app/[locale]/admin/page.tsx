@@ -177,6 +177,20 @@ export default function AdminDashboard() {
 
         {isSuperAdmin && (
           <Link
+            href="/admin/users"
+            className="bg-surface border border-border rounded-xl p-6 hover:border-accent/50 transition-colors group"
+          >
+            <h3 className="text-lg font-semibold group-hover:text-accent-light transition-colors">
+              {t("admin.users")}
+            </h3>
+            <p className="text-muted text-sm mt-1">
+              {t("admin.usersView.subtitle")}
+            </p>
+          </Link>
+        )}
+
+        {isSuperAdmin && (
+          <Link
             href="/admin/audit"
             className="bg-surface border border-border rounded-xl p-6 hover:border-accent/50 transition-colors group"
           >
