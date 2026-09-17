@@ -6,6 +6,7 @@ import {
   committedAllotmentQty,
 } from "@/lib/phases";
 import type { Phase, Availability } from "@/lib/phases";
+import { extraSoldQty, extraAvailableStock } from "@/lib/extras";
 
 // Public availability for an event's ticket types WITHOUT exposing order PII.
 // Replaces the client-side `orders` query the event/buy pages used to run: with
@@ -37,6 +38,14 @@ export async function GET(
           phases: { $: { order: { sortOrder: "asc" } } },
           reservations: {},
           allotmentItems: {},
+        },
+        // Extras stock, for the same reason as ticket availability: the rows it
+        // is derived from (purchase lines and their orders) are not readable by
+        // the buyer, so the count has to be computed here.
+        extras: {
+          purchaseItems: {
+            group: { orders: {} },
+          },
         },
       },
     });
@@ -81,7 +90,21 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ availability });
+    const extrasAvailability: Record<string, number | null> = {};
+    for (const extra of (concert.extras ?? []) as {
+      id: string;
+      stock?: number;
+      purchaseItems?: {
+        quantity: number;
+        group?: { orders?: { status?: string }[] } | { orders?: { status?: string }[] }[];
+      }[];
+    }[]) {
+      const left = extraAvailableStock(extra, extraSoldQty(extra.purchaseItems));
+      // null = unlimited; JSON has no Infinity.
+      extrasAvailability[extra.id] = Number.isFinite(left) ? left : null;
+    }
+
+    return NextResponse.json({ availability, extras: extrasAvailability });
   } catch (err) {
     console.error("[events/availability] Error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

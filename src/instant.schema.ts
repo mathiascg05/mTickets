@@ -44,6 +44,10 @@ const _schema = i.schema({
       isDemo: i.boolean().optional().indexed(),
       finalizedAt: i.number().optional().indexed(),
       feeMode: i.string().optional(),
+      // Locale del evento. No cambian comportamiento todavia: `currency` solo
+      // decide el simbolo que se muestra (ver src/lib/currency.ts).
+      country: i.string().optional(),
+      currency: i.string().optional(),
       createdAt: i.number().indexed(),
     }),
     ticketTypes: i.entity({
@@ -101,6 +105,15 @@ const _schema = i.schema({
       paymentMethodFeePercentSnapshot: i.number().optional(),
       paymentMethodFeeFixedSnapshot: i.number().optional(),
       paymentMethodFeeAmountSnapshot: i.number().optional(),
+      // Extras comprados en el checkout. Solo se escriben en la orden ANCLA del
+      // checkout (indice 0), igual que el cupon y purchaseAmountBs solo viven en
+      // la primary. `extrasSubtotalSnapshot` ya esta SUMADO dentro de
+      // `totalSnapshot`, y su parte porcentual dentro de
+      // `platformFeeAmountSnapshot`, para que los totales e ingresos del panel
+      // cuadren sin tocar order-pricing ni approveOrder.
+      extrasSubtotalSnapshot: i.number().optional(),
+      extrasPlatformFeeSnapshot: i.number().optional(),
+      extrasAmountBs: i.number().optional(),
       acceptedTermsVersion: i.string().optional(),
       acceptedPrivacyVersion: i.string().optional(),
       language: i.string().optional(),
@@ -124,6 +137,66 @@ const _schema = i.schema({
       discountValue: i.number().optional(),
       feePercent: i.number().optional(),
       feeFixed: i.number().optional(),
+      // Metodo de prueba: sus ordenes se excluyen por defecto de Ingresos
+      // Totales, Totales Combinados y la curva de ventas del panel.
+      isTest: i.boolean().optional().indexed(),
+      createdAt: i.number().indexed(),
+    }),
+    extras: i.entity({
+      // Catalogo de extras de un concierto: franela, combo de bebidas, trago de
+      // cortesia, valet parking.
+      name: i.string(),
+      description: i.string().optional(),
+      price: i.number(),
+      // Ausente = stock ilimitado.
+      stock: i.number().optional(),
+      active: i.boolean().indexed(),
+      // Aparece o no en el checkout. Un extra no comprable solo puede llegar
+      // incluido en un ticketType.
+      purchasable: i.boolean().indexed(),
+      sortOrder: i.number().indexed(),
+      createdAt: i.number().indexed(),
+    }),
+    ticketTypeExtras: i.entity({
+      // Join ticketType <-> extra: "este tipo de entrada incluye N unidades".
+      // El derecho es POR TICKET/QR, asi que en areas cada acompanante tiene el
+      // suyo.
+      includedQty: i.number(),
+      createdAt: i.number().indexed(),
+    }),
+    extraPurchaseGroups: i.entity({
+      // Ancla del pool de extras comprados: UNA fila por checkout que compro
+      // extras, enlazada a todas las ordenes de ese checkout. No se puede usar
+      // orders.purchaseGroupId porque en areas create-order genera un
+      // purchaseGroupId por unidad (N grupos en un solo checkout).
+      submissionId: i.string().optional().indexed(),
+      anchorOrderId: i.string().indexed(),
+      subtotalSnapshot: i.number(),
+      createdAt: i.number().indexed(),
+    }),
+    extraPurchaseItems: i.entity({
+      // Linea comprada, con snapshots de precio como en orders.
+      quantity: i.number(),
+      unitPriceSnapshot: i.number(),
+      subtotalSnapshot: i.number(),
+      // Sobrevive a un rename posterior del extra.
+      extraNameSnapshot: i.string(),
+      createdAt: i.number().indexed(),
+    }),
+    extraRedemptions: i.entity({
+      // Append-only: UNA fila = UNA unidad canjeada. El saldo nunca se guarda,
+      // siempre se deriva de (derecho total - COUNT(filas del pool)).
+      // El id de la fila es deterministico a partir de (poolKey, unitIndex) —
+      // ver extraRedemptionId en src/lib/deterministicId.ts — asi que el espacio
+      // de ids de un pool de N unidades tiene exactamente N valores y es
+      // imposible sobre-canjear aunque dos dispositivos escriban a la vez.
+      poolKey: i.string().indexed(),
+      unitIndex: i.number(),
+      source: i.string().indexed(),
+      clientRequestId: i.string().optional().indexed(),
+      redeemedAt: i.number().indexed(),
+      redeemedByEmail: i.string().optional().indexed(),
+      redeemedByScanner: i.boolean().optional(),
       createdAt: i.number().indexed(),
     }),
     customFields: i.entity({
@@ -481,6 +554,123 @@ const _schema = i.schema({
         on: "concerts",
         has: "many",
         label: "paymentMethods",
+      },
+    },
+    concertExtras: {
+      forward: {
+        on: "extras",
+        has: "one",
+        label: "concert",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "concerts",
+        has: "many",
+        label: "extras",
+      },
+    },
+    ticketTypeExtrasTicketType: {
+      forward: {
+        on: "ticketTypeExtras",
+        has: "one",
+        label: "ticketType",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "ticketTypes",
+        has: "many",
+        label: "includedExtras",
+      },
+    },
+    ticketTypeExtrasExtra: {
+      forward: {
+        on: "ticketTypeExtras",
+        has: "one",
+        label: "extra",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "extras",
+        has: "many",
+        label: "ticketTypeLinks",
+      },
+    },
+    extraPurchaseGroupConcert: {
+      forward: {
+        on: "extraPurchaseGroups",
+        has: "one",
+        label: "concert",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "concerts",
+        has: "many",
+        label: "extraPurchaseGroups",
+      },
+    },
+    // SIN cascade a proposito: onDelete en el forward has-one borra la entidad
+    // forward (la orden) cuando muere la enlazada, y borrar un grupo de extras
+    // jamas debe borrar entradas vendidas. El grupo muere con el concierto via
+    // extraPurchaseGroupConcert. Mismo criterio que balanceTransactionBalance.
+    extraPurchaseGroupOrders: {
+      forward: {
+        on: "orders",
+        has: "one",
+        label: "extraPurchaseGroup",
+      },
+      reverse: {
+        on: "extraPurchaseGroups",
+        has: "many",
+        label: "orders",
+      },
+    },
+    extraPurchaseItemsGroup: {
+      forward: {
+        on: "extraPurchaseItems",
+        has: "one",
+        label: "group",
+        onDelete: "cascade",
+      },
+      reverse: {
+        on: "extraPurchaseGroups",
+        has: "many",
+        label: "items",
+      },
+    },
+    extraPurchaseItemsExtra: {
+      forward: {
+        on: "extraPurchaseItems",
+        has: "one",
+        label: "extra",
+      },
+      reverse: {
+        on: "extras",
+        has: "many",
+        label: "purchaseItems",
+      },
+    },
+    extraRedemptionsExtra: {
+      forward: {
+        on: "extraRedemptions",
+        has: "one",
+        label: "extra",
+      },
+      reverse: {
+        on: "extras",
+        has: "many",
+        label: "redemptions",
+      },
+    },
+    extraRedemptionsOrder: {
+      forward: {
+        on: "extraRedemptions",
+        has: "one",
+        label: "fromOrder",
+      },
+      reverse: {
+        on: "orders",
+        has: "many",
+        label: "extraRedemptions",
       },
     },
     concertCustomFields: {

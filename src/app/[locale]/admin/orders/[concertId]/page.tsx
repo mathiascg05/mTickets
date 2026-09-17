@@ -19,6 +19,14 @@ import SalesOverTimeChart, { type PhaseMarker } from "@/components/admin/SalesOv
 import { useLanguage } from "@/lib/LanguageContext";
 import { getEventRole, roleCan } from "@/lib/authHelpers";
 import { dateLocale } from "@/lib/i18n";
+import {
+  buildEntitlements,
+  extraSoldQty,
+  type Entitlement,
+  type IncludedExtraLink,
+  type PurchasedExtraItem,
+} from "@/lib/extras";
+import { concertCurrencySymbol } from "@/lib/currency";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -1812,6 +1820,16 @@ function ImportCsvModal({
   );
 }
 
+type AdminExtraStats = {
+  id: string;
+  name: string;
+  purchaseItems?: {
+    quantity: number;
+    group?: { orders?: { status?: string }[] } | { orders?: { status?: string }[] }[];
+  }[];
+  redemptions?: { poolKey: string }[];
+};
+
 function ConcertOrdersPageInner() {
   const { t, lang } = useLanguage();
   const params = useParams();
@@ -1856,6 +1874,8 @@ function ConcertOrdersPageInner() {
     [pathname],
   );
 
+  // Las cifras agregadas excluyen los metodos marcados como prueba por defecto.
+  const [includeTestOrders, setIncludeTestOrders] = useState(false);
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set());
   const [bulkApproving, setBulkApproving] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -1893,11 +1913,22 @@ function ConcertOrdersPageInner() {
         $: { order: { createdAt: "asc" } },
         orders: {
           $: { order: { createdAt: "desc" } },
+          extraPurchaseGroup: {
+            items: { extra: {} },
+          },
         },
         phases: {
           $: { order: { sortOrder: "asc" } },
         },
         reservations: {},
+        includedExtras: { extra: {} },
+      },
+      extras: {
+        $: { order: { sortOrder: "asc" } },
+        purchaseItems: {
+          group: { orders: {} },
+        },
+        redemptions: {},
       },
       paymentMethods: {
         $: { order: { createdAt: "asc" } },
@@ -1977,10 +2008,42 @@ function ConcertOrdersPageInner() {
         purchaseRate: (order as { purchaseRate?: number }).purchaseRate,
         purchaseRateCurrency: (order as { purchaseRateCurrency?: string }).purchaseRateCurrency,
         purchaseAmountBs: (order as { purchaseAmountBs?: number }).purchaseAmountBs,
+        extrasSubtotalSnapshot: (order as { extrasSubtotalSnapshot?: number }).extrasSubtotalSnapshot,
+        extraPurchaseGroup: (order as { extraPurchaseGroup?: unknown }).extraPurchaseGroup,
+        includedExtras: (tt as { includedExtras?: IncludedExtraLink[] }).includedExtras,
       };
     }),
   );
   allOrders.sort((a, b) => b.createdAt - a.createdAt);
+
+  // Ordenes de prueba: isTest vive en el metodo de pago y las ordenes guardan el
+  // NOMBRE del metodo, asi que el filtro se hace por nombre. El listado sigue
+  // mostrandolo todo; esto solo afecta a las cifras agregadas.
+  const testPmNames = new Set(
+    (concert.paymentMethods || [])
+      .filter((pm) => (pm as { isTest?: boolean }).isTest)
+      .map((pm) => pm.name),
+  );
+  const statsOrders =
+    includeTestOrders || testPmNames.size === 0
+      ? allOrders
+      : allOrders.filter((o) => !testPmNames.has(o.paymentMethod));
+
+  // Extras: el saldo siempre se deriva contando filas de canje por pool.
+  const sym = concertCurrencySymbol(concert as { currency?: string });
+  const concertExtras = (concert.extras ?? []) as AdminExtraStats[];
+  const redeemedByPool = new Map<string, number>();
+  for (const extra of concertExtras) {
+    for (const r of extra.redemptions ?? []) {
+      redeemedByPool.set(r.poolKey, (redeemedByPool.get(r.poolKey) ?? 0) + 1);
+    }
+  }
+  const extrasStats = concertExtras.map((extra) => ({
+    id: extra.id,
+    name: extra.name,
+    sold: extraSoldQty(extra.purchaseItems),
+    delivered: extra.redemptions?.length ?? 0,
+  }));
 
   // Allotment (batch) info, to label anonymous batch orders and show the
   // group's contact email ("sent to") in the list.
@@ -2129,11 +2192,11 @@ function ConcertOrdersPageInner() {
     return result;
   })();
 
-  const totalRevenue = concert.ticketTypes.reduce((sum, tt) => {
-    return sum + tt.orders
-      .filter((o) => o.status === "approved")
-      .reduce((s, o) => s + getOrderTotal(o, tt), 0);
-  }, 0);
+  // `totalUsd` ya es getOrderTotal(order, tt), asi que sumarlo sobre
+  // statsOrders da lo mismo que antes pero respetando el toggle de pruebas.
+  const totalRevenue = statsOrders
+    .filter((o) => o.status === "approved")
+    .reduce((s, o) => s + o.totalUsd, 0);
 
   const ticketBreakdown = concert.ticketTypes.map((tt) => {
     const approved = tt.orders.filter((o) => o.status === "approved").length;
@@ -2347,7 +2410,20 @@ function ConcertOrdersPageInner() {
 
       {/* Summary Stats */}
       <div className="bg-surface border border-border rounded-xl p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-4">{t("admin.eventSummary")}</h2>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h2 className="text-lg font-semibold">{t("admin.eventSummary")}</h2>
+          {testPmNames.size > 0 && (
+            <label className="flex items-center gap-2 text-sm text-muted cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeTestOrders}
+                onChange={(e) => setIncludeTestOrders(e.target.checked)}
+                className="accent-accent"
+              />
+              {t("admin.includeTestOrders")}
+            </label>
+          )}
+        </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="border-l-4 border-accent-light pl-4">
             <p className="text-sm text-muted">{t("admin.totalOrders")}</p>
@@ -2361,7 +2437,7 @@ function ConcertOrdersPageInner() {
             <div className="border-l-4 border-accent-light pl-4">
               <p className="text-sm text-muted">{t("admin.totalRevenue")}</p>
               <p className="text-3xl font-bold text-accent-light">
-                ${totalRevenue.toFixed(2)}
+                {sym}{totalRevenue.toFixed(2)}
               </p>
             </div>
           )}
@@ -2379,6 +2455,22 @@ function ConcertOrdersPageInner() {
               <p className="text-3xl font-bold text-warning">{pendingCount}</p>
             )}
           </div>
+          {extrasStats.length > 0 && (
+            <div className="border-l-4 border-accent pl-4 col-span-2 lg:col-span-1">
+              <p className="text-sm text-muted">{t("admin.extrasCardTitle")}</p>
+              <ul className="mt-1 space-y-0.5">
+                {extrasStats.map((e) => (
+                  <li key={e.id} className="text-sm">
+                    <span className="font-medium">{e.name}</span>:{" "}
+                    <span className="text-accent-light font-semibold">{e.sold}</span>{" "}
+                    {t("admin.extrasSold")} &middot;{" "}
+                    <span className="text-success font-semibold">{e.delivered}</span>{" "}
+                    {t("admin.extrasDelivered")}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Capacity / Sold / Scanned row */}
@@ -2488,7 +2580,7 @@ function ConcertOrdersPageInner() {
       <div className="bg-surface border border-border rounded-xl p-6 mb-6">
         <h2 className="text-lg font-semibold mb-4">{t("admin.salesChart.title")}</h2>
         <SalesOverTimeChart
-          orders={allOrders}
+          orders={statsOrders}
           eventDate={concert.date}
           capacity={totalCapacity}
           phaseMarkers={phaseMarkers}
@@ -2853,7 +2945,7 @@ function ConcertOrdersPageInner() {
         const allPmNames = Array.from(
           new Set([
             ...pmNames,
-            ...allOrders.map((o) => o.paymentMethod).filter(Boolean),
+            ...statsOrders.map((o) => o.paymentMethod).filter(Boolean),
           ]),
         );
         if (allPmNames.length === 0) return null;
@@ -2872,7 +2964,7 @@ function ConcertOrdersPageInner() {
           }
         }
 
-        for (const order of allOrders) {
+        for (const order of statsOrders) {
           const s = order.status;
           const pm = order.paymentMethod;
           const finalPrice = order.totalUsd;
@@ -3420,6 +3512,44 @@ function ConcertOrdersPageInner() {
                     {" "}&middot;{" "}
                     {new Date(order.createdAt).toLocaleString(dateLocale(lang))}
                   </p>
+                  {/* Extras de esta compra: los incluidos de ESTE QR mas el pool
+                      comprado por su checkout, con su estado de canje. */}
+                  {(() => {
+                    const group = Array.isArray(order.extraPurchaseGroup)
+                      ? order.extraPurchaseGroup[0]
+                      : order.extraPurchaseGroup;
+                    const entitlements = buildEntitlements({
+                      orderId: order.id,
+                      includedLinks: order.includedExtras,
+                      group: group as { id: string; items?: PurchasedExtraItem[] } | null,
+                      // buildEntitlements cuenta filas; aqui ya tenemos el
+                      // conteo por pool, asi que pasamos una lista vacia y
+                      // resolvemos el canjeado con el mapa.
+                      redemptions: [],
+                    }).map((e: Entitlement) => {
+                      const redeemed = Math.min(
+                        e.total,
+                        redeemedByPool.get(e.poolKey) ?? 0,
+                      );
+                      return { ...e, redeemed, remaining: e.total - redeemed };
+                    });
+                    if (entitlements.length === 0) return null;
+                    return (
+                      <p className="text-xs text-muted mt-0.5">
+                        {t("admin.extrasInPurchase")}:{" "}
+                        {entitlements
+                          .map(
+                            (e) =>
+                              `${e.name} ${e.redeemed}/${e.total}${
+                                e.source === "purchased"
+                                  ? ` ${t("admin.extrasSharedLabel")}`
+                                  : ""
+                              }`,
+                          )
+                          .join(" · ")}
+                      </p>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex items-center gap-2 flex-shrink-0">

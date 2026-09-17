@@ -83,6 +83,87 @@ const rules = {
       `auth.email == '${SUPER_ADMIN}'`,
     ],
   },
+  extras: {
+    allow: {
+      // Mismo criterio que paymentMethods: visible en el checkout de un evento
+      // activo, y solo manager-tier puede tocar el catalogo.
+      view: "data.ref('concert.status') == ['active'] || isOwner || isSuperAdmin",
+      create: "isManager || isSuperAdmin",
+      update: "isManager || isSuperAdmin",
+      delete: "isManager || isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.collaborators.email')",
+      "isManager",
+      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.managers.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
+  ticketTypeExtras: {
+    allow: {
+      view: "data.ref('ticketType.concert.status') == ['active'] || isOwner || isSuperAdmin",
+      create: "isManager || isSuperAdmin",
+      update: "isManager || isSuperAdmin",
+      delete: "isManager || isSuperAdmin",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('ticketType.concert.organizerEmail') || auth.email in data.ref('ticketType.concert.collaborators.email')",
+      "isManager",
+      "auth.email in data.ref('ticketType.concert.organizerEmail') || auth.email in data.ref('ticketType.concert.managers.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
+  extraPurchaseGroups: {
+    allow: {
+      // Todo se escribe desde rutas server con adminDb (create-order), igual
+      // que orders.
+      view: "isOwner || isSuperAdmin",
+      create: "false",
+      update: "false",
+      delete: "false",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('concert.organizerEmail') || auth.email in data.ref('concert.collaborators.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
+  extraPurchaseItems: {
+    allow: {
+      view: "isOwner || isSuperAdmin",
+      create: "false",
+      update: "false",
+      delete: "false",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('extra.concert.organizerEmail') || auth.email in data.ref('extra.concert.collaborators.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
+  extraRedemptions: {
+    allow: {
+      // Registro append-only de canjes: se escribe solo desde
+      // /api/scan/redeem-extra con adminDb, y NADIE puede editarlo ni borrarlo,
+      // igual que balanceTransactions.
+      view: "isOwner || isSuperAdmin",
+      create: "false",
+      update: "false",
+      delete: "false",
+    },
+    bind: [
+      "isOwner",
+      "auth.email in data.ref('extra.concert.organizerEmail') || auth.email in data.ref('extra.concert.collaborators.email')",
+      "isSuperAdmin",
+      `auth.email == '${SUPER_ADMIN}'`,
+    ],
+  },
   customFields: {
     allow: {
       view: "true",

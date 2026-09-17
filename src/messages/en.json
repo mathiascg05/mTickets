@@ -247,7 +247,13 @@
     "firstNamePlaceholder": "First name",
     "lastNamePlaceholder": "Last name",
     "phonePlaceholder": "Your phone number",
-    "invalidPhone": "Enter a valid phone number"
+    "invalidPhone": "Enter a valid phone number",
+    "extrasTitle": "Add extras",
+    "extrasSubtitle": "Once per purchase, not per attendee",
+    "extrasSoldOut": "Sold out",
+    "extrasLeft": "{n} left",
+    "extrasSubtotal": "Extras subtotal",
+    "extrasIncluded": "Includes"
   },
   "ticket": {
     "viewTitle": "View Your Ticket",
@@ -1047,7 +1053,38 @@
       "cantEditApproved": "Can't change the composition of an approved batch.",
       "orderLabel": "Batch {group} #{seq}",
       "sentTo": "Sent to"
-    }
+    },
+    "extras": "Extras",
+    "extrasEmpty": "No extras yet. Add one to sell it at checkout or include it with a ticket type.",
+    "extrasAdd": "Add extra",
+    "extrasName": "Name",
+    "extrasDescription": "Description",
+    "extrasPrice": "Price",
+    "extrasStock": "Stock",
+    "extrasStockUnlimited": "Unlimited",
+    "extrasStockHint": "Empty = unlimited",
+    "extrasPurchasable": "Can be bought at checkout",
+    "extrasNotPurchasable": "Included only",
+    "extrasSortOrder": "Order",
+    "extrasActive": "Active",
+    "extrasDeleteConfirm": "Delete this extra?",
+    "extrasDeleteBlocked": "An extra with sales or redemptions can't be deleted. Deactivate it instead.",
+    "extrasNameRequired": "Name is required",
+    "extrasPriceInvalid": "Invalid price",
+    "extrasStockInvalid": "Invalid stock",
+    "extrasSold": "sold",
+    "extrasDelivered": "delivered",
+    "extrasIncludedTitle": "Included extras",
+    "extrasIncludedAdd": "Include extra",
+    "extrasIncludedQty": "Quantity per ticket",
+    "extrasIncludedEmpty": "No included extras",
+    "extrasInPurchase": "Extras in this purchase",
+    "extrasCardTitle": "Extras",
+    "pmIsTest": "Test method",
+    "pmIsTestHint": "Its orders are excluded from totals and the sales chart",
+    "includeTestOrders": "Include tests",
+    "testBadge": "Test",
+    "extrasSharedLabel": "shared"
   },
   "seo": {
     "root": {
@@ -1226,7 +1263,15 @@
     "headerSwitch": "Switch",
     "scanTicket": "Scan ticket",
     "orSearchManually": "or search manually",
-    "scannerHeader": "Scanner"
+    "scannerHeader": "Scanner",
+    "extrasTitle": "Extras",
+    "extrasRedeem": "Redeem",
+    "extrasRedeeming": "Redeeming...",
+    "extrasDone": "Delivered",
+    "extrasBalance": "{redeemed} of {total}",
+    "extrasBalanceGroup": "{redeemed} of {total} for the group",
+    "extrasNeedsApproval": "The order must be approved before redeeming extras",
+    "extrasRedeemFailed": "Could not redeem"
   },
   "apiErrors": {
     "UNAUTHORIZED": "Unauthorized",
@@ -1289,7 +1334,14 @@
     "INCORRECT_PASSWORD": "Incorrect password",
     "AUTH_FAILED": "Authentication failed",
     "INVALID_RESET_LINK": "Invalid or expired reset link. Please request a new one.",
-    "INVALID_PHONE": "Invalid phone number"
+    "INVALID_PHONE": "Invalid phone number",
+    "EXTRA_NOT_FOUND": "Extra not found",
+    "EXTRA_NOT_AVAILABLE": "That extra is no longer available",
+    "EXTRA_OUT_OF_STOCK": "Not enough units left of that extra",
+    "EXTRA_NO_BALANCE": "No balance left: that extra was already redeemed",
+    "EXTRA_CONFLICT": "Another device redeemed it first. Try again",
+    "SCAN_EXTRAS_FAILED": "Could not load extras",
+    "REDEEM_EXTRA_FAILED": "Could not redeem the extra"
   },
   "emails": {
     "common": {

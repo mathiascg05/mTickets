@@ -247,7 +247,13 @@
     "firstNamePlaceholder": "Nombre",
     "lastNamePlaceholder": "Apellido",
     "phonePlaceholder": "Tu número de teléfono",
-    "invalidPhone": "Ingresa un número de teléfono válido"
+    "invalidPhone": "Ingresa un número de teléfono válido",
+    "extrasTitle": "Agrega extras",
+    "extrasSubtitle": "Una sola vez por compra, no por asistente",
+    "extrasSoldOut": "Agotado",
+    "extrasLeft": "Quedan {n}",
+    "extrasSubtotal": "Subtotal extras",
+    "extrasIncluded": "Incluye"
   },
   "ticket": {
     "viewTitle": "Ver Tu Entrada",
@@ -1047,7 +1053,38 @@
       "cantEditApproved": "No se puede cambiar la composición de un lote ya aprobado.",
       "orderLabel": "Lote {group} #{seq}",
       "sentTo": "Enviado a"
-    }
+    },
+    "extras": "Extras",
+    "extrasEmpty": "Todavia no hay extras. Agrega uno para venderlo en el checkout o incluirlo en un tipo de entrada.",
+    "extrasAdd": "Agregar extra",
+    "extrasName": "Nombre",
+    "extrasDescription": "Descripcion",
+    "extrasPrice": "Precio",
+    "extrasStock": "Stock",
+    "extrasStockUnlimited": "Ilimitado",
+    "extrasStockHint": "Vacio = ilimitado",
+    "extrasPurchasable": "Se puede comprar en el checkout",
+    "extrasNotPurchasable": "Solo incluido",
+    "extrasSortOrder": "Orden",
+    "extrasActive": "Activo",
+    "extrasDeleteConfirm": "Eliminar este extra?",
+    "extrasDeleteBlocked": "No se puede eliminar un extra que ya tiene ventas o canjes. Desactivalo.",
+    "extrasNameRequired": "El nombre es obligatorio",
+    "extrasPriceInvalid": "Precio invalido",
+    "extrasStockInvalid": "Stock invalido",
+    "extrasSold": "vendidas",
+    "extrasDelivered": "entregadas",
+    "extrasIncludedTitle": "Extras incluidos",
+    "extrasIncludedAdd": "Incluir extra",
+    "extrasIncludedQty": "Cantidad por entrada",
+    "extrasIncludedEmpty": "Sin extras incluidos",
+    "extrasInPurchase": "Extras de esta compra",
+    "extrasCardTitle": "Extras",
+    "pmIsTest": "Metodo de prueba",
+    "pmIsTestHint": "Sus ordenes se excluyen de los totales y de la curva de ventas",
+    "includeTestOrders": "Incluir pruebas",
+    "testBadge": "Prueba",
+    "extrasSharedLabel": "del grupo"
   },
   "seo": {
     "root": {
@@ -1226,7 +1263,15 @@
     "headerSwitch": "Cambiar",
     "scanTicket": "Escanear entrada",
     "orSearchManually": "o busca manualmente",
-    "scannerHeader": "Escáner"
+    "scannerHeader": "Escáner",
+    "extrasTitle": "Extras",
+    "extrasRedeem": "Canjear",
+    "extrasRedeeming": "Canjeando...",
+    "extrasDone": "Entregado",
+    "extrasBalance": "{redeemed} de {total}",
+    "extrasBalanceGroup": "{redeemed} de {total} del grupo",
+    "extrasNeedsApproval": "La orden debe estar aprobada para canjear extras",
+    "extrasRedeemFailed": "No se pudo canjear"
   },
   "apiErrors": {
     "UNAUTHORIZED": "No autorizado",
@@ -1289,7 +1334,14 @@
     "INCORRECT_PASSWORD": "Contraseña incorrecta",
     "AUTH_FAILED": "Autenticación falló",
     "INVALID_RESET_LINK": "Enlace de restablecimiento inválido o expirado. Solicita uno nuevo.",
-    "INVALID_PHONE": "Teléfono inválido"
+    "INVALID_PHONE": "Teléfono inválido",
+    "EXTRA_NOT_FOUND": "Extra no encontrado",
+    "EXTRA_NOT_AVAILABLE": "Ese extra ya no esta disponible",
+    "EXTRA_OUT_OF_STOCK": "No quedan suficientes unidades de ese extra",
+    "EXTRA_NO_BALANCE": "Sin saldo: ese extra ya fue canjeado",
+    "EXTRA_CONFLICT": "Otro dispositivo canjeo primero. Intenta de nuevo",
+    "SCAN_EXTRAS_FAILED": "No se pudieron cargar los extras",
+    "REDEEM_EXTRA_FAILED": "No se pudo canjear el extra"
   },
   "emails": {
     "common": {

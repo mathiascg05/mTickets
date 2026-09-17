@@ -11,6 +11,11 @@ import { extractDominantColor, extractPalette, mapPaletteToTheme } from "@/lib/c
 import { serializeThemeColors } from "@/lib/themeColors";
 import PaletteEditor from "@/components/admin/PaletteEditor";
 import { PagoMovilFields } from "@/components/admin/PagoMovilFields";
+import { ExtrasSection, type AdminExtra } from "@/components/admin/ExtrasSection";
+import {
+  IncludedExtrasEditor,
+  type IncludedExtraRow,
+} from "@/components/admin/IncludedExtrasEditor";
 import { InlineEditField } from "@/components/InlineEditField";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -45,6 +50,17 @@ export default function AdminConcertEditPage() {
           $: { order: { sortOrder: "asc" } },
         },
         reservations: {},
+        includedExtras: {
+          extra: {},
+        },
+      },
+      extras: {
+        $: { order: { sortOrder: "asc" } },
+        // Vendidas y entregadas para los badges de cada card.
+        purchaseItems: {
+          group: { orders: {} },
+        },
+        redemptions: {},
       },
       paymentMethods: {
         $: { order: { createdAt: "asc" } },
@@ -141,6 +157,11 @@ export default function AdminConcertEditPage() {
                 concertId={concertId}
                 paymentMethods={concert.paymentMethods}
               />
+              <ExtrasSection
+                concertId={concertId}
+                extras={(concert.extras ?? []) as AdminExtra[]}
+                currency={(concert as { currency?: string }).currency}
+              />
               <CustomFieldsSection
                 concertId={concertId}
                 customFields={concert.customFields}
@@ -187,6 +208,7 @@ export default function AdminConcertEditPage() {
             <TicketTypesSection
               concertId={concertId}
               ticketTypes={concert.ticketTypes}
+              extrasCatalog={(concert.extras ?? []) as { id: string; name: string }[]}
             />
             <FeesSection
               concertId={concertId}
@@ -505,6 +527,7 @@ type PaymentMethodData = {
   discountValue?: number;
   feePercent?: number;
   feeFixed?: number;
+  isTest?: boolean;
 };
 
 function PaymentMethodCard({
@@ -527,6 +550,7 @@ function PaymentMethodCard({
   );
   const [customRate, setCustomRate] = useState<string>(existing?.customRate ? String(existing.customRate) : "");
   const [customRateError, setCustomRateError] = useState<string>("");
+  const [isTest, setIsTest] = useState(existing?.isTest === true);
   const [zelleEmail, setZelleEmail] = useState(existing?.zelleEmail || "");
   const [zelleName, setZelleName] = useState(existing?.zelleName || "");
   const [pmCedula, setPmCedula] = useState(existing?.pmCedula || "");
@@ -603,6 +627,7 @@ function PaymentMethodCard({
         convertCurrency: effectiveConvertCurrency,
         requireScreenshot,
         requireReferenceNumber: base.type === "efectivo" ? false : requireReferenceNumber,
+        isTest,
         discountType: discountEnabled ? discountType : null,
         discountValue: parsedDiscountValue,
         ...(supportsConversion(base.type) ? {
@@ -657,6 +682,11 @@ function PaymentMethodCard({
             {existing?.requireReferenceNumber && (
               <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-warning/15 text-warning">
                 {t("admin.refBadge")}
+              </span>
+            )}
+            {existing?.isTest && (
+              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-muted/20 text-muted">
+                {t("admin.testBadge")}
               </span>
             )}
             {existing?.discountType && existing?.discountValue && existing.discountValue > 0 && (
@@ -797,6 +827,18 @@ function PaymentMethodCard({
                 </label>
               )}
             </div>
+          </div>
+          <div className="pt-3 border-t border-border">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isTest}
+                onChange={(e) => { setIsTest(e.target.checked); setDirty(true); }}
+                className="accent-accent-light"
+              />
+              <span className="text-sm">{t("admin.pmIsTest")}</span>
+            </label>
+            <p className="text-xs text-muted mt-1 ml-6">{t("admin.pmIsTestHint")}</p>
           </div>
           <div className="pt-3 border-t border-border">
             <label className="flex items-center gap-2 cursor-pointer mb-2">
@@ -952,14 +994,17 @@ type TicketTypeData = {
   orders: { id: string; status: string; phaseId?: string; priceSnapshot?: number }[];
   phases: Phase[];
   reservations?: { id: string; expiresAt: number }[];
+  includedExtras?: IncludedExtraRow[];
 };
 
 function TicketTypesSection({
   concertId,
   ticketTypes,
+  extrasCatalog,
 }: {
   concertId: string;
   ticketTypes: TicketTypeData[];
+  extrasCatalog: { id: string; name: string }[];
 }) {
   const { t } = useLanguage();
   const [showForm, setShowForm] = useState(false);
@@ -1148,6 +1193,7 @@ function TicketTypesSection({
                 totalCapacity={totalCapacity}
                 hasPhases={hasPhases}
                 activePhase={active}
+                extrasCatalog={extrasCatalog}
                 onDelete={() => deleteTicketType(tt.id)}
               />
             );
@@ -1165,6 +1211,7 @@ function TicketTypeItem({
   totalCapacity,
   hasPhases,
   activePhase,
+  extrasCatalog,
   onDelete,
 }: {
   tt: TicketTypeData;
@@ -1173,6 +1220,7 @@ function TicketTypeItem({
   totalCapacity: number;
   hasPhases: boolean;
   activePhase: Phase | null;
+  extrasCatalog: { id: string; name: string }[];
   onDelete: () => void;
 }) {
   const { t } = useLanguage();
@@ -1290,6 +1338,15 @@ function TicketTypeItem({
       {showPhases && (
         <div className="border-t border-border p-4">
           <PhaseManagement ticketTypeId={tt.id} phases={tt.phases || []} orders={tt.orders} isArea={isAreaTicket(tt)} />
+        </div>
+      )}
+      {extrasCatalog.length > 0 && (
+        <div className="border-t border-border px-4 pb-4">
+          <IncludedExtrasEditor
+            ticketTypeId={tt.id}
+            includedExtras={tt.includedExtras ?? []}
+            catalog={extrasCatalog}
+          />
         </div>
       )}
     </div>

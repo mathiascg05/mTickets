@@ -258,3 +258,39 @@ describe("getPlatformFeeForOrder", () => {
     expect(getPlatformFeeForOrder(order, tt, null)).toBe(1.25);
   });
 });
+
+describe("computePlatformFeeAtPurchase — extras", () => {
+  const CONFIG = { basePrice: 20, feePercent: 10, feeFixed: 0.5 };
+
+  it("without extrasBase, behaves exactly as before", () => {
+    expect(computePlatformFeeAtPurchase(CONFIG)).toBe(2.5);
+    expect(computePlatformFeeAtPurchase({ ...CONFIG, extrasBase: 0 })).toBe(2.5);
+  });
+
+  it("extras only feed the PERCENTAGE part — the fixed fee stays per ticket", () => {
+    // 10% of (20 + 24) + 0.50 = 4.90, not 4.90 + a second fixed charge.
+    expect(computePlatformFeeAtPurchase({ ...CONFIG, extrasBase: 24 })).toBe(4.9);
+  });
+
+  it("a pure-percentage config charges the same on tickets and extras", () => {
+    expect(
+      computePlatformFeeAtPurchase({
+        basePrice: 0,
+        feePercent: 10,
+        feeFixed: 0,
+        extrasBase: 24,
+      }),
+    ).toBe(2.4);
+  });
+
+  it("rounds to cents", () => {
+    expect(
+      computePlatformFeeAtPurchase({
+        basePrice: 0,
+        feePercent: 7,
+        feeFixed: 0,
+        extrasBase: 13.37,
+      }),
+    ).toBe(0.94);
+  });
+});

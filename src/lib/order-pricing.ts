@@ -94,12 +94,24 @@ export function computeOrderTotalAtPurchase(args: {
   return { feeAmount, paymentMethodFeeAmount, total };
 }
 
+/**
+ * Platform fee charged to the organizer for one order.
+ *
+ * `extrasBase` is the extras subtotal of the checkout, and it only ever feeds
+ * the PERCENTAGE part: the fixed fee stays per ticket, so buying a t-shirt does
+ * not add a second fixed charge. It is passed only on the anchor order of a
+ * checkout (the one that carries the extras money), so the sum of the group's
+ * platformFeeAmountSnapshot equals the fee over tickets + extras exactly once.
+ * Omitting it reproduces the previous behaviour byte for byte.
+ */
 export function computePlatformFeeAtPurchase(args: {
   basePrice: number;
   feePercent: number;
   feeFixed: number;
+  extrasBase?: number;
 }): number {
-  const fee = (args.basePrice * args.feePercent) / 100 + args.feeFixed;
+  const base = args.basePrice + (args.extrasBase ?? 0);
+  const fee = (base * args.feePercent) / 100 + args.feeFixed;
   return Math.round(fee * 100) / 100;
 }
 

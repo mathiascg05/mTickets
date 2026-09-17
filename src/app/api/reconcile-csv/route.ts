@@ -182,10 +182,19 @@ async function handlePagoMovilReconciliation(
     for (const [ref, group] of ordersByRef) {
       if (matchedRefs.has(ref)) continue;
       if (getOrderLast4(ref) !== csvLast4) continue;
+      // Los extras van en la orden ancla del checkout y forman parte de la MISMA
+      // transferencia, asi que tienen que entrar en el total que se compara
+      // contra la fila del banco. Sin extras, `extrasAmountBs` es undefined y el
+      // resultado es identico al de siempre.
       const groupTotal =
         Math.round(
-          group.reduce((sum, o) => sum + (o.purchaseAmountBs as number), 0) *
-            100,
+          group.reduce(
+            (sum, o) =>
+              sum +
+              (o.purchaseAmountBs as number) +
+              ((o as { extrasAmountBs?: number }).extrasAmountBs ?? 0),
+            0,
+          ) * 100,
         ) / 100;
       if (Math.abs(groupTotal - row.amount) <= TOLERANCE) {
         candidates.push({ ref, group, groupTotal });

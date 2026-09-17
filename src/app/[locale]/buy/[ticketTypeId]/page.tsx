@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { useStorageUrl } from "@/lib/useStorageUrl";
 import type { Availability } from "@/lib/phases";
 import { getPeoplePerTicket, isAreaTicket } from "@/lib/ticketTypeKind";
+import { concertCurrencySymbol } from "@/lib/currency";
 import { QUEUE_THRESHOLD } from "@/lib/queueConstants";
 import { parseBank, formatBank } from "@/lib/pago-movil";
 import { TERMS_VERSION, PRIVACY_VERSION } from "@/lib/legalVersions";
@@ -19,6 +20,22 @@ import emailSpellChecker from "@zootools/email-spell-checker";
 
 const RESERVATION_DURATION = 15 * 60 * 1000; // 15 minutes
 const STORAGE_KEY_PREFIX = "reservation_";
+
+type CatalogExtra = {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  stock?: number;
+  active?: boolean;
+  purchasable?: boolean;
+  sortOrder?: number;
+};
+
+type IncludedExtraLink = {
+  includedQty: number;
+  extra?: { id: string; name: string } | { id: string; name: string }[];
+};
 
 type Attendee = {
   firstName: string;
@@ -112,6 +129,7 @@ export default function BuyPage() {
   const [error, setError] = useState<string | null>(null);
   const [rateRefreshing, setRateRefreshing] = useState(false);
   const [couponInput, setCouponInput] = useState("");
+  const [extraQty, setExtraQty] = useState<Record<string, number>>({});
   const [appliedCoupon, setAppliedCoupon] = useState<{
     code: string;
     discountType: string;
@@ -144,6 +162,12 @@ export default function BuyPage() {
         coupons: {
           $: { where: { active: true } },
         },
+        extras: {
+          $: { order: { sortOrder: "asc" } },
+        },
+      },
+      includedExtras: {
+        extra: {},
       },
       phases: {
         $: { order: { sortOrder: "asc" } },
@@ -157,6 +181,10 @@ export default function BuyPage() {
   // Availability is computed server-side (orders are no longer world-readable).
   // Exclude our own reservation so our hold doesn't reduce our shown availability.
   const [ttAvailability, setTtAvailability] = useState<Availability | null>(null);
+  // Stock de extras: se deriva de lineas compradas y ordenes, que el comprador
+  // no puede leer, asi que llega por la misma ruta server que la disponibilidad.
+  // null = ilimitado.
+  const [extrasStock, setExtrasStock] = useState<Record<string, number | null>>({});
   const eventSlug = data?.ticketTypes?.[0]?.concert?.slug;
   useEffect(() => {
     if (!eventSlug) return;
@@ -167,7 +195,10 @@ export default function BuyPage() {
         const res = await fetch(url);
         if (!res.ok) return;
         const json = await res.json();
-        if (!cancelled) setTtAvailability(json.availability?.[ticketTypeId] ?? null);
+        if (!cancelled) {
+          setTtAvailability(json.availability?.[ticketTypeId] ?? null);
+          setExtrasStock(json.extras ?? {});
+        }
       } catch {
         /* best-effort; hard gate is create-reservation/create-order */
       }
@@ -462,6 +493,21 @@ export default function BuyPage() {
   }
 
   const subtotal = effectivePrice * qty;
+  const sym = concertCurrencySymbol(concert as { currency?: string } | undefined);
+  // Extras: una sola seleccion por checkout, no por asistente.
+  const catalogExtras = (concert as { extras?: CatalogExtra[] } | undefined)?.extras ?? [];
+  const purchasableExtras = catalogExtras.filter(
+    (e) => e.active !== false && e.purchasable === true,
+  );
+  const includedExtras = ((ticketType as { includedExtras?: IncludedExtraLink[] })
+    .includedExtras ?? []).filter((l) => l.includedQty > 0);
+  const extraLines = purchasableExtras
+    .map((e) => ({ extra: e, quantity: extraQty[e.id] ?? 0 }))
+    .filter((l) => l.quantity > 0);
+  const extrasSubtotal =
+    Math.round(
+      extraLines.reduce((s, l) => s + l.extra.price * l.quantity, 0) * 100,
+    ) / 100;
   const discount = appliedCoupon
     ? appliedCoupon.discountType === "percentage"
       ? Math.min(subtotal, subtotal * (appliedCoupon.discountValue / 100))
@@ -495,7 +541,10 @@ export default function BuyPage() {
   const pmFeeAmount = (subtotal * pmFeePercent) / 100 + pmFeeFixed * qty;
   const feeAmount =
     (subtotal * feePercent) / 100 + feeFixed * qty + pmFeeAmount;
-  const total = subtotal - discount - methodDiscount + feeAmount;
+  // Los descuentos (cupon y por metodo) se calcularon sobre el subtotal de
+  // ENTRADAS; los extras se suman despues y nunca se descuentan.
+  const ticketsTotal = subtotal - discount - methodDiscount + feeAmount;
+  const total = ticketsTotal + extrasSubtotal;
 
   const rateValue = selectedPmCustomRate ?? cachedRate?.rate ?? 0;
   const totalBs = Math.round(total * rateValue * 100) / 100;
@@ -636,12 +685,19 @@ export default function BuyPage() {
               : referenceNumber.trim() || undefined,
           paymentProofPath: filePath || undefined,
           purchaseGroupId,
+          extras: extraLines.map((l) => ({
+            extraId: l.extra.id,
+            quantity: l.quantity,
+          })),
           submissionId,
           queueToken: queueToken || undefined,
           ...((selectedPmCustomRate || cachedRate) ? {
             purchaseRate: rateValue,
             purchaseRateCurrency: selectedPmCustomRate ? "USD" : cachedRate!.currency,
-            purchaseAmountBs: Math.round((total / qty) * rateValue * 100) / 100,
+            // Por unidad de ENTRADA. Los extras son del checkout, no de una
+            // entrada, y el server los guarda aparte en extrasAmountBs.
+            purchaseAmountBs:
+              Math.round((ticketsTotal / qty) * rateValue * 100) / 100,
           } : {}),
           acceptedTermsVersion: TERMS_VERSION,
           acceptedPrivacyVersion: PRIVACY_VERSION,
@@ -742,6 +798,21 @@ export default function BuyPage() {
                 {concert && (
                   <p className="text-sm text-muted">{concert.name}</p>
                 )}
+                {includedExtras.length > 0 && (
+                  <p className="text-xs text-muted mt-1">
+                    {t("checkout.extrasIncluded")}:{" "}
+                    {includedExtras
+                      .map((link) => {
+                        const e = Array.isArray(link.extra) ? link.extra[0] : link.extra;
+                        if (!e) return null;
+                        return link.includedQty > 1
+                          ? `${link.includedQty}x ${e.name}`
+                          : e.name;
+                      })
+                      .filter(Boolean)
+                      .join(", ")}
+                  </p>
+                )}
                 {isArea ? (
                   <p className="text-lg font-medium mt-2 text-foreground">
                     ${effectivePrice.toFixed(2)} <span className="text-sm text-muted">{t("admin.areaPriceSuffix")}</span>
@@ -769,8 +840,14 @@ export default function BuyPage() {
                 {t("checkout.serviceFee", { amount: feeAmount.toFixed(2) })}
               </p>
             )}
+            {extrasSubtotal > 0 && (
+              <p className="text-sm text-muted mt-1">
+                {t("checkout.extrasSubtotal")}: {sym}
+                {extrasSubtotal.toFixed(2)}
+              </p>
+            )}
             <p className="text-2xl font-bold mt-1 text-foreground">
-              {t("common.total")}: ${total.toFixed(2)}
+              {t("common.total")}: {sym}{total.toFixed(2)}
             </p>
               </div>
             </div>
@@ -834,6 +911,77 @@ export default function BuyPage() {
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Extras: entre la seleccion de entradas y el pago. Una sola vez por
+              checkout, no por asistente. */}
+          {purchasableExtras.length > 0 && (
+            <div className="mb-6 border border-border rounded-xl p-5">
+              <h3 className="font-semibold text-accent-light">
+                {t("checkout.extrasTitle")}
+              </h3>
+              <p className="text-xs text-muted mb-4">
+                {t("checkout.extrasSubtitle")}
+              </p>
+              <div className="space-y-3">
+                {purchasableExtras.map((extra) => {
+                  const left = extrasStock[extra.id];
+                  const available = left == null ? Infinity : left;
+                  const picked = extraQty[extra.id] ?? 0;
+                  const soldOut = available <= 0;
+                  const setQty = (next: number) =>
+                    setExtraQty((prev) => ({
+                      ...prev,
+                      [extra.id]: Math.max(0, Math.min(next, available, 99)),
+                    }));
+                  return (
+                    <div
+                      key={extra.id}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{extra.name}</p>
+                        {extra.description && (
+                          <p className="text-xs text-muted">{extra.description}</p>
+                        )}
+                        <p className="text-sm text-muted">
+                          {sym}
+                          {extra.price.toFixed(2)}
+                          {soldOut
+                            ? ` · ${t("checkout.extrasSoldOut")}`
+                            : Number.isFinite(available) && available <= 10
+                              ? ` · ${t("checkout.extrasLeft", { n: available })}`
+                              : ""}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setQty(picked - 1)}
+                          disabled={picked === 0}
+                          className="w-10 h-10 rounded-lg border border-border hover:border-accent/50 disabled:opacity-40 transition-colors"
+                          aria-label="-"
+                        >
+                          −
+                        </button>
+                        <span className="w-8 text-center font-medium tabular-nums">
+                          {picked}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setQty(picked + 1)}
+                          disabled={soldOut || picked >= available || picked >= 99}
+                          className="w-10 h-10 rounded-lg border border-border hover:border-accent/50 disabled:opacity-40 transition-colors"
+                          aria-label="+"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

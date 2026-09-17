@@ -56,3 +56,31 @@ const GUESTLIST_ORDER_NAMESPACE = "matickets:guestlist-order:v1";
 export function guestListOrderIdFor(entryId: string): string {
   return deterministicUuid(GUESTLIST_ORDER_NAMESPACE, entryId);
 }
+
+// Deterministic id for ONE redeemed unit of an extra. This is the whole
+// concurrency mechanism: the id is a pure function of (poolKey, unitIndex), so
+// the id space of a pool holding N units has exactly N possible values and it
+// is impossible for more than N redemption rows to exist. Writes use `.create()`
+// (which throws when the id already exists), and `transact` is atomic, so when
+// two scanners race for the same unit one wins, the loser's whole transaction
+// rolls back, it re-reads and either takes the next free index or reports "no
+// balance left". Same reasoning as feeTxnId, applied to a counter instead of a
+// single row.
+const EXTRA_REDEMPTION_NAMESPACE = "matickets:extra-redemption:v1";
+export function extraRedemptionId(poolKey: string, unitIndex: number): string {
+  return deterministicUuid(EXTRA_REDEMPTION_NAMESPACE, `${poolKey}:${unitIndex}`);
+}
+
+// Deterministic id for the extras pool of a checkout, derived from the client's
+// submissionId. A retry/double-submit upserts the SAME group (and the same
+// item rows) instead of creating a second pool that would double the entitlement.
+const EXTRA_GROUP_NAMESPACE = "matickets:extra-group:v1";
+export function extraGroupIdFor(submissionId: string): string {
+  return deterministicUuid(EXTRA_GROUP_NAMESPACE, submissionId);
+}
+
+// Deterministic id for one purchased line inside a checkout's extras pool.
+const EXTRA_ITEM_NAMESPACE = "matickets:extra-item:v1";
+export function extraItemIdFor(groupId: string, extraId: string): string {
+  return deterministicUuid(EXTRA_ITEM_NAMESPACE, `${groupId}:${extraId}`);
+}

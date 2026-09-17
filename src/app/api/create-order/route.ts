@@ -2,7 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 import { id as genId } from "@instantdb/admin";
 import { adminDb } from "@/lib/adminDb";
-import { orderIdFor } from "@/lib/deterministicId";
+import {
+  orderIdFor,
+  extraGroupIdFor,
+  extraItemIdFor,
+} from "@/lib/deterministicId";
+import {
+  priceExtraSelection,
+  extraSoldQty,
+  extraAvailableStock,
+  type ExtraSelection,
+} from "@/lib/extras";
 import {
   getAvailability,
   getTodayString,
@@ -51,6 +61,8 @@ type CreateOrderBody = {
   referenceNumber?: string;
   paymentProofPath?: string;
   purchaseGroupId?: string;
+  // Extras comprados en este checkout. UNA sola vez por compra, no por asistente.
+  extras?: ExtraSelection[];
   submissionId?: string;
   queueToken?: string;
   purchaseRate?: number;
@@ -86,6 +98,9 @@ export async function POST(req: NextRequest) {
       acceptedTermsVersion,
       acceptedPrivacyVersion,
     } = body;
+    const extrasSelection: ExtraSelection[] = Array.isArray(body.extras)
+      ? body.extras
+      : [];
 
     // Input validation
     if (!isValidUUID(ticketTypeId)) {
@@ -115,6 +130,24 @@ export async function POST(req: NextRequest) {
       return errorResponse(req, "INVALID_INPUT", 400);
     }
     if (purchaseGroupId && !isValidUUID(purchaseGroupId)) {
+      return errorResponse(req, "INVALID_INPUT", 400);
+    }
+    if (extrasSelection.length > 20) {
+      return errorResponse(req, "INVALID_INPUT", 400);
+    }
+    for (const sel of extrasSelection) {
+      if (
+        !sel ||
+        !isValidUUID(sel.extraId) ||
+        !Number.isInteger(sel.quantity) ||
+        sel.quantity < 1 ||
+        sel.quantity > 99
+      ) {
+        return errorResponse(req, "INVALID_INPUT", 400);
+      }
+    }
+    // Un mismo extra no puede venir repetido: el pool se indexa por extraId.
+    if (new Set(extrasSelection.map((e) => e.extraId)).size !== extrasSelection.length) {
       return errorResponse(req, "INVALID_INPUT", 400);
     }
     if (submissionId && !isValidUUID(submissionId)) {
@@ -187,6 +220,15 @@ export async function POST(req: NextRequest) {
           },
           paymentMethods: {},
           platformFeeConfig: {},
+          // Stock de extras: cada linea vendida cuenta mientras su checkout
+          // tenga al menos una orden viva (ni rechazada ni cancelada).
+          extras: {
+            purchaseItems: {
+              group: {
+                orders: {},
+              },
+            },
+          },
         },
         orders: {},
         phases: {
@@ -230,6 +272,18 @@ export async function POST(req: NextRequest) {
       coupons: { id: string; code: string; discountType: string; discountValue: number; maxUses?: number; active: boolean }[];
       paymentMethods: { id: string; type?: string; name: string; discountType?: string; discountValue?: number; feePercent?: number; feeFixed?: number }[];
       platformFeeConfig?: { feePercent: number; feeFixed: number; billingMode?: string } | { feePercent: number; feeFixed: number; billingMode?: string }[];
+      extras?: {
+        id: string;
+        name: string;
+        price: number;
+        stock?: number;
+        active?: boolean;
+        purchasable?: boolean;
+        purchaseItems?: {
+          quantity: number;
+          group?: { orders?: { status?: string }[] } | { orders?: { status?: string }[] }[];
+        }[];
+      }[];
     };
 
     if (!concert) {
@@ -372,6 +426,34 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Extras ────────────────────────────────────────────────────────────
+    // Se recalculan igual que las entradas: el precio sale SIEMPRE del catalogo,
+    // nunca del cliente. Cupones y descuento por metodo ya quedaron calculados
+    // sobre el subtotal de entradas, asi que los extras no los tocan.
+    const catalogExtras = concert.extras || [];
+    for (const sel of extrasSelection) {
+      const extra = catalogExtras.find((e) => e.id === sel.extraId);
+      if (!extra) {
+        return errorResponse(req, "EXTRA_NOT_FOUND", 404);
+      }
+      if (extra.active === false || extra.purchasable !== true) {
+        return errorResponse(req, "EXTRA_NOT_AVAILABLE", 409);
+      }
+      const availableStock = extraAvailableStock(
+        extra,
+        extraSoldQty(extra.purchaseItems),
+      );
+      if (sel.quantity > availableStock) {
+        return errorResponse(req, "EXTRA_OUT_OF_STOCK", 409, {
+          extra: { extraId: extra.id, available: Number.isFinite(availableStock) ? availableStock : null },
+        });
+      }
+    }
+    const { lines: extraLines, subtotal: extrasSubtotal } = priceExtraSelection(
+      extrasSelection,
+      catalogExtras,
+    );
+
     // Order numbers: random, non-sequential code (`PREFIX-XXXXXX`). No per-concert
     // counter → no serialization point → no contention under high concurrency.
     // Prefer the prefix stored on the concert (assigned at concert creation,
@@ -431,6 +513,36 @@ export async function POST(req: NextRequest) {
       feeFixed: platformFeeFixedSnapshot,
     });
 
+    // Los extras son plata del CHECKOUT, no de una entrada, asi que viajan
+    // enteros en la orden ancla (indice 0) — la misma convencion por la que las
+    // companions de un area llevan todos los snapshots en 0 y solo la primary
+    // carga cupon y purchaseAmountBs. Sumarlos a totalSnapshot y a
+    // platformFeeAmountSnapshot hace que Ingresos Totales, Totales Combinados y
+    // los "creditos para aprobar" cuadren sin tocar order-pricing ni approveOrder.
+    const anchorPlatformFeeAmountSnapshot =
+      extrasSubtotal > 0
+        ? computePlatformFeeAtPurchase({
+            basePrice: effectivePrice,
+            feePercent: platformFeePercentSnapshot,
+            feeFixed: platformFeeFixedSnapshot,
+            extrasBase: extrasSubtotal,
+          })
+        : platformFeeAmountSnapshot;
+    const extrasPlatformFeeSnapshot =
+      Math.round((anchorPlatformFeeAmountSnapshot - platformFeeAmountSnapshot) * 100) / 100;
+    const extrasAmountBs =
+      extrasSubtotal > 0 && purchaseRate
+        ? Math.round(extrasSubtotal * purchaseRate * 100) / 100
+        : undefined;
+    // Un doble-submit con el mismo submissionId reescribe EL MISMO pool en vez
+    // de crear un segundo que duplicaria el derecho.
+    const extraGroupId =
+      extrasSubtotal > 0
+        ? submissionId
+          ? extraGroupIdFor(submissionId)
+          : genId()
+        : undefined;
+
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       orderIds.length = 0;
       orderNumbers.length = 0;
@@ -470,16 +582,22 @@ export async function POST(req: NextRequest) {
           language: orderLanguage,
         };
 
+        // La orden ancla del checkout es la del indice 0: absorbe los extras.
+        const isExtrasAnchor = idx === 0 && extrasSubtotal > 0;
         const pricingFields = isPrimary
           ? {
               priceSnapshot: effectivePrice,
               feePercentSnapshot,
               feeFixedSnapshot,
               feeAmountSnapshot,
-              totalSnapshot,
+              totalSnapshot: isExtrasAnchor
+                ? Math.round((totalSnapshot + extrasSubtotal) * 100) / 100
+                : totalSnapshot,
               platformFeePercentSnapshot,
               platformFeeFixedSnapshot,
-              platformFeeAmountSnapshot,
+              platformFeeAmountSnapshot: isExtrasAnchor
+                ? anchorPlatformFeeAmountSnapshot
+                : platformFeeAmountSnapshot,
               paymentMethodFeePercentSnapshot: pmFeePercent,
               paymentMethodFeeFixedSnapshot: pmFeeFixed,
               paymentMethodFeeAmountSnapshot,
@@ -513,12 +631,20 @@ export async function POST(req: NextRequest) {
               ...(purchaseAmountBs != null ? { purchaseAmountBs } : {}),
             }
           : {};
+        const extrasFields = isExtrasAnchor
+          ? {
+              extrasSubtotalSnapshot: extrasSubtotal,
+              extrasPlatformFeeSnapshot,
+              ...(extrasAmountBs != null ? { extrasAmountBs } : {}),
+            }
+          : {};
 
-        return adminDb.tx.orders[orderId]
+        const orderTx = adminDb.tx.orders[orderId]
           .update({
             ...baseFields,
             ...pricingFields,
             ...monetaryExtras,
+            ...extrasFields,
             ...(paymentProofPath ? { paymentProofPath } : {}),
             ...(referenceNumber ? { proofReferenceNumber: referenceNumber } : {}),
             ...(promoter ? { promoter } : {}),
@@ -530,10 +656,41 @@ export async function POST(req: NextRequest) {
             ...(submissionId ? { idempotencyKey: submissionId } : {}),
           })
           .link({ ticketType: ticketTypeId });
+        // Cualquier QR del checkout puede canjear del pool, asi que TODAS las
+        // ordenes se enlazan al grupo (incluidas las companions de un area).
+        return extraGroupId
+          ? orderTx.link({ extraPurchaseGroup: extraGroupId })
+          : orderTx;
       });
 
+      const extrasTxns = extraGroupId
+        ? [
+            adminDb.tx.extraPurchaseGroups[extraGroupId]
+              .update({
+                ...(submissionId ? { submissionId } : {}),
+                anchorOrderId: orderIds[0],
+                subtotalSnapshot: extrasSubtotal,
+                createdAt: Date.now(),
+              })
+              .link({ concert: concert.id }),
+            ...extraLines.map((line) =>
+              adminDb.tx.extraPurchaseItems[extraItemIdFor(extraGroupId, line.extraId)]
+                .update({
+                  quantity: line.quantity,
+                  unitPriceSnapshot: line.unitPrice,
+                  subtotalSnapshot: line.subtotal,
+                  extraNameSnapshot: line.name,
+                  createdAt: Date.now(),
+                })
+                .link({ group: extraGroupId, extra: line.extraId }),
+            ),
+          ]
+        : [];
+
       try {
-        await adminDb.transact(orderTxns);
+        // El grupo va PRIMERO: las ordenes lo enlazan por id y asi la entidad
+        // existe dentro de la misma transaccion atomica.
+        await adminDb.transact([...extrasTxns, ...orderTxns]);
         break; // Success
       } catch (err) {
         // Reintento solo ante la rara colisión del orderNumber aleatorio (unique)
@@ -625,6 +782,18 @@ export async function POST(req: NextRequest) {
           // (Ya no hay contador que restaurar: los orderNumber son aleatorios.)
           const rollbackTxns = [
             ...orderIds.map((oid) => adminDb.tx.orders[oid].delete()),
+            // El pool de extras muere con la compra: si las ordenes se van, el
+            // derecho a canjear tambien.
+            ...(extraGroupId
+              ? [
+                  ...extraLines.map((line) =>
+                    adminDb.tx.extraPurchaseItems[
+                      extraItemIdFor(extraGroupId, line.extraId)
+                    ].delete(),
+                  ),
+                  adminDb.tx.extraPurchaseGroups[extraGroupId].delete(),
+                ]
+              : []),
             ...(validatedQueueToken
               ? [adminDb.tx.queueEntries[validatedQueueToken].update({ status: "admitted" })]
               : []),

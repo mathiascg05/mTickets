@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   deterministicUuid,
+  extraRedemptionId,
+  extraGroupIdFor,
+  extraItemIdFor,
   allotmentOrderId,
   feeTxnId,
   orderIdFor,
@@ -41,5 +44,55 @@ describe("deterministicId helpers", () => {
       feeTxnId("order", "order-1"),
     );
     expect(orderIdFor("id", 0)).not.toBe(guestListOrderIdFor("id"));
+  });
+});
+
+describe("extraRedemptionId — the anti-double-redeem mechanism", () => {
+  const POOL = "grp:group-1:x-franela";
+
+  it("is deterministic: the same unit always maps to the same row id", () => {
+    expect(extraRedemptionId(POOL, 0)).toBe(extraRedemptionId(POOL, 0));
+  });
+
+  it("gives a different id to each unit of the pool", () => {
+    expect(extraRedemptionId(POOL, 0)).not.toBe(extraRedemptionId(POOL, 1));
+  });
+
+  it("keeps pools apart", () => {
+    expect(extraRedemptionId("grp:a:x", 0)).not.toBe(
+      extraRedemptionId("grp:b:x", 0),
+    );
+    expect(extraRedemptionId("inc:order-1:x", 0)).not.toBe(
+      extraRedemptionId("grp:order-1:x", 0),
+    );
+  });
+
+  it("a pool of N units has EXACTLY N possible row ids", () => {
+    // This is the whole safety argument: writes use .create(), which throws if
+    // the id exists, so the size of the id space caps how many redemptions can
+    // ever exist. Two scanners racing for unit 0 compute the same id — one wins.
+    const N = 5;
+    const ids = new Set(
+      Array.from({ length: N }, (_, i) => extraRedemptionId(POOL, i)),
+    );
+    expect(ids.size).toBe(N);
+  });
+
+  it("two devices racing for the same unit produce the SAME id", () => {
+    const deviceA = extraRedemptionId(POOL, 0);
+    const deviceB = extraRedemptionId(POOL, 0);
+    expect(deviceA).toBe(deviceB);
+  });
+
+  it("does not collide with the other deterministic id namespaces", () => {
+    expect(extraRedemptionId("a", 0)).not.toBe(deterministicUuid("other", "a:0"));
+    expect(extraGroupIdFor("sub-1")).not.toBe(extraItemIdFor("sub-1", "x"));
+  });
+
+  it("a retried checkout rebuilds the same extras pool instead of a second one", () => {
+    expect(extraGroupIdFor("sub-1")).toBe(extraGroupIdFor("sub-1"));
+    expect(extraGroupIdFor("sub-1")).not.toBe(extraGroupIdFor("sub-2"));
+    expect(extraItemIdFor("g", "x")).toBe(extraItemIdFor("g", "x"));
+    expect(extraItemIdFor("g", "x")).not.toBe(extraItemIdFor("g", "y"));
   });
 });

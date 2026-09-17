@@ -3,6 +3,8 @@
 import { useLanguage } from "@/lib/LanguageContext";
 import { useEffect, useState } from "react";
 import { playFeedback } from "../feedback";
+import { ConcertExtrasPanel } from "./ConcertExtrasPanel";
+import type { Entitlement } from "@/lib/extras";
 
 type ValidatedOrder = {
   id: string;
@@ -40,6 +42,7 @@ export function ConcertTicketInfo({
   const [wrongEvent, setWrongEvent] = useState(false);
   const [wrongEventName, setWrongEventName] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [entitlements, setEntitlements] = useState<Entitlement[]>([]);
 
   // Read-only validate via the scanner-token route (orders aren't client-
   // readable). Marking still goes through /api/mark-visited.
@@ -47,16 +50,31 @@ export function ConcertTicketInfo({
     let cancelled = false;
     async function load() {
       try {
-        const res = await fetch("/api/scan/validate", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${scannerToken}`,
-          },
-          body: JSON.stringify({ orderId }),
-        });
+        // Extras live on their own route so /api/scan/validate stays untouched;
+        // both fly in parallel so the ticket card is no slower than before.
+        const [res, extrasRes] = await Promise.all([
+          fetch("/api/scan/validate", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${scannerToken}`,
+            },
+            body: JSON.stringify({ orderId }),
+          }),
+          fetch("/api/scan/extras", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId, scannerToken }),
+          }).catch(() => null),
+        ]);
         const json = await res.json();
         if (cancelled) return;
+        if (extrasRes?.ok) {
+          const extrasJson = await extrasRes.json().catch(() => null);
+          if (!cancelled && Array.isArray(extrasJson?.entitlements)) {
+            setEntitlements(extrasJson.entitlements as Entitlement[]);
+          }
+        }
         if (!json.found) {
           setNotFound(true);
         } else if (json.wrongEvent) {
@@ -286,6 +304,16 @@ export function ConcertTicketInfo({
           {t("scan.scanAgain")}
         </button>
       </div>
+
+      {/* Extras go strictly BELOW the access zone: the button above is still the
+          only thing that marks entry, and redeeming here never touches it. */}
+      <ConcertExtrasPanel
+        orderId={order.id}
+        scannerToken={scannerToken}
+        entitlements={entitlements}
+        approved={isApproved}
+        onChange={setEntitlements}
+      />
     </div>
   );
 }
