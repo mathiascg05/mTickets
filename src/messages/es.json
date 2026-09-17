@@ -708,6 +708,15 @@
     "event": "Evento",
     "creditsNeeded": "Créditos necesarios para aprobar pendientes",
     "pendingFeesPostpaid": "Fees por acumular al aprobar pendientes",
+    "viewFilteredOrders": "Ver estas órdenes en la lista",
+    "salesChart": {
+      "title": "Ventas en el tiempo",
+      "cumulative": "Acumulado",
+      "empty": "Todavía no hay ventas que mostrar.",
+      "projection": "A este ritmo: ~{projected} de {capacity} para el {date}",
+      "ariaLabel": "Entradas vendidas por día: {days} días, {total} entradas en total",
+      "phaseEnds": "Fin {name}"
+    },
     "void": "Anular",
     "voidConfirm": "¿Estás seguro de anular esta transacción? Se creará un ajuste que revierte el monto.",
     "statistics": "Estadísticas",

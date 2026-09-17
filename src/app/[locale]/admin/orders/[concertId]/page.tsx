@@ -3,8 +3,8 @@
 import { db } from "@/lib/db";
 import { id } from "@instantdb/react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { getAvailability, getTodayString } from "@/lib/phases";
 import {
   getOrderTotal,
@@ -15,6 +15,7 @@ import {
 import { sendTicketEmail, sendConfirmationEmail } from "@/lib/sendTicketEmail";
 import PhoneField from "@/components/PhoneField";
 import AllotmentsSection from "@/components/admin/AllotmentsSection";
+import SalesOverTimeChart, { type PhaseMarker } from "@/components/admin/SalesOverTimeChart";
 import { useLanguage } from "@/lib/LanguageContext";
 import { getEventRole, roleCan } from "@/lib/authHelpers";
 import { dateLocale } from "@/lib/i18n";
@@ -889,6 +890,24 @@ function CouponInlineInput({
 }
 
 type FilterStatus = "all" | "pending" | "approved" | "rejected" | "cancelled";
+
+const FILTER_STATUSES: FilterStatus[] = [
+  "all",
+  "pending",
+  "approved",
+  "rejected",
+  "cancelled",
+];
+
+/** Query-param keys that drive the order list filters. */
+type FilterParam = "status" | "type" | "pm";
+
+/**
+ * Shared affordance for every dashboard number that links into the order list.
+ * They are real <Link>s, so keyboard focus and open-in-new-tab work for free.
+ */
+const DRILLDOWN_CLASS =
+  "cursor-pointer hover:underline decoration-2 underline-offset-4 rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 transition-colors";
 
 function CreateOrderModal({
   concert,
@@ -1793,15 +1812,50 @@ function ImportCsvModal({
   );
 }
 
-export default function ConcertOrdersPage() {
+function ConcertOrdersPageInner() {
   const { t, lang } = useLanguage();
   const params = useParams();
   const concertId = params.concertId as string;
   const { user } = db.useAuth();
   const refreshToken = user?.refresh_token || "";
-  const [filter, setFilter] = useState<FilterStatus>("all");
-  const [ticketTypeFilter, setTicketTypeFilter] = useState<string>("all");
-  const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
+
+  // The list filters live in the URL so that every number on the dashboard can
+  // deep-link into its own slice of the order list (and so those views are
+  // shareable / survive a reload).
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const rawStatus = searchParams.get("status") as FilterStatus | null;
+  const filter: FilterStatus =
+    rawStatus && FILTER_STATUSES.includes(rawStatus) ? rawStatus : "all";
+  const ticketTypeFilter = searchParams.get("type") ?? "all";
+  const paymentMethodFilter = searchParams.get("pm") ?? "all";
+
+  const setFilterParam = useCallback(
+    (key: FilterParam, value: string) => {
+      const sp = new URLSearchParams(searchParams.toString());
+      if (!value || value === "all") sp.delete(key);
+      else sp.set(key, value);
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [searchParams, pathname, router],
+  );
+
+  /** Builds an href into the order list with the given filters pre-applied. */
+  const ordersHref = useCallback(
+    (f: { status?: string; type?: string; pm?: string }) => {
+      const sp = new URLSearchParams();
+      if (f.status && f.status !== "all") sp.set("status", f.status);
+      if (f.type && f.type !== "all") sp.set("type", f.type);
+      if (f.pm && f.pm !== "all") sp.set("pm", f.pm);
+      const qs = sp.toString();
+      return `${pathname}${qs ? `?${qs}` : ""}#order-list`;
+    },
+    [pathname],
+  );
+
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set());
   const [bulkApproving, setBulkApproving] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -2113,6 +2167,26 @@ export default function ConcertOrdersPage() {
   const totalScanned = allOrders.filter((o) => o.visited).length;
   const scannedPercent = totalTicketsIssued > 0 ? Math.round((totalScanned / totalTicketsIssued) * 100) : 0;
 
+  // Dated price jumps: a phase with an endDate stops selling after that day, so
+  // the next day is where the price changed. One marker per date.
+  const phaseMarkers: PhaseMarker[] = (() => {
+    const byDate = new Map<string, string[]>();
+    for (const tt of concert.ticketTypes) {
+      for (const phase of tt.phases || []) {
+        if (!phase.endDate) continue;
+        const names = byDate.get(phase.endDate) || [];
+        names.push(phase.name);
+        byDate.set(phase.endDate, names);
+      }
+    }
+    return [...byDate.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, names]) => ({
+        date,
+        label: t("admin.salesChart.phaseEnds", { name: names.join(" / ") }),
+      }));
+  })();
+
   async function updateOrderStatus(orderId: string, action: "approve" | "reject" | "cancel") {
     try {
       const res = await fetch("/api/approve-order", {
@@ -2293,7 +2367,17 @@ export default function ConcertOrdersPage() {
           )}
           <div className="border-l-4 border-warning pl-4">
             <p className="text-sm text-muted">{t("admin.pendingApproval")}</p>
-            <p className="text-3xl font-bold text-warning">{pendingCount}</p>
+            {pendingCount > 0 ? (
+              <Link
+                href={ordersHref({ status: "pending" })}
+                title={t("admin.viewFilteredOrders")}
+                className={`block text-3xl font-bold text-warning ${DRILLDOWN_CLASS}`}
+              >
+                {pendingCount}
+              </Link>
+            ) : (
+              <p className="text-3xl font-bold text-warning">{pendingCount}</p>
+            )}
           </div>
         </div>
 
@@ -2318,11 +2402,35 @@ export default function ConcertOrdersPage() {
             <div>
               <div className="flex items-center gap-3 text-xs mb-1.5 flex-wrap">
                 <span className="text-muted">{t("admin.orderStatus")}</span>
-                <span className="text-success font-medium">{t("common.approved")} {orderStatusPercents.approved}%</span>
-                <span className="text-warning font-medium">{t("common.pending")} {orderStatusPercents.pending}%</span>
-                <span className="text-danger font-medium">{t("common.rejected")} {orderStatusPercents.rejected}%</span>
+                <Link
+                  href={ordersHref({ status: "approved" })}
+                  title={t("admin.viewFilteredOrders")}
+                  className={`text-success font-medium ${DRILLDOWN_CLASS}`}
+                >
+                  {t("common.approved")} {orderStatusPercents.approved}%
+                </Link>
+                <Link
+                  href={ordersHref({ status: "pending" })}
+                  title={t("admin.viewFilteredOrders")}
+                  className={`text-warning font-medium ${DRILLDOWN_CLASS}`}
+                >
+                  {t("common.pending")} {orderStatusPercents.pending}%
+                </Link>
+                <Link
+                  href={ordersHref({ status: "rejected" })}
+                  title={t("admin.viewFilteredOrders")}
+                  className={`text-danger font-medium ${DRILLDOWN_CLASS}`}
+                >
+                  {t("common.rejected")} {orderStatusPercents.rejected}%
+                </Link>
                 {cancelledCount > 0 && (
-                  <span className="text-muted font-medium">{t("common.cancelled")} {orderStatusPercents.cancelled}%</span>
+                  <Link
+                    href={ordersHref({ status: "cancelled" })}
+                    title={t("admin.viewFilteredOrders")}
+                    className={`text-muted font-medium ${DRILLDOWN_CLASS}`}
+                  >
+                    {t("common.cancelled")} {orderStatusPercents.cancelled}%
+                  </Link>
                 )}
                 {otherCount > 0 && (
                   <span className="text-muted font-medium">{t("common.other")} {orderStatusPercents.other}%</span>
@@ -2374,6 +2482,17 @@ export default function ConcertOrdersPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Sales over time — derived from the orders the page already has */}
+      <div className="bg-surface border border-border rounded-xl p-6 mb-6">
+        <h2 className="text-lg font-semibold mb-4">{t("admin.salesChart.title")}</h2>
+        <SalesOverTimeChart
+          orders={allOrders}
+          eventDate={concert.date}
+          capacity={totalCapacity}
+          phaseMarkers={phaseMarkers}
+        />
       </div>
 
       {/* Platform Balance & Fee Info (financial → managers only) */}
@@ -2457,9 +2576,14 @@ export default function ConcertOrdersPage() {
               </p>
               <div className="flex flex-wrap gap-2">
                 {[...pendingFeesByPm.entries()].map(([pm, { count, fee }]) => (
-                  <span key={pm} className="text-xs px-2 py-1 bg-background border border-border rounded-lg">
+                  <Link
+                    key={pm}
+                    href={ordersHref({ status: "pending", pm })}
+                    title={t("admin.viewFilteredOrders")}
+                    className="text-xs px-2 py-1 bg-background border border-border rounded-lg cursor-pointer hover:border-accent/50 hover:text-accent-light focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 transition-colors"
+                  >
                     {pm}: {count} {count === 1 ? "ticket" : "tickets"} — <span className="font-medium">${fee.toFixed(2)}</span>
-                  </span>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -2493,9 +2617,14 @@ export default function ConcertOrdersPage() {
               </p>
               <div className="flex flex-wrap gap-2">
                 {[...pendingFeesByPm.entries()].map(([pm, { count, fee }]) => (
-                  <span key={pm} className="text-xs px-2 py-1 bg-background border border-border rounded-lg">
+                  <Link
+                    key={pm}
+                    href={ordersHref({ status: "pending", pm })}
+                    title={t("admin.viewFilteredOrders")}
+                    className="text-xs px-2 py-1 bg-background border border-border rounded-lg cursor-pointer hover:border-accent/50 hover:text-accent-light focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 transition-colors"
+                  >
                     {pm}: {count} {count === 1 ? "ticket" : "tickets"} — <span className="font-medium">${fee.toFixed(2)}</span>
-                  </span>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -2641,10 +2770,25 @@ export default function ConcertOrdersPage() {
                             key={`${s.key}-${pm}-count`}
                             className="text-center py-2 px-2"
                           >
-                            <span className={`font-bold ${s.color}`}>
-                              {cell.count}
-                            </span>
-                            <span className="text-muted text-xs"> {t("common.quantity")}</span>
+                            {cell.count > 0 ? (
+                              <Link
+                                href={ordersHref({ status: s.key, type: tt.name, pm })}
+                                title={t("admin.viewFilteredOrders")}
+                                className={`inline-block rounded hover:bg-accent/10 `}
+                              >
+                                <span className={`font-bold ${s.color}`}>
+                                  {cell.count}
+                                </span>
+                                <span className="text-muted text-xs"> {t("common.quantity")}</span>
+                              </Link>
+                            ) : (
+                              <>
+                                <span className={`font-bold ${s.color}`}>
+                                  {cell.count}
+                                </span>
+                                <span className="text-muted text-xs"> {t("common.quantity")}</span>
+                              </>
+                            )}
                           </td>
                         );
                       }),
@@ -2793,8 +2937,21 @@ export default function ConcertOrdersPage() {
                         const cell = cells[s.key][pm];
                         return (
                           <td key={`${s.key}-${pm}-count`} className="text-center py-2 px-2">
-                            <span className={`font-bold ${s.color}`}>{cell.count}</span>
-                            <span className="text-muted text-xs"> {t("common.quantity")}</span>
+                            {cell.count > 0 ? (
+                              <Link
+                                href={ordersHref({ status: s.key, pm })}
+                                title={t("admin.viewFilteredOrders")}
+                                className={`inline-block rounded hover:bg-accent/10 `}
+                              >
+                                <span className={`font-bold ${s.color}`}>{cell.count}</span>
+                                <span className="text-muted text-xs"> {t("common.quantity")}</span>
+                              </Link>
+                            ) : (
+                              <>
+                                <span className={`font-bold ${s.color}`}>{cell.count}</span>
+                                <span className="text-muted text-xs"> {t("common.quantity")}</span>
+                              </>
+                            )}
                           </td>
                         );
                       }),
@@ -2985,7 +3142,7 @@ export default function ConcertOrdersPage() {
       )}
 
       {/* Order List */}
-      <div className="bg-surface border border-border rounded-xl p-6">
+      <div id="order-list" className="bg-surface border border-border rounded-xl p-6 scroll-mt-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold">{t("admin.orderList")}</h2>
@@ -3017,7 +3174,7 @@ export default function ConcertOrdersPage() {
               {filters.map((f) => (
                 <button
                   key={f.value}
-                  onClick={() => setFilter(f.value)}
+                  onClick={() => setFilterParam("status", f.value)}
                   className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
                     filter === f.value
                       ? "bg-accent/20 text-accent-light"
@@ -3028,10 +3185,10 @@ export default function ConcertOrdersPage() {
                 </button>
               ))}
             </div>
-            {concert.ticketTypes.length > 1 && (
+            {(concert.ticketTypes.length > 1 || ticketTypeFilter !== "all") && (
               <div className="flex gap-1 border-l border-border pl-2">
                 <button
-                  onClick={() => setTicketTypeFilter("all")}
+                  onClick={() => setFilterParam("type", "all")}
                   className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
                     ticketTypeFilter === "all"
                       ? "bg-accent/20 text-accent-light"
@@ -3043,7 +3200,7 @@ export default function ConcertOrdersPage() {
                 {concert.ticketTypes.map((tt) => (
                   <button
                     key={tt.id}
-                    onClick={() => setTicketTypeFilter(tt.name)}
+                    onClick={() => setFilterParam("type", tt.name)}
                     className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
                       ticketTypeFilter === tt.name
                         ? "bg-accent/20 text-accent-light"
@@ -3055,10 +3212,10 @@ export default function ConcertOrdersPage() {
                 ))}
               </div>
             )}
-            {uniquePaymentMethods.length > 1 && (
+            {(uniquePaymentMethods.length > 1 || paymentMethodFilter !== "all") && (
               <div className="flex gap-1 border-l border-border pl-2">
                 <button
-                  onClick={() => setPaymentMethodFilter("all")}
+                  onClick={() => setFilterParam("pm", "all")}
                   className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
                     paymentMethodFilter === "all"
                       ? "bg-accent/20 text-accent-light"
@@ -3070,7 +3227,7 @@ export default function ConcertOrdersPage() {
                 {uniquePaymentMethods.map((pm) => (
                   <button
                     key={pm}
-                    onClick={() => setPaymentMethodFilter(pm)}
+                    onClick={() => setFilterParam("pm", pm)}
                     className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
                       paymentMethodFilter === pm
                         ? "bg-accent/20 text-accent-light"
@@ -3475,5 +3632,19 @@ export default function ConcertOrdersPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function OrdersLoading() {
+  const { t } = useLanguage();
+  return <div className="animate-pulse text-muted">{t("common.loading")}</div>;
+}
+
+// useSearchParams() needs a Suspense boundary above it in the App Router.
+export default function ConcertOrdersPage() {
+  return (
+    <Suspense fallback={<OrdersLoading />}>
+      <ConcertOrdersPageInner />
+    </Suspense>
   );
 }

@@ -708,6 +708,15 @@
     "event": "Event",
     "creditsNeeded": "Credits needed to approve pending",
     "pendingFeesPostpaid": "Fees from pending approvals",
+    "viewFilteredOrders": "View these orders in the list",
+    "salesChart": {
+      "title": "Sales over time",
+      "cumulative": "Cumulative",
+      "empty": "No sales to show yet.",
+      "projection": "At this pace: ~{projected} of {capacity} by {date}",
+      "ariaLabel": "Tickets sold per day: {days} days, {total} tickets total",
+      "phaseEnds": "{name} ends"
+    },
     "void": "Void",
     "voidConfirm": "Are you sure you want to void this transaction? An adjustment will be created to reverse the amount.",
     "statistics": "Statistics",
