@@ -72,7 +72,10 @@ export function ExtrasSection({
             ...(stockValue !== undefined ? { stock: stockValue } : {}),
             active: true,
             purchasable,
-            sortOrder: extras.length,
+            // Derivado del maximo, no de la cantidad: borrar un extra del medio
+            // haria que `extras.length` repitiera un sortOrder ya usado, y con
+            // empates el orden de la lista queda arbitrario.
+            sortOrder: extras.reduce((max, e) => Math.max(max, e.sortOrder ?? 0), -1) + 1,
             createdAt: Date.now(),
           })
           .link({ concert: concertId }),
@@ -355,6 +358,9 @@ function ExtraCard({ extra, sym }: { extra: AdminExtra; sym: string }) {
               onChange={(e) => touch(setSortOrder)(e.target.value)}
               className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:border-accent-light transition-colors text-sm"
             />
+            <p className="text-xs text-muted mt-1">
+              {t("admin.extrasSortOrderHint")}
+            </p>
           </div>
         </div>
         <label className="flex items-center gap-2 text-sm">

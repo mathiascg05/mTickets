@@ -1065,7 +1065,7 @@
     "extrasStockHint": "Vacio = ilimitado",
     "extrasPurchasable": "Se puede comprar en el checkout",
     "extrasNotPurchasable": "Solo incluido",
-    "extrasSortOrder": "Orden",
+    "extrasSortOrder": "Posición",
     "extrasActive": "Activo",
     "extrasDeleteConfirm": "Eliminar este extra?",
     "extrasDeleteBlocked": "No se puede eliminar un extra que ya tiene ventas o canjes. Desactivalo.",
@@ -1084,7 +1084,8 @@
     "pmIsTestHint": "Sus ordenes se excluyen de los totales y de la curva de ventas",
     "includeTestOrders": "Incluir pruebas",
     "testBadge": "Prueba",
-    "extrasSharedLabel": "del grupo"
+    "extrasSharedLabel": "del grupo",
+    "extrasSortOrderHint": "Menor aparece primero"
   },
   "seo": {
     "root": {

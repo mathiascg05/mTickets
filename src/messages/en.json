@@ -1065,7 +1065,7 @@
     "extrasStockHint": "Empty = unlimited",
     "extrasPurchasable": "Can be bought at checkout",
     "extrasNotPurchasable": "Included only",
-    "extrasSortOrder": "Order",
+    "extrasSortOrder": "Position",
     "extrasActive": "Active",
     "extrasDeleteConfirm": "Delete this extra?",
     "extrasDeleteBlocked": "An extra with sales or redemptions can't be deleted. Deactivate it instead.",
@@ -1084,7 +1084,8 @@
     "pmIsTestHint": "Its orders are excluded from totals and the sales chart",
     "includeTestOrders": "Include tests",
     "testBadge": "Test",
-    "extrasSharedLabel": "shared"
+    "extrasSharedLabel": "shared",
+    "extrasSortOrderHint": "Lower shows first"
   },
   "seo": {
     "root": {
