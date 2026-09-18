@@ -7,6 +7,10 @@ import type { Bank, OrderRef, ReviewResult, Suggestion } from "./types";
 
 type ItemState = "idle" | "approving" | "approved" | "dismissed" | "failed";
 
+// La revision reemplaza al paso anterior en el mismo lugar: un doble clic en
+// "Conciliar" no debe caer en un boton que gasta un analisis del asistente.
+const ACCIDENTAL_CLICK_GUARD_MS = 700;
+
 const APPROVE_ERROR_CODES = ["NO_BALANCE", "INSUFFICIENT_BALANCE", "INVALID_STATUS", "NOT_IN_CONCERT", "NOT_FOUND"];
 
 /**
@@ -37,6 +41,7 @@ export default function ReconcileReview({
   const [suggestionState, setSuggestionState] = useState<Record<number, ItemState>>({});
   const [settledIds, setSettledIds] = useState<Set<string>>(new Set());
   const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
+  const [mountedAt] = useState(() => Date.now());
 
   const isZelle = result.paymentType === "zelle";
   const fmt = (n: number | null | undefined) => {
@@ -229,7 +234,10 @@ export default function ReconcileReview({
           <section className="p-4 border border-accent/30 bg-accent/5 rounded-lg flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted max-w-xl">{t("admin.reconcileFlow.askAssistantHint")}</p>
             <button
-              onClick={onAskAssistant}
+              onClick={() => {
+                if (Date.now() - mountedAt < ACCIDENTAL_CLICK_GUARD_MS) return;
+                onAskAssistant();
+              }}
               className="px-4 py-2 border border-accent/50 text-accent-light hover:bg-accent/10 rounded-lg text-sm font-medium transition-colors"
             >
               {t("admin.reconcileFlow.askAssistant")}
