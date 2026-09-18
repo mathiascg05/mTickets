@@ -6,6 +6,7 @@ import {
   expectedGroupAmount,
   expectedOrderBs,
   expectedOrderUsd,
+  reconcilableGroups,
   runDeterministicMatch,
   type ReconcilePaymentType,
   type UnmatchedCode,
@@ -22,14 +23,20 @@ import {
   groupPurchases,
   resolveCandidateChoices,
   validateSuggestions,
+  withinSuggestionTolerance,
   MAX_SUGGEST_ROWS,
   type SuggestOrder,
   type ValidatedSuggestion,
 } from "@/lib/reconcileAi/suggestions";
 import { requestSuggestions } from "@/lib/reconcileAi/suggest";
+import { ambiguousExactRows } from "@/lib/reconcileAi/imageSafety";
 
-// Extraccion (~70s) + sugerencias (~35s) + queries.
-export const maxDuration = 120;
+// Extraccion (bloques en paralelo, ~60 s para un extracto de 1500 filas) +
+// sugerencias (<=35 s) + queries, con margen.
+export const maxDuration = 180;
+// Si la extraccion se comio el presupuesto, se devuelven exactos y lotes sin
+// sugerencias (con aviso) antes que arriesgar el corte de la plataforma.
+const SUGGESTIONS_DEADLINE_MS = 130_000;
 
 // Vercel corta el body de una funcion en 4.5 MB: 4 MB de archivo + margen del
 // multipart. Las imagenes se reducen en el navegador antes de subir.
@@ -66,7 +73,8 @@ function sniffMime(buf: Buffer): string | null {
 async function authorize(req: NextRequest, concertId: string) {
   const authToken = req.headers.get("authorization")?.replace("Bearer ", "");
   if (!authToken) return { ok: false as const, res: fail("Unauthorized", 401) };
-  const user = await adminDb.auth.verifyToken(authToken);
+  // Un token malformado hace lanzar al SDK: es un 401, no un 500.
+  const user = await adminDb.auth.verifyToken(authToken).catch(() => null);
   if (!user?.email) return { ok: false as const, res: fail("Unauthorized", 401) };
 
   const { concerts } = await adminDb.query({
@@ -211,22 +219,26 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
 
     // 1. Extraccion
-    const { movements, invalid } = await extractMovements(input, type);
+    const { movements, invalid, amountsCorrected, chunks, doubleRead, uncertainRefs } =
+      await extractMovements(input, type);
     const credits = movements.filter((m) => m.direction === "credit");
     const debitsIgnored = movements.length - credits.length;
     const creditByIndex = new Map(credits.map((m) => [m.index, m]));
 
     // 2. Matching determinista (mismo modulo que el CSV)
     const pending = (await loadPendingConcertOrders(concertId, type)) as SuggestOrder[];
-    const det = runDeterministicMatch(
-      type,
-      credits.map((m) => toBankRow(m, type)),
-      pending,
-      methodNames,
-    );
+    const bankRows = credits.map((m) => toBankRow(m, type));
+    const det = runDeterministicMatch(type, bankRows, pending, methodNames);
+
+    // Leido de imagen: un exacto con un "vecino" a un digito del mismo monto
+    // no es confiable (un digito mal leido lo explicaria) → revision humana.
+    const demoted = doubleRead
+      ? ambiguousExactRows(det.matched, bankRows, reconcilableGroups(pending, type, methodNames), type)
+      : new Set<number>();
+    const exactMatched = det.matched.filter((m) => !demoted.has(m.rowIndex));
 
     const exactByRow = new Map<number, typeof det.matched>();
-    for (const m of det.matched) {
+    for (const m of exactMatched) {
       if (!exactByRow.has(m.rowIndex)) exactByRow.set(m.rowIndex, []);
       exactByRow.get(m.rowIndex)!.push(m);
     }
@@ -241,16 +253,44 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       })),
     }));
     const unmatchedByRow = new Map(det.unmatched.map((u) => [u.rowIndex, u]));
+    for (const rowIndex of demoted) {
+      unmatchedByRow.set(rowIndex, {
+        csvRef: "",
+        csvAmount: creditByIndex.get(rowIndex)?.amount ?? 0,
+        reason: "Referencia leída de imagen ambigua",
+        code: "AMBIGUOUS",
+        rowIndex,
+      });
+    }
+
+    // Ordenes pendientes del metodo sin match, agrupadas por compra. Se
+    // calculan ANTES de los lotes: una fila que calza por monto con una orden
+    // no se etiqueta como lote solo por monto.
+    const matchedOrderIds = new Set(exactMatched.map((m) => m.orderId));
+    const orphanOrders = pending.filter(
+      (o) => methodNames.includes(o.paymentMethod) && !matchedOrderIds.has(o.id),
+    );
+    const { groups, truncated } = buildCandidateGroups(orphanOrders, type);
+    const rowHasOrderCandidate = (rowIndex: number) => {
+      const m = creditByIndex.get(rowIndex);
+      return !!m && groups.some((g) => withinSuggestionTolerance(m.amount, g.expected));
+    };
 
     // 3. Lotes (determinista) sobre lo que no cuadro
     let rest = credits.filter((m) => !exactByRow.has(m.index));
     const { ticketAllotments } = await adminDb.query({
       ticketAllotments: { $: { where: { "concert.id": concertId } } },
     });
+    const methodIdsOfType = new Set(
+      ((auth.concert.paymentMethods || []) as { id: string; type: string }[])
+        .filter((pm) => pm.type === type)
+        .map((pm) => pm.id),
+    );
     const lotMatches = matchAllotments(
       rest,
       ticketAllotments as unknown as AllotmentCandidate[],
       type,
+      { methodIdsOfType, rowHasOrderCandidate },
     );
     const posiblesLotes = lotMatches.map((l) => ({
       bank: bankInfo(creditByIndex.get(l.rowIndex)!),
@@ -264,21 +304,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     rest = rest.filter((m) => !lotRows.has(m.index));
 
     // 4. Sugerencias (IA) para huerfanos de ambos lados
-    const matchedOrderIds = new Set(det.matched.map((m) => m.orderId));
-    const orphanOrders = pending.filter(
-      (o) => methodNames.includes(o.paymentMethod) && !matchedOrderIds.has(o.id),
-    );
     const warnings: string[] = [];
     let sugerencias: ValidatedSuggestion[] = [];
     let discarded = 0;
     if (rest.length > 0 && orphanOrders.length > 0) {
-      const { groups, truncated } = buildCandidateGroups(orphanOrders, type);
-      const suggestRows = rest.slice(0, MAX_SUGGEST_ROWS);
+      // En Pago Movil la referencia puede venir etiquetada en el concepto.
+      const suggestRows = rest.slice(0, MAX_SUGGEST_ROWS).map((m) => ({
+        ...m,
+        reference: type === "pago_movil" ? toBankRow(m, type).reference || null : m.reference,
+      }));
       if (truncated || rest.length > MAX_SUGGEST_ROWS) warnings.push("SUGGESTIONS_TRUNCATED");
       // Solo filas con alguna compra dentro de la tolerancia; sin ninguna, no
       // se llama al modelo.
       const withCandidates = buildRowCandidates(suggestRows, groups, type);
-      if (withCandidates.length > 0) {
+      if (withCandidates.length > 0 && Date.now() - startedAt > SUGGESTIONS_DEADLINE_MS) {
+        warnings.push("SUGGESTIONS_UNAVAILABLE");
+      } else if (withCandidates.length > 0) {
         try {
           const raw = await requestSuggestions(withCandidates, type);
           const validated = validateSuggestions(
@@ -328,10 +369,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const counts = {
       movements: movements.length,
       credits: credits.length,
+      creditsTotal: Math.round(credits.reduce((sum, m) => sum + m.amount, 0) * 100) / 100,
       debitsIgnored,
       invalidRows: invalid,
+      amountsCorrected,
+      chunks,
+      uncertainRefs,
+      demotedFromExact: demoted.size,
       exactRows: exactos.length,
-      exactOrders: det.matched.length,
+      exactOrders: exactMatched.length,
       suggestions: sugerencias.length,
       suggestionsDiscarded: discarded,
       possibleAllotments: posiblesLotes.length,
@@ -339,6 +385,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       unmatchedPurchases: ordenesSinMatch.length,
     };
     if (invalid > 0) warnings.push("SOME_ROWS_UNREADABLE");
+    if (uncertainRefs > 0 || demoted.size > 0) warnings.push("IMAGE_REVIEW");
     console.info("[reconcile-ai] done", { ...counts, ms: Date.now() - startedAt });
 
     return NextResponse.json({
@@ -352,6 +399,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       posiblesLotes,
       sinMatch,
       ordenesSinMatch,
+      // Para cotejar contra el extracto: lo que se ignoro y el total leido.
+      debitosIgnorados: movements
+        .filter((m) => m.direction === "debit")
+        .slice(0, 500)
+        .map(bankInfo),
       counts,
       warnings,
     });
@@ -360,7 +412,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       console.error("[reconcile-ai] failed:", err.code, { ms: Date.now() - startedAt });
       const status =
         err.code === "AI_TIMEOUT" ? 504 : err.code === "AI_DISABLED" ? 503 : 502;
-      return fail(err.code, err.code === "TOO_MANY_MOVEMENTS" || err.code === "NO_MOVEMENTS" ? 422 : status);
+      const inputProblem =
+        err.code === "TOO_MANY_MOVEMENTS" || err.code === "NO_MOVEMENTS" || err.code === "FILE_UNREADABLE";
+      return fail(err.code, inputProblem ? 422 : status);
     }
     console.error("[reconcile-ai] Unexpected error:", (err as Error)?.name);
     return fail("Internal server error", 500);

@@ -1,4 +1,4 @@
-import { GoogleGenAI, type Part, type Schema } from "@google/genai";
+import { GoogleGenAI, MediaResolution, type Part, type Schema } from "@google/genai";
 import { ReconcileAiError } from "./errors";
 
 // Tier economico vigente de la linea Flash (ai.google.dev/gemini-api/docs/models,
@@ -17,17 +17,42 @@ function getClient(): GoogleGenAI {
   return client;
 }
 
+const TRANSIENT_STATUS = new Set([429, 500, 502, 503, 504]);
+const RETRY_DELAYS_MS = [1_500, 4_000];
+
 /**
- * Una llamada a Gemini con salida JSON forzada por schema. Sin reintentos: un
- * fallo se reporta tal cual para que el organizador use el CSV manual. Nunca
- * loggea el contenido enviado ni recibido.
+ * Una llamada a Gemini con salida JSON forzada por schema. Solo reintenta ante
+ * saturacion o fallo transitorio (429/5xx), con espera creciente; cualquier
+ * otro fallo se reporta tal cual para que el organizador use el CSV manual.
+ * Nunca loggea el contenido enviado ni recibido.
  */
-export async function generateJson(opts: {
+export async function generateJson(opts: Parameters<typeof generateJsonOnce>[0] & { retries?: number }): Promise<unknown> {
+  const retries = Math.min(opts.retries ?? 0, RETRY_DELAYS_MS.length);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await generateJsonOnce(opts);
+    } catch (err) {
+      const transient = err instanceof TransientGeminiError;
+      if (!transient || attempt >= retries) {
+        throw transient ? new ReconcileAiError("AI_UNAVAILABLE") : err;
+      }
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
+    }
+  }
+}
+
+class TransientGeminiError extends Error {}
+
+async function generateJsonOnce(opts: {
   systemInstruction: string;
   parts: Part[];
   schema: Schema;
   timeoutMs: number;
   maxOutputTokens: number;
+  /** La entrada lleva un archivo (PDF/imagen): lectura en alta resolucion y un
+   * 400 de la API significa que el archivo no se pudo procesar. */
+  hasFile?: boolean;
+  temperature?: number;
 }): Promise<unknown> {
   const ai = getClient();
   const controller = new AbortController();
@@ -41,8 +66,9 @@ export async function generateJson(opts: {
         systemInstruction: opts.systemInstruction,
         responseMimeType: "application/json",
         responseSchema: opts.schema,
-        temperature: 0,
+        temperature: opts.temperature ?? 0,
         maxOutputTokens: opts.maxOutputTokens,
+        ...(opts.hasFile ? { mediaResolution: MediaResolution.MEDIA_RESOLUTION_HIGH } : {}),
         abortSignal: controller.signal,
         httpOptions: { timeout: opts.timeoutMs, retryOptions: { attempts: 1 } },
       },
@@ -63,6 +89,15 @@ export async function generateJson(opts: {
       status,
       name: (err as Error)?.name,
     });
+    // Key invalida tambien llega como 400: es un problema de configuracion
+    // del servidor, no del archivo del organizador.
+    if (status === 400 && /API_KEY_INVALID|API key not valid/i.test(String((err as Error)?.message))) {
+      console.error("[reconcile-ai] GEMINI_API_KEY invalida o revocada");
+      throw new ReconcileAiError("AI_UNAVAILABLE");
+    }
+    // PDF corrupto, protegido o imagen ilegible: la API lo rechaza con 400.
+    if (opts.hasFile && status === 400) throw new ReconcileAiError("FILE_UNREADABLE");
+    if (status != null && TRANSIENT_STATUS.has(status)) throw new TransientGeminiError();
     throw new ReconcileAiError("AI_UNAVAILABLE");
   } finally {
     clearTimeout(timer);

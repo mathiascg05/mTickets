@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     if (!authToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const user = await adminDb.auth.verifyToken(authToken);
+    const user = await adminDb.auth.verifyToken(authToken).catch(() => null);
     if (!user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
       orderId: string;
       success: boolean;
       error?: string;
+      errorCode?: string;
       platformFee?: number;
     }[] = [];
 
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
     // Approve all orders WITHOUT sending emails (fast)
     for (const orderId of orderIds) {
       if (!inConcert.has(orderId)) {
-        results.push({ orderId, success: false, error: "NOT_IN_CONCERT" });
+        results.push({ orderId, success: false, error: "NOT_IN_CONCERT", errorCode: "NOT_IN_CONCERT" });
         continue;
       }
       try {
@@ -109,6 +110,7 @@ export async function POST(req: NextRequest) {
           orderId,
           success: result.success,
           error: result.error,
+          errorCode: result.errorCode,
           platformFee: result.platformFee,
         });
       } catch (err) {

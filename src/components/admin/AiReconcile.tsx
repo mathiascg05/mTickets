@@ -54,6 +54,7 @@ type AiResult = {
   posiblesLotes: LotMatch[];
   sinMatch: Unmatched[];
   ordenesSinMatch: OrphanPurchase[];
+  debitosIgnorados?: Bank[];
   counts: Record<string, number>;
   warnings: string[];
 };
@@ -62,7 +63,7 @@ type ItemState = "idle" | "approving" | "approved" | "dismissed" | "failed";
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const MAX_SHEET_CHARS = 1_000_000;
 const MAX_IMAGE_SIDE = 2000;
-const CLIENT_TIMEOUT_MS = 130_000;
+const CLIENT_TIMEOUT_MS = 190_000;
 const KNOWN_ERRORS = [
   "AI_DISABLED",
   "AI_TIMEOUT",
@@ -76,6 +77,7 @@ const KNOWN_ERRORS = [
   "UNSUPPORTED_FORMAT",
   "RATE_LIMITED",
   "NO_PAYMENT_METHOD",
+  "FILE_UNREADABLE",
 ];
 
 class ClientFileError extends Error {}
@@ -107,7 +109,15 @@ async function downscaleImage(file: File): Promise<Blob> {
 async function prepareUpload(file: File): Promise<{ file?: Blob; name?: string; sheetText?: string }> {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   if (ext === "csv" || ext === "txt") {
-    const text = await file.text();
+    // Muchos bancos exportan en Windows-1252/Latin-1: si no es UTF-8 valido,
+    // se decodifica asi para no romper nombres con ñ/acentos.
+    const buf = await file.arrayBuffer();
+    let text: string;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
+    } catch {
+      text = new TextDecoder("windows-1252").decode(buf);
+    }
     if (text.length > MAX_SHEET_CHARS) throw new ClientFileError("FILE_TOO_LARGE");
     return { sheetText: text };
   }
@@ -154,6 +164,7 @@ export default function AiReconcile({
   const [result, setResult] = useState<AiResult | null>(null);
   const [exactState, setExactState] = useState<ItemState>("idle");
   const [suggestionState, setSuggestionState] = useState<Record<number, ItemState>>({});
+  const [settledIds, setSettledIds] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadStatus = useCallback(async () => {
@@ -190,6 +201,7 @@ export default function AiReconcile({
     setError(null);
     setExactState("idle");
     setSuggestionState({});
+    setSettledIds(new Set());
     setOpen(true);
   }
 
@@ -220,7 +232,15 @@ export default function AiReconcile({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(errorText(res.status === 413 ? "FILE_TOO_LARGE" : data.code || data.error || ""));
+        setError(
+          errorText(
+            res.status === 413
+              ? "FILE_TOO_LARGE"
+              : res.status === 504 && !data.code
+                ? "AI_TIMEOUT"
+                : data.code || data.error || "",
+          ),
+        );
       } else {
         setResult(data as AiResult);
       }
@@ -233,27 +253,45 @@ export default function AiReconcile({
     }
   }
 
+  /**
+   * Aprueba por el flujo existente. Solo envia las ordenes que aun no quedaron
+   * resueltas (un reintento tras un fallo parcial no reenvia las ya aprobadas).
+   * Una orden que ya no esta pendiente (aprobada por otra via, rechazada) se da
+   * por resuelta. true = todas resueltas.
+   */
   async function approve(orderIds: string[]): Promise<boolean> {
+    const toSend = orderIds.filter((id) => !settledIds.has(id));
+    if (toSend.length === 0) return true;
     try {
       const res = await fetch("/api/reconcile-csv/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${refreshToken}` },
-        body: JSON.stringify({ concertId, orderIds, source: "ai" }),
+        body: JSON.stringify({ concertId, orderIds: toSend, source: "ai" }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(data.error || t("admin.approveError"));
+        toast.error(t("admin.aiReconcile.approveErrors.GENERIC"));
         return false;
       }
-      if (data.failed > 0) {
-        const firstError = (data.results as { success: boolean; error?: string }[]).find((r) => !r.success)?.error;
+      const results = (data.results || []) as { orderId: string; success: boolean; errorCode?: string }[];
+      const settledNow = results
+        .filter((r) => r.success || r.errorCode === "INVALID_STATUS")
+        .map((r) => r.orderId);
+      setSettledIds((prev) => new Set([...prev, ...settledNow]));
+      const failures = results.filter((r) => !r.success);
+      const approved = results.filter((r) => r.success).length;
+      if (failures.length > 0) {
+        const code = failures[0].errorCode ?? "GENERIC";
+        const known = ["NO_BALANCE", "INSUFFICIENT_BALANCE", "INVALID_STATUS", "NOT_IN_CONCERT", "NOT_FOUND"];
         toast.error(
-          `${t("admin.reconcileResult", { approved: data.approved, failed: data.failed })}${firstError ? ` — ${firstError}` : ""}`,
+          `${t("admin.reconcileResult", { approved, failed: failures.length })} — ${t(
+            `admin.aiReconcile.approveErrors.${known.includes(code) ? code : "GENERIC"}`,
+          )}`,
         );
       } else {
-        toast.success(t("admin.reconcileResult", { approved: data.approved, failed: 0 }));
+        toast.success(t("admin.reconcileResult", { approved, failed: 0 }));
       }
-      return data.failed === 0;
+      return toSend.every((id) => settledNow.includes(id));
     } catch {
       toast.error(t("admin.connectionError"));
       return false;
@@ -428,7 +466,13 @@ export default function AiReconcile({
                         debits: result.counts.debitsIgnored ?? 0,
                       })}
                     </span>
+                    {result.counts.creditsTotal != null && (
+                      <span className="px-3 py-1.5 bg-background border border-border rounded-lg">
+                        {t("admin.aiReconcile.creditsTotal", { amount: fmt(result.counts.creditsTotal) })}
+                      </span>
+                    )}
                   </div>
+                  <p className="text-xs text-muted -mt-6">{t("admin.aiReconcile.crossCheck")}</p>
 
                   {result.warnings.length > 0 && (
                     <div className="space-y-2">
@@ -621,6 +665,22 @@ export default function AiReconcile({
                         </details>
                       )}
                     </section>
+                  )}
+
+                  {/* Debitos ignorados: para verificar que no se descarto un pago */}
+                  {(result.debitosIgnorados?.length ?? 0) > 0 && (
+                    <details className="border border-border rounded-lg">
+                      <summary className="px-3 py-2 text-sm cursor-pointer text-muted">
+                        {t("admin.aiReconcile.ignoredDebits", { count: result.debitosIgnorados!.length })}
+                      </summary>
+                      <div className="divide-y divide-border/50 border-t border-border">
+                        {result.debitosIgnorados!.map((d) => (
+                          <div key={d.rowIndex} className="p-3">
+                            {bankLine(d)}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
                   )}
 
                   <div className="flex justify-between pt-2">

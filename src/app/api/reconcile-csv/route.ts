@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     if (!authToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const user = await adminDb.auth.verifyToken(authToken);
+    const user = await adminDb.auth.verifyToken(authToken).catch(() => null);
     if (!user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

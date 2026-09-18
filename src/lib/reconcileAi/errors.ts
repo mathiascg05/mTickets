@@ -6,7 +6,8 @@ export type ReconcileAiErrorCode =
   | "AI_TRUNCATED"
   | "AI_BLOCKED"
   | "TOO_MANY_MOVEMENTS"
-  | "NO_MOVEMENTS";
+  | "NO_MOVEMENTS"
+  | "FILE_UNREADABLE";
 
 export class ReconcileAiError extends Error {
   constructor(public code: ReconcileAiErrorCode) {

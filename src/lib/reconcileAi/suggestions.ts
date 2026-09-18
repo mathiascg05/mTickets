@@ -2,6 +2,7 @@
 // devuelve el modelo. Puro. El modelo solo ve ids locales ("g1", "g2"...):
 // nunca ids reales, y nada de lo que devuelve se usa sin pasar por aqui.
 import { ReconcileAiError } from "./errors";
+import { normalizeMemos } from "./movements";
 import {
   bankLast4,
   expectedGroupAmount,
@@ -53,8 +54,19 @@ export type ValidatedSuggestion = {
   }[];
 };
 
-// Tolerancia amplia (ej. el comprador uso otra tasa). La diferencia se muestra.
-export const SUGGESTION_TOLERANCE_RATIO = 0.05;
+// Pagos parciales PROHIBIDOS: por debajo del esperado solo se tolera ruido de
+// redondeo/tasa (1%); por encima, hasta 5% (el comprador redondeo hacia
+// arriba o uso otra tasa). La diferencia siempre se muestra.
+export const SUGGESTION_UNDERPAY_RATIO = 0.01;
+export const SUGGESTION_OVERPAY_RATIO = 0.05;
+
+/** ¿El monto del banco cubre el esperado dentro de la tolerancia asimetrica? */
+export function withinSuggestionTolerance(bankAmount: number, expected: number): boolean {
+  const difference = bankAmount - expected;
+  return difference >= 0
+    ? difference <= expected * SUGGESTION_OVERPAY_RATIO + 1e-9
+    : -difference <= expected * SUGGESTION_UNDERPAY_RATIO + 1e-9;
+}
 export const MAX_SUGGEST_ROWS = 300;
 export const MAX_SUGGEST_GROUPS = 600;
 const MAX_GROUPS_PER_SUGGESTION = 4;
@@ -131,6 +143,9 @@ export type RowCandidate = {
   nameMatches: number;
   /** Posiciones distintas entre los ultimos 4 del banco y los de la compra. */
   digitsDiff: number | null;
+  /** Los 4 digitos del comprador aparecen en otra parte de la referencia del
+   * banco (ej. tecleo los PRIMEROS 4 en vez de los ultimos). */
+  digitsElsewhere: boolean;
   memoInConcept: boolean;
   memo: string | null;
   reference: string | null;
@@ -175,15 +190,16 @@ export function buildRowCandidates(
 
   const result: RowWithCandidates[] = [];
   for (const row of rows) {
-    const concept = `${row.description ?? ""} ${row.reference ?? ""}`;
+    const concept = normalizeMemos(`${row.description ?? ""} ${row.reference ?? ""}`);
     const conceptWords = new Set(normalizeWords(concept));
     const conceptUpper = concept.toUpperCase();
     const rowLast4 = type === "pago_movil" && row.reference ? bankLast4(row.reference) : "";
+    const rowDigits = type === "pago_movil" && row.reference ? row.reference.replace(/\D/g, "") : "";
     const candidates: RowCandidate[] = [];
     for (const combo of combos) {
       const expected = round2(combo.reduce((sum, g) => sum + g.expected, 0));
       const difference = round2(row.amount - expected);
-      if (Math.abs(difference) > expected * SUGGESTION_TOLERANCE_RATIO) continue;
+      if (!withinSuggestionTolerance(row.amount, expected)) continue;
       const names = Array.from(new Set(combo.flatMap((g) => g.names)));
       const nameMatches = Math.max(
         ...names.map((n) => normalizeWords(n).filter((w) => conceptWords.has(w)).length),
@@ -191,6 +207,9 @@ export function buildRowCandidates(
       const refs = combo.map((g) => g.refDigits).filter((r): r is string => !!r);
       const digitsDiff =
         combo.length === 1 && rowLast4 && refs[0] ? hamming(rowLast4, refs[0]) : null;
+      const digitsElsewhere =
+        combo.length === 1 && !!refs[0] && refs[0].length === 4 && digitsDiff !== 0 &&
+        rowDigits.slice(0, -4).includes(refs[0]);
       const memos = combo.map((g) => g.memo).filter((m): m is string => !!m);
       candidates.push({
         id: "",
@@ -200,6 +219,7 @@ export function buildRowCandidates(
         difference,
         nameMatches,
         digitsDiff,
+        digitsElsewhere,
         memoInConcept: memos.some((m) => conceptUpper.includes(m)),
         memo: memos[0] ?? null,
         reference: refs[0] ?? null,
@@ -212,6 +232,7 @@ export function buildRowCandidates(
       (a, b) =>
         Number(b.memoInConcept) - Number(a.memoInConcept) ||
         b.nameMatches - a.nameMatches ||
+        Number(b.digitsElsewhere) - Number(a.digitsElsewhere) ||
         (a.digitsDiff ?? 5) - (b.digitsDiff ?? 5) ||
         Math.abs(a.difference) - Math.abs(b.difference),
     );
@@ -274,7 +295,17 @@ export function validateSuggestions(
   const accepted: ValidatedSuggestion[] = [];
   let discarded = 0;
 
-  for (const item of list.slice(0, MAX_SUGGEST_ROWS)) {
+  // Las de confianza alta primero: una "media" no debe bloquear a una "alta"
+  // que comparte fila o compra.
+  const ordered = list
+    .slice(0, MAX_SUGGEST_ROWS)
+    .map((item, i) => ({ item, i }))
+    .sort((a, b) => {
+      const rank = (x: unknown) => ((x as { confidence?: unknown })?.confidence === "alta" ? 0 : 1);
+      return rank(a.item) - rank(b.item) || a.i - b.i;
+    })
+    .map((x) => x.item);
+  for (const item of ordered) {
     const s = item as Record<string, unknown> | null;
     const rowIndex = s?.bankRowIndex;
     const ids = s?.groupIds;
@@ -301,7 +332,7 @@ export function validateSuggestions(
     const expected = round2(chosen.reduce((sum, g) => sum + g.expected, 0));
     const difference = round2(row.amount - expected);
     // Sin pagos parciales ni excesos grandes: fuera de tolerancia no es match.
-    if (Math.abs(difference) > expected * SUGGESTION_TOLERANCE_RATIO) {
+    if (!withinSuggestionTolerance(row.amount, expected)) {
       discarded++;
       continue;
     }

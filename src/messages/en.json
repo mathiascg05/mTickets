@@ -1137,7 +1137,8 @@
       "warnings": {
         "SUGGESTIONS_UNAVAILABLE": "The assistant could not generate suggestions this time. Exact matches are reliable; for the rest use manual reconciliation or try again.",
         "SUGGESTIONS_TRUNCATED": "There are too many transactions or pending purchases: the assistant only reviewed part of them for suggestions.",
-        "SOME_ROWS_UNREADABLE": "{count} transactions could not be read reliably and were skipped. Check them in the file."
+        "SOME_ROWS_UNREADABLE": "{count} transactions could not be read reliably and were skipped. Check them in the file.",
+        "IMAGE_REVIEW": "Some references were read from an image and aren't 100% certain: those payments appear as suggestions or unmatched so you can review them."
       },
       "another": "Upload another file",
       "csvFallback": "You can use manual CSV reconciliation (\"Reconcile Payments\" button).",
@@ -1154,7 +1155,19 @@
         "UNSUPPORTED_FORMAT": "Unsupported format. Use PDF, PNG, JPG, Excel or CSV.",
         "RATE_LIMITED": "You reached today's analysis limit for this event. Come back tomorrow.",
         "NO_PAYMENT_METHOD": "This event does not have that payment method configured.",
-        "GENERIC": "Something went wrong while processing the file."
+        "GENERIC": "Something went wrong while processing the file.",
+        "FILE_UNREADABLE": "We couldn't open the file: it may be damaged or password-protected. Download it again from your bank."
+      },
+      "creditsTotal": "Total received read: {amount}",
+      "crossCheck": "Compare this total with your bank statement: if it doesn't match, some transaction wasn't read correctly.",
+      "ignoredDebits": "{count, plural, one {# debit ignored (view)} other {# debits ignored (view)}}",
+      "approveErrors": {
+        "NO_BALANCE": "You have no balance to approve. Top up your account.",
+        "INSUFFICIENT_BALANCE": "Insufficient balance to approve them all. Top up your account.",
+        "INVALID_STATUS": "Some order was no longer pending (approved or rejected earlier).",
+        "NOT_IN_CONCERT": "Some order doesn't belong to this event.",
+        "NOT_FOUND": "Some order no longer exists.",
+        "GENERIC": "Could not approve. Please try again."
       }
     }
   },

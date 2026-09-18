@@ -10,6 +10,7 @@ export type AllotmentCandidate = {
   ticketCount: number;
   purchaseAmountBs?: number;
   proofReferenceNumber?: string;
+  paymentMethodId?: string;
 };
 
 export type AllotmentMatchReason = "reference_and_amount" | "reference" | "amount";
@@ -61,8 +62,21 @@ export function matchAllotments(
   rows: Row[],
   allotments: AllotmentCandidate[],
   type: ReconcilePaymentType,
+  opts: {
+    /** Ids de los metodos de pago del concierto de ESTE tipo. Un lote pagado
+     * por otro metodo (ej. Zelle) no puede explicar un movimiento de Pago Movil. */
+    methodIdsOfType?: Set<string>;
+    /** La fila tiene alguna compra (orden) compatible por monto: entonces una
+     * coincidencia SOLO por monto no basta para etiquetarla como lote (se la
+     * robaria a la orden). */
+    rowHasOrderCandidate?: (rowIndex: number) => boolean;
+  } = {},
 ): AllotmentMatch[] {
-  const open = allotments.filter((a) => OPEN_ALLOTMENT_STATUSES.includes(a.status));
+  const open = allotments.filter(
+    (a) =>
+      OPEN_ALLOTMENT_STATUSES.includes(a.status) &&
+      (!a.paymentMethodId || !opts.methodIdsOfType || opts.methodIdsOfType.has(a.paymentMethodId)),
+  );
   const scored: (AllotmentMatch & { score: number })[] = [];
 
   for (const row of rows) {
@@ -73,6 +87,9 @@ export function matchAllotments(
         Math.abs(row.amount - expected) <= Math.max(expected * AMOUNT_TOLERANCE_RATIO, 0.01);
       const refOk = referenceMatches(a, row);
       if (!amountOk && !refOk) continue;
+      // Solo por monto: exige que el colegio ya haya enviado su pago y que
+      // ninguna orden pendiente calce con ese monto.
+      if (!refOk && (a.status !== "submitted" || opts.rowHasOrderCandidate?.(row.index))) continue;
       const reason: AllotmentMatchReason =
         amountOk && refOk ? "reference_and_amount" : refOk ? "reference" : "amount";
       scored.push({

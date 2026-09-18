@@ -1137,7 +1137,8 @@
       "warnings": {
         "SUGGESTIONS_UNAVAILABLE": "El asistente no pudo generar sugerencias esta vez. Los resultados exactos son confiables; para el resto usa la conciliación manual o inténtalo de nuevo.",
         "SUGGESTIONS_TRUNCATED": "Hay demasiados movimientos o compras pendientes: el asistente solo revisó una parte para sugerir pareos.",
-        "SOME_ROWS_UNREADABLE": "{count} movimientos no se pudieron leer con certeza y se omitieron. Revísalos en el archivo."
+        "SOME_ROWS_UNREADABLE": "{count} movimientos no se pudieron leer con certeza y se omitieron. Revísalos en el archivo.",
+        "IMAGE_REVIEW": "Algunas referencias se leyeron de una imagen y no son 100% seguras: esos pagos aparecen como sugerencias o sin coincidencia para que los revises."
       },
       "another": "Subir otro archivo",
       "csvFallback": "Puedes usar la conciliación manual con CSV (botón «Conciliar Pagos»).",
@@ -1154,7 +1155,19 @@
         "UNSUPPORTED_FORMAT": "Formato no soportado. Usa PDF, PNG, JPG, Excel o CSV.",
         "RATE_LIMITED": "Llegaste al límite de análisis de hoy para este evento. Vuelve mañana.",
         "NO_PAYMENT_METHOD": "Este evento no tiene configurado ese método de pago.",
-        "GENERIC": "Ocurrió un error al procesar el archivo."
+        "GENERIC": "Ocurrió un error al procesar el archivo.",
+        "FILE_UNREADABLE": "No pudimos abrir el archivo: puede estar dañado o protegido con contraseña. Descárgalo de nuevo desde tu banco."
+      },
+      "creditsTotal": "Total recibido leído: {amount}",
+      "crossCheck": "Compara este total con el de tu estado de cuenta: si no coincide, algún movimiento no se leyó bien.",
+      "ignoredDebits": "{count, plural, one {# débito ignorado (ver)} other {# débitos ignorados (ver)}}",
+      "approveErrors": {
+        "NO_BALANCE": "No tienes saldo para aprobar. Recarga tu cuenta.",
+        "INSUFFICIENT_BALANCE": "Saldo insuficiente para aprobar todas. Recarga tu cuenta.",
+        "INVALID_STATUS": "Alguna orden ya no estaba pendiente (fue aprobada o rechazada antes).",
+        "NOT_IN_CONCERT": "Alguna orden no pertenece a este evento.",
+        "NOT_FOUND": "Alguna orden ya no existe.",
+        "GENERIC": "No se pudo aprobar. Inténtalo de nuevo."
       }
     }
   },
