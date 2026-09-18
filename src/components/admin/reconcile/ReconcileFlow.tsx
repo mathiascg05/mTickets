@@ -223,8 +223,16 @@ export default function ReconcileFlow({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const code =
-          res.status === 413 ? "FILE_TOO_LARGE" : res.status === 504 && !data.code ? "AI_TIMEOUT" : data.code || data.error || "";
+        // Sin codigo = respondio la plataforma (Vercel/Cloudflare), no la ruta.
+        const platformCode =
+          res.status === 413
+            ? "FILE_TOO_LARGE"
+            : res.status === 504 || res.status === 524
+              ? "AI_TIMEOUT"
+              : res.status >= 500
+                ? "AI_UNAVAILABLE"
+                : "";
+        const code = data.code || platformCode || data.error || "";
         setError({ message: aiErrorText(code), canRetryCsv: true });
         setStep("upload");
       } else {

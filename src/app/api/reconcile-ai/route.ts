@@ -46,6 +46,11 @@ const MAX_SHEET_CHARS = 1_000_000;
 const AUDIT_ACTION = "reconcile.ai_run";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Fallos del asistente: 500 con el codigo en el cuerpo. NO 502/503/504:
+// Cloudflare (delante de matickets.net) reemplaza esas respuestas por su
+// propia pagina "Bad gateway" y el cliente pierde el codigo del error.
+const AI_FAILURE_STATUS = 500;
+
 function dailyLimit(): number {
   const n = Number(process.env.RECONCILE_AI_DAILY_LIMIT);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 20;
@@ -155,7 +160,7 @@ function bankInfo(m: Movement): BankInfo {
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const startedAt = Date.now();
   try {
-    if (!isGeminiConfigured()) return fail("AI_DISABLED", 503);
+    if (!isGeminiConfigured()) return fail("AI_DISABLED", AI_FAILURE_STATUS);
     const contentLength = Number(req.headers.get("content-length") || 0);
     if (contentLength > MAX_REQUEST_BYTES) return fail("FILE_TOO_LARGE", 413);
 
@@ -410,11 +415,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   } catch (err) {
     if (err instanceof ReconcileAiError) {
       console.error("[reconcile-ai] failed:", err.code, { ms: Date.now() - startedAt });
-      const status =
-        err.code === "AI_TIMEOUT" ? 504 : err.code === "AI_DISABLED" ? 503 : 502;
       const inputProblem =
         err.code === "TOO_MANY_MOVEMENTS" || err.code === "NO_MOVEMENTS" || err.code === "FILE_UNREADABLE";
-      return fail(err.code, inputProblem ? 422 : status);
+      return fail(err.code, inputProblem ? 422 : AI_FAILURE_STATUS);
     }
     console.error("[reconcile-ai] Unexpected error:", (err as Error)?.name);
     return fail("Internal server error", 500);

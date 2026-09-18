@@ -179,7 +179,7 @@ describe("POST /api/reconcile-ai — Pago Móvil statement", () => {
     fixtures({ orders, allotments });
     mockGenerate.mockResolvedValueOnce({ movements: "lol" });
     const res = await POST(request("pago_movil"));
-    expect(res.status).toBe(502);
+    expect(res.status).toBe(500);
     const body = await res.json();
     expect(body).toEqual({ error: "AI_BAD_OUTPUT", code: "AI_BAD_OUTPUT" });
   });
