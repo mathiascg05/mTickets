@@ -3,6 +3,8 @@ import { validateExtraction, toBankRow, MAX_MOVEMENTS } from "@/lib/reconcileAi/
 import { matchAllotments, type AllotmentCandidate } from "@/lib/reconcileAi/allotments";
 import {
   buildCandidateGroups,
+  buildRowCandidates,
+  resolveCandidateChoices,
   validateSuggestions,
   type SuggestOrder,
   type SuggestRow,
@@ -175,5 +177,47 @@ describe("suggestions", () => {
 
   it("throws on a malformed payload so the route can warn instead of guessing", () => {
     expect(codeOf(() => validateSuggestions({ foo: 1 }, rows, groups, "pago_movil"))).toBe("AI_BAD_OUTPUT");
+  });
+});
+
+describe("row candidates (server-side preselection)", () => {
+  const PM = "Pago Móvil";
+  const orders: SuggestOrder[] = [
+    { id: "a", firstName: "Captura", lastName: "Díaz", paymentMethod: PM, proofReferenceNumber: "MT-AAAAA-", purchaseAmountBs: 1000, createdAt: 1 },
+    { id: "b", firstName: "Digito", lastName: "Gómez", paymentMethod: PM, proofReferenceNumber: "MT-BBBBB-5678", purchaseAmountBs: 1000, createdAt: 2 },
+    { id: "c", firstName: "Ana", lastName: "Soto", paymentMethod: PM, proofReferenceNumber: "MT-CCCCC-1111", purchaseAmountBs: 400, createdAt: 3 },
+    { id: "d", firstName: "Ana", lastName: "Soto", paymentMethod: PM, proofReferenceNumber: "MT-DDDDD-2222", purchaseAmountBs: 600, createdAt: 4 },
+  ];
+  const { groups } = buildCandidateGroups(orders, "pago_movil");
+  const rows: SuggestRow[] = [
+    { index: 1, date: null, description: "PAGO MOVIL DE CAPTURA DIAZ", reference: "00455120931", amount: 1000 },
+    { index: 2, date: null, description: "PAGO MOVIL", reference: "007315679", amount: 1000 },
+    { index: 3, date: null, description: "PAGO MOVIL", reference: "1", amount: 9999 },
+  ];
+  const withC = buildRowCandidates(rows, groups, "pago_movil");
+
+  it("only includes amounts within tolerance and skips rows without candidates", () => {
+    expect(withC.map((w) => w.row.index)).toEqual([1, 2]);
+  });
+
+  it("computes name, digit signals and same-buyer combos", () => {
+    const row1 = withC.find((w) => w.row.index === 1)!;
+    expect(row1.candidates[0].names).toEqual(["Captura Díaz"]); // mejor señal primero
+    expect(row1.candidates[0].nameMatches).toBe(2);
+    const row2 = withC.find((w) => w.row.index === 2)!;
+    const digito = row2.candidates.find((c) => c.names.includes("Digito Gómez"))!;
+    expect(digito.digitsDiff).toBe(1);
+    // 400 + 600 de la misma compradora cubren 1000
+    expect(row2.candidates.some((c) => c.groupIds.length === 2)).toBe(true);
+  });
+
+  it("resolves candidate ids per row and drops ids from another row", () => {
+    const r1 = withC[0].candidates[0];
+    const resolved = resolveCandidateChoices(
+      { suggestions: [{ bankRowIndex: 1, candidateId: r1.id }, { bankRowIndex: 2, candidateId: r1.id }] },
+      withC,
+    ) as { suggestions: { groupIds: string[] }[] };
+    expect(resolved.suggestions[0].groupIds).toEqual(r1.groupIds);
+    expect(resolved.suggestions[1].groupIds).toEqual([]);
   });
 });

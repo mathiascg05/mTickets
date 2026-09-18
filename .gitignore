@@ -58,3 +58,4 @@ next-env.d.ts
 .env.*.local
 /load-tests/results/
 /load-tests/.loadtest-ids.json
+.env.local

@@ -3,6 +3,7 @@
 // nunca ids reales, y nada de lo que devuelve se usa sin pasar por aqui.
 import { ReconcileAiError } from "./errors";
 import {
+  bankLast4,
   expectedGroupAmount,
   expectedOrderBs,
   expectedOrderUsd,
@@ -111,6 +112,139 @@ export function buildCandidateGroups(
   return {
     groups: groups.slice(0, MAX_SUGGEST_GROUPS).map((g, i) => ({ ...g, localId: `g${i + 1}` })),
     truncated,
+  };
+}
+
+// ── Candidatas por movimiento ───────────────────────────────────────────────
+// El modelo economico no es fiable buscando entre TODAS las compras a la vez
+// (en pruebas reales alternaba que pareos encontraba). El server preselecciona
+// por monto (la misma tolerancia que luego valida) y precalcula las senales;
+// el modelo solo elige entre pocas opciones y explica por que.
+
+export type RowCandidate = {
+  id: string;
+  groupIds: string[];
+  names: string[];
+  expected: number;
+  difference: number;
+  /** Palabras del nombre del comprador que aparecen en el concepto. */
+  nameMatches: number;
+  /** Posiciones distintas entre los ultimos 4 del banco y los de la compra. */
+  digitsDiff: number | null;
+  memoInConcept: boolean;
+  memo: string | null;
+  reference: string | null;
+  date: string | null;
+};
+
+export type RowWithCandidates = { row: SuggestRow; candidates: RowCandidate[] };
+
+const MAX_CANDIDATES_PER_ROW = 8;
+
+function normalizeWords(text: string): string[] {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .split(/[^A-Z0-9]+/)
+    .filter((w) => w.length >= 3);
+}
+
+function hamming(a: string, b: string): number | null {
+  if (a.length !== 4 || b.length !== 4) return null;
+  let d = 0;
+  for (let i = 0; i < 4; i++) if (a[i] !== b[i]) d++;
+  return d;
+}
+
+export function buildRowCandidates(
+  rows: SuggestRow[],
+  groups: CandidateGroup[],
+  type: ReconcilePaymentType,
+): RowWithCandidates[] {
+  // Combinaciones de 2 compras del mismo comprador (mismo nombre): una sola
+  // transferencia que cubre dos checkouts.
+  const combos: CandidateGroup[][] = groups.map((g) => [g]);
+  for (let i = 0; i < groups.length; i++) {
+    for (let j = i + 1; j < groups.length; j++) {
+      if (groups[i].names.some((n) => groups[j].names.includes(n))) {
+        combos.push([groups[i], groups[j]]);
+      }
+    }
+  }
+
+  const result: RowWithCandidates[] = [];
+  for (const row of rows) {
+    const concept = `${row.description ?? ""} ${row.reference ?? ""}`;
+    const conceptWords = new Set(normalizeWords(concept));
+    const conceptUpper = concept.toUpperCase();
+    const rowLast4 = type === "pago_movil" && row.reference ? bankLast4(row.reference) : "";
+    const candidates: RowCandidate[] = [];
+    for (const combo of combos) {
+      const expected = round2(combo.reduce((sum, g) => sum + g.expected, 0));
+      const difference = round2(row.amount - expected);
+      if (Math.abs(difference) > expected * SUGGESTION_TOLERANCE_RATIO) continue;
+      const names = Array.from(new Set(combo.flatMap((g) => g.names)));
+      const nameMatches = Math.max(
+        ...names.map((n) => normalizeWords(n).filter((w) => conceptWords.has(w)).length),
+      );
+      const refs = combo.map((g) => g.refDigits).filter((r): r is string => !!r);
+      const digitsDiff =
+        combo.length === 1 && rowLast4 && refs[0] ? hamming(rowLast4, refs[0]) : null;
+      const memos = combo.map((g) => g.memo).filter((m): m is string => !!m);
+      candidates.push({
+        id: "",
+        groupIds: combo.map((g) => g.localId),
+        names,
+        expected,
+        difference,
+        nameMatches,
+        digitsDiff,
+        memoInConcept: memos.some((m) => conceptUpper.includes(m)),
+        memo: memos[0] ?? null,
+        reference: refs[0] ?? null,
+        date: combo[0].createdAt ? new Date(combo[0].createdAt).toISOString().slice(0, 10) : null,
+      });
+    }
+    if (candidates.length === 0) continue;
+    // Las mas prometedoras primero: memo, nombre, digitos, cercania de monto.
+    candidates.sort(
+      (a, b) =>
+        Number(b.memoInConcept) - Number(a.memoInConcept) ||
+        b.nameMatches - a.nameMatches ||
+        (a.digitsDiff ?? 5) - (b.digitsDiff ?? 5) ||
+        Math.abs(a.difference) - Math.abs(b.difference),
+    );
+    result.push({
+      row,
+      candidates: candidates
+        .slice(0, MAX_CANDIDATES_PER_ROW)
+        .map((c, i) => ({ ...c, id: `r${row.index}c${i + 1}` })),
+    });
+  }
+  return result;
+}
+
+/**
+ * Traduce la eleccion del modelo ({bankRowIndex, candidateId}) al formato
+ * {bankRowIndex, groupIds} que valida validateSuggestions. Un candidateId que
+ * no pertenece a ESA fila se traduce a groupIds vacio y se descarta.
+ */
+export function resolveCandidateChoices(
+  raw: unknown,
+  withCandidates: RowWithCandidates[],
+): unknown {
+  const list = (raw as { suggestions?: unknown })?.suggestions;
+  if (!Array.isArray(list)) return raw;
+  const byRow = new Map(withCandidates.map((w) => [w.row.index, w.candidates]));
+  return {
+    suggestions: list.map((item) => {
+      const s = (item ?? {}) as Record<string, unknown>;
+      const candidate = byRow
+        .get(s.bankRowIndex as number)
+        ?.find((c) => c.id === s.candidateId);
+      return { ...s, groupIds: candidate ? candidate.groupIds : [] };
+    }),
   };
 }
 

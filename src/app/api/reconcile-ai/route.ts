@@ -18,7 +18,9 @@ import { toBankRow, type Movement } from "@/lib/reconcileAi/movements";
 import { matchAllotments, type AllotmentCandidate } from "@/lib/reconcileAi/allotments";
 import {
   buildCandidateGroups,
+  buildRowCandidates,
   groupPurchases,
+  resolveCandidateChoices,
   validateSuggestions,
   MAX_SUGGEST_ROWS,
   type SuggestOrder,
@@ -273,10 +275,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const { groups, truncated } = buildCandidateGroups(orphanOrders, type);
       const suggestRows = rest.slice(0, MAX_SUGGEST_ROWS);
       if (truncated || rest.length > MAX_SUGGEST_ROWS) warnings.push("SUGGESTIONS_TRUNCATED");
-      if (groups.length > 0) {
+      // Solo filas con alguna compra dentro de la tolerancia; sin ninguna, no
+      // se llama al modelo.
+      const withCandidates = buildRowCandidates(suggestRows, groups, type);
+      if (withCandidates.length > 0) {
         try {
-          const raw = await requestSuggestions(suggestRows, groups, type);
-          const validated = validateSuggestions(raw, suggestRows, groups, type);
+          const raw = await requestSuggestions(withCandidates, type);
+          const validated = validateSuggestions(
+            resolveCandidateChoices(raw, withCandidates),
+            suggestRows,
+            groups,
+            type,
+          );
           sugerencias = validated.accepted;
           discarded = validated.discarded;
         } catch (err) {

@@ -70,17 +70,18 @@ const credit = (description: string, reference: string | null, amount: number) =
   direction: "credit",
 });
 
-/** Segunda llamada (sugerencias): el "modelo" parea por nombre / referencia parecida. */
+/** Segunda llamada (sugerencias): el "modelo" elige entre las candidatas de cada fila. */
 function suggestFromPayload(extra: unknown[] = []) {
   return (opts: { parts: { text: string }[] }) => {
     const payload = JSON.parse(opts.parts[0].text) as {
-      compras: { g: string; nombres: string[]; referencia: string | null }[];
+      movimientos: { i: number; candidatas: { id: string; nombres: string[] }[] }[];
     };
-    const byName = (n: string) => payload.compras.find((c) => c.nombres.includes(n))!.g;
+    const pick = (row: number, name: string) =>
+      payload.movimientos.find((m) => m.i === row)!.candidatas.find((c) => c.nombres.includes(name))!.id;
     return {
       suggestions: [
-        { bankRowIndex: 1, groupIds: [byName("Carla Díaz")], confidence: "alta", reason: "Mismo monto y nombre del ordenante" },
-        { bankRowIndex: 2, groupIds: [byName("Pedro Gil")], confidence: "media", reason: "Mismo monto, referencia con un dígito distinto" },
+        { bankRowIndex: 1, candidateId: pick(1, "Carla Díaz"), confidence: "alta", reason: "Mismo monto y nombre del ordenante" },
+        { bankRowIndex: 2, candidateId: pick(2, "Pedro Gil"), confidence: "media", reason: "Mismo monto, referencia con un dígito distinto" },
         ...extra,
       ],
     };
@@ -126,8 +127,8 @@ describe("POST /api/reconcile-ai — Pago Móvil statement", () => {
       .mockImplementationOnce(
         suggestFromPayload([
           // inventadas por el modelo → deben descartarse
-          { bankRowIndex: 4, groupIds: ["g999"], confidence: "alta", reason: "id inventado" },
-          { bankRowIndex: 4, groupIds: [], confidence: "alta", reason: "vacía" },
+          { bankRowIndex: 2, candidateId: "r1c1", confidence: "alta", reason: "candidata de otra fila" },
+          { bankRowIndex: 1, candidateId: "inventada", confidence: "alta", reason: "id inventado" },
         ]),
       );
 
@@ -160,8 +161,9 @@ describe("POST /api/reconcile-ai — Pago Móvil statement", () => {
     const sent = mockGenerate.mock.calls[1][0].parts[0].text as string;
     expect(sent).not.toContain("o-b");
     expect(sent).not.toMatch(/@|cedula/i);
-    // El lote y el match exacto no se ofrecen como huérfanos.
-    expect(JSON.parse(sent).movimientos.map((m: { i: number }) => m.i)).toEqual([1, 2, 4]);
+    // El lote y el exacto no se ofrecen; la fila 4 (999 Bs) no tiene candidatas
+    // dentro de la tolerancia, así que tampoco se envía.
+    expect(JSON.parse(sent).movimientos.map((m: { i: number }) => m.i)).toEqual([1, 2]);
   });
 
   it("still returns exact matches, with a warning, if suggestions fail", async () => {
