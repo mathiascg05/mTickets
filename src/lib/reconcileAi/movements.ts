@@ -39,7 +39,7 @@ function cleanString(v: unknown, max: number): string | null {
 export function parseAmountText(text: unknown): number | null {
   if (typeof text !== "string") return null;
   const stripped = text
-    .replace(/[A-Za-z$€]|\s| |\+/g, "")
+    .replace(/[A-Za-z$€]|\s|\u00a0|\+/g, "")
     .replace(/^\.+/, "") // "Bs." deja un punto suelto al inicio
     .replace(/[()]/g, "")
     .replace(/^-|-$/g, "");
