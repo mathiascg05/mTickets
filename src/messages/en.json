@@ -680,7 +680,8 @@
         "glentry_create": "Added guest",
         "glentry_edit": "Edited guest",
         "glentry_delete": "Removed guest",
-        "glinvites_sent": "Sent invites"
+        "glinvites_sent": "Sent invites",
+        "reconcile_ai_run": "Bank file reconciliation (AI)"
       }
     },
     "creditAccount": "Credit Account",
@@ -1085,7 +1086,77 @@
     "includeTestOrders": "Include tests",
     "testBadge": "Test",
     "extrasSharedLabel": "shared",
-    "extrasSortOrderHint": "Lower shows first"
+    "extrasSortOrderHint": "Lower shows first",
+    "aiReconcile": {
+      "button": "Reconcile with bank file",
+      "title": "Reconcile with bank file",
+      "neverApproves": "The assistant only suggests: nothing is approved without your confirmation.",
+      "whichAccount": "Which account is this file from?",
+      "dropzone": "Drop the statement exactly as your bank gave it to you, or click to select it",
+      "formats": "PDF, screenshot (PNG/JPG), Excel or CSV · max 4 MB",
+      "privacy": "The file is processed in memory and is not stored.",
+      "remaining": "{count} analyses left today for this event",
+      "loading": "Reading your bank statement...",
+      "loadingHint": "This may take up to a minute if the file has many transactions.",
+      "summary": "{credits} incoming payments read · {debits} debits ignored",
+      "exactTitle": "Exact matches",
+      "exactEmpty": "No transaction matched exactly by reference and amount.",
+      "approveAll": "Approve all ({count} orders)",
+      "approve": "Approve",
+      "approved": "Approved",
+      "dismiss": "Dismiss",
+      "suggestionsTitle": "Assistant suggestions",
+      "suggestionsHint": "Review each one before approving: these are likely pairings, not confirmed ones.",
+      "suggestionsEmpty": "The assistant found no clear pairings. It prefers suggesting nothing over guessing.",
+      "expected": "Expected: {amount}",
+      "difference": "difference {amount}",
+      "confidence": {
+        "alta": "High confidence",
+        "media": "Medium confidence"
+      },
+      "lotsTitle": "Possible ticket-batch payments",
+      "lotsHint": "These look like ticket-batch payments. They are approved from the batches panel, not here.",
+      "lotDetail": "{count} tickets · expected {amount}",
+      "lotReason": {
+        "reference_and_amount": "reference and amount match",
+        "reference": "reference matches",
+        "amount": "amount matches"
+      },
+      "openLots": "Go to batches panel",
+      "unmatchedTitle": "No match",
+      "unmatchedRows": "{count} bank transactions without a pair",
+      "unmatchedOrders": "{count} pending purchases without a payment found",
+      "reasons": {
+        "REF_TOO_SHORT": "No readable reference",
+        "AMBIGUOUS": "Several possible purchases; review manually",
+        "NO_MATCH": "No pending purchase matches",
+        "NO_MEMO": "No MT-XXXXX memo code",
+        "MEMO_ALREADY_USED": "Memo repeated in this file",
+        "AMOUNT_MISMATCH": "Amount does not match (expected {amount})"
+      },
+      "warnings": {
+        "SUGGESTIONS_UNAVAILABLE": "The assistant could not generate suggestions this time. Exact matches are reliable; for the rest use manual reconciliation or try again.",
+        "SUGGESTIONS_TRUNCATED": "There are too many transactions or pending purchases: the assistant only reviewed part of them for suggestions.",
+        "SOME_ROWS_UNREADABLE": "{count} transactions could not be read reliably and were skipped. Check them in the file."
+      },
+      "another": "Upload another file",
+      "csvFallback": "You can use manual CSV reconciliation (\"Reconcile Payments\" button).",
+      "errors": {
+        "AI_DISABLED": "AI reconciliation is not available right now.",
+        "AI_TIMEOUT": "The assistant took too long to read the file. Try again or split the file.",
+        "AI_UNAVAILABLE": "The assistant is not available right now.",
+        "AI_BAD_OUTPUT": "We could not read the file reliably, so we are not showing partial results.",
+        "AI_TRUNCATED": "The file has too many transactions to read completely. Split it into shorter periods.",
+        "AI_BLOCKED": "The assistant could not process this file.",
+        "TOO_MANY_MOVEMENTS": "The file has more than 1500 transactions. Split it into shorter periods.",
+        "NO_MOVEMENTS": "We found no transactions in the file. Is it a bank statement?",
+        "FILE_TOO_LARGE": "The file is too large (max 4 MB). Export a shorter period or a lighter screenshot.",
+        "UNSUPPORTED_FORMAT": "Unsupported format. Use PDF, PNG, JPG, Excel or CSV.",
+        "RATE_LIMITED": "You reached today's analysis limit for this event. Come back tomorrow.",
+        "NO_PAYMENT_METHOD": "This event does not have that payment method configured.",
+        "GENERIC": "Something went wrong while processing the file."
+      }
+    }
   },
   "seo": {
     "root": {

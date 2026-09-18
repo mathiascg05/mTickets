@@ -17,9 +17,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { concertId, orderIds } = (await req.json()) as {
+    const { concertId, orderIds, source } = (await req.json()) as {
       concertId: string;
       orderIds: string[];
+      source?: "csv" | "ai";
     };
 
     if (
@@ -65,7 +66,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Approve all orders WITHOUT sending emails (fast)
     const results: {
       orderId: string;
       success: boolean;
@@ -73,7 +73,36 @@ export async function POST(req: NextRequest) {
       platformFee?: number;
     }[] = [];
 
+    // Solo ordenes de ESTE concierto: el acceso se valida contra concertId, asi
+    // que una orden ajena colada en orderIds no puede aprobarse por esta via.
+    const { orders: requested } = await adminDb.query({
+      orders: {
+        $: { where: { id: { $in: orderIds } } },
+        ticketType: { concert: {} },
+      },
+    });
+    const inConcert = new Set(
+      requested
+        .filter((o) => {
+          const rawTT = o.ticketType as unknown;
+          const tt = (Array.isArray(rawTT) ? rawTT[0] : rawTT) as
+            | { concert?: unknown }
+            | undefined;
+          const rawConcert = tt?.concert as unknown;
+          const c = (Array.isArray(rawConcert) ? rawConcert[0] : rawConcert) as
+            | { id: string }
+            | undefined;
+          return c?.id === concertId;
+        })
+        .map((o) => o.id),
+    );
+
+    // Approve all orders WITHOUT sending emails (fast)
     for (const orderId of orderIds) {
+      if (!inConcert.has(orderId)) {
+        results.push({ orderId, success: false, error: "NOT_IN_CONCERT" });
+        continue;
+      }
       try {
         const result = await approveOrderInternal(orderId, { skipEmail: true });
         results.push({
@@ -120,10 +149,12 @@ export async function POST(req: NextRequest) {
         entityType: "order",
         entityId: approvedIds[0] ?? concertId,
         concertId,
-        summary: `Aprobó ${approved} orden(es) por reconciliación CSV${
+        summary: `Aprobó ${approved} orden(es) por reconciliación ${
+          source === "ai" ? "con archivo del banco (IA)" : "CSV"
+        }${
           failed > 0 ? ` (${failed} fallidas)` : ""
         }`,
-        metadata: { approved, failed, approvedIds },
+        metadata: { approved, failed, approvedIds, source: source === "ai" ? "ai" : "csv" },
       });
     }
 

@@ -15,6 +15,7 @@ import {
 import { sendTicketEmail, sendConfirmationEmail } from "@/lib/sendTicketEmail";
 import PhoneField from "@/components/PhoneField";
 import AllotmentsSection from "@/components/admin/AllotmentsSection";
+import AiReconcile from "@/components/admin/AiReconcile";
 import SalesOverTimeChart, { type PhaseMarker } from "@/components/admin/SalesOverTimeChart";
 import { useLanguage } from "@/lib/LanguageContext";
 import { getEventRole, roleCan } from "@/lib/authHelpers";
@@ -242,11 +243,13 @@ function ReconciliationSection({
   hasPagoMovil,
   hasZelle,
   refreshToken,
+  onOpenAllotments,
 }: {
   concertId: string;
   hasPagoMovil: boolean;
   hasZelle: boolean;
   refreshToken: string;
+  onOpenAllotments: () => void;
 }) {
   const { t } = useLanguage();
   const [showModal, setShowModal] = useState(false);
@@ -455,19 +458,28 @@ function ReconciliationSection({
   return (
     <>
       <div className="bg-surface border border-border rounded-xl p-6 mb-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold">{t("admin.reconcile")}</h2>
             <p className="text-sm text-muted">
               {t(hasBothTypes ? "admin.reconcileDescBoth" : isZelle ? "admin.reconcileDescZelle" : "admin.reconcileDesc")}
             </p>
           </div>
-          <button
-            onClick={openModal}
-            className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
-          >
-            {t("admin.reconcile")}
-          </button>
+          <div className="flex flex-wrap gap-2 justify-end">
+            <AiReconcile
+              concertId={concertId}
+              hasPagoMovil={hasPagoMovil}
+              hasZelle={hasZelle}
+              refreshToken={refreshToken}
+              onOpenAllotments={onOpenAllotments}
+            />
+            <button
+              onClick={openModal}
+              className="px-4 py-2 bg-accent hover:bg-accent-dark text-white rounded-lg text-sm font-medium transition-colors shadow-lg shadow-accent/20"
+            >
+              {t("admin.reconcile")}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -3221,16 +3233,24 @@ function ConcertOrdersPageInner() {
           (pm: { type: string }) => pm.type === "zelle",
         )}
         refreshToken={refreshToken}
+        onOpenAllotments={() => {
+          setShowAllotments(true);
+          setTimeout(() => {
+            document.getElementById("allotments-section")?.scrollIntoView({ behavior: "smooth" });
+          }, 50);
+        }}
       />
 
       {/* School allotments (batch tickets) */}
       {showAllotments && (
-        <AllotmentsSection
-          concertId={concertId}
-          ticketTypes={concert.ticketTypes}
-          allotments={concert.allotments || []}
-          allOrders={allOrders}
-        />
+        <div id="allotments-section" className="scroll-mt-4">
+          <AllotmentsSection
+            concertId={concertId}
+            ticketTypes={concert.ticketTypes}
+            allotments={concert.allotments || []}
+            allOrders={allOrders}
+          />
+        </div>
       )}
 
       {/* Order List */}

@@ -680,7 +680,8 @@
         "glentry_create": "Agregó invitado",
         "glentry_edit": "Editó invitado",
         "glentry_delete": "Eliminó invitado",
-        "glinvites_sent": "Envió invitaciones"
+        "glinvites_sent": "Envió invitaciones",
+        "reconcile_ai_run": "Conciliación con archivo del banco (IA)"
       }
     },
     "creditAccount": "Acreditar Cuenta",
@@ -1085,7 +1086,77 @@
     "includeTestOrders": "Incluir pruebas",
     "testBadge": "Prueba",
     "extrasSharedLabel": "del grupo",
-    "extrasSortOrderHint": "Menor aparece primero"
+    "extrasSortOrderHint": "Menor aparece primero",
+    "aiReconcile": {
+      "button": "Conciliar con archivo del banco",
+      "title": "Conciliar con archivo del banco",
+      "neverApproves": "El asistente solo sugiere: nada se aprueba sin tu confirmación.",
+      "whichAccount": "¿De qué cuenta es el archivo?",
+      "dropzone": "Arrastra el estado de cuenta tal cual te lo dio tu banco, o haz click para seleccionarlo",
+      "formats": "PDF, captura (PNG/JPG), Excel o CSV · máx. 4 MB",
+      "privacy": "El archivo se procesa en memoria y no se guarda.",
+      "remaining": "Te quedan {count} análisis hoy para este evento",
+      "loading": "Leyendo tu estado de cuenta...",
+      "loadingHint": "Puede tardar hasta un minuto si el archivo tiene muchos movimientos.",
+      "summary": "{credits} pagos recibidos leídos · {debits} débitos ignorados",
+      "exactTitle": "Coinciden exacto",
+      "exactEmpty": "Ningún movimiento coincidió exacto por referencia y monto.",
+      "approveAll": "Aprobar todas ({count} órdenes)",
+      "approve": "Aprobar",
+      "approved": "Aprobado",
+      "dismiss": "Descartar",
+      "suggestionsTitle": "Sugerencias del asistente",
+      "suggestionsHint": "Revisa cada una antes de aprobar: son pareos probables, no confirmados.",
+      "suggestionsEmpty": "El asistente no encontró pareos claros. Es preferible no sugerir que sugerir con dudas.",
+      "expected": "Esperado: {amount}",
+      "difference": "diferencia {amount}",
+      "confidence": {
+        "alta": "Confianza alta",
+        "media": "Confianza media"
+      },
+      "lotsTitle": "Posibles pagos de lotes",
+      "lotsHint": "Parecen pagos de lotes de entradas. Se aprueban desde el panel de lotes, no aquí.",
+      "lotDetail": "{count} entradas · esperado {amount}",
+      "lotReason": {
+        "reference_and_amount": "coinciden referencia y monto",
+        "reference": "coincide la referencia",
+        "amount": "coincide el monto"
+      },
+      "openLots": "Ir al panel de lotes",
+      "unmatchedTitle": "Sin coincidencia",
+      "unmatchedRows": "{count} movimientos del banco sin pareja",
+      "unmatchedOrders": "{count} compras pendientes sin pago encontrado",
+      "reasons": {
+        "REF_TOO_SHORT": "Sin referencia legible",
+        "AMBIGUOUS": "Varias compras posibles; revísalo a mano",
+        "NO_MATCH": "Ninguna compra pendiente coincide",
+        "NO_MEMO": "Sin código memo MT-XXXXX",
+        "MEMO_ALREADY_USED": "Memo repetido en este archivo",
+        "AMOUNT_MISMATCH": "El monto no coincide (esperado {amount})"
+      },
+      "warnings": {
+        "SUGGESTIONS_UNAVAILABLE": "El asistente no pudo generar sugerencias esta vez. Los resultados exactos son confiables; para el resto usa la conciliación manual o inténtalo de nuevo.",
+        "SUGGESTIONS_TRUNCATED": "Hay demasiados movimientos o compras pendientes: el asistente solo revisó una parte para sugerir pareos.",
+        "SOME_ROWS_UNREADABLE": "{count} movimientos no se pudieron leer con certeza y se omitieron. Revísalos en el archivo."
+      },
+      "another": "Subir otro archivo",
+      "csvFallback": "Puedes usar la conciliación manual con CSV (botón «Conciliar Pagos»).",
+      "errors": {
+        "AI_DISABLED": "La conciliación con IA no está disponible en este momento.",
+        "AI_TIMEOUT": "El asistente tardó demasiado en leer el archivo. Inténtalo de nuevo o divide el archivo en partes.",
+        "AI_UNAVAILABLE": "El asistente no está disponible en este momento.",
+        "AI_BAD_OUTPUT": "No pudimos leer el archivo de forma confiable, así que no mostramos resultados a medias.",
+        "AI_TRUNCATED": "El archivo tiene demasiados movimientos para leerlo completo. Divídelo en periodos más cortos.",
+        "AI_BLOCKED": "El asistente no pudo procesar este archivo.",
+        "TOO_MANY_MOVEMENTS": "El archivo tiene más de 1500 movimientos. Divídelo en periodos más cortos.",
+        "NO_MOVEMENTS": "No encontramos movimientos en el archivo. ¿Es un estado de cuenta?",
+        "FILE_TOO_LARGE": "El archivo es demasiado grande (máx. 4 MB). Exporta un periodo más corto o una captura más liviana.",
+        "UNSUPPORTED_FORMAT": "Formato no soportado. Usa PDF, PNG, JPG, Excel o CSV.",
+        "RATE_LIMITED": "Llegaste al límite de análisis de hoy para este evento. Vuelve mañana.",
+        "NO_PAYMENT_METHOD": "Este evento no tiene configurado ese método de pago.",
+        "GENERIC": "Ocurrió un error al procesar el archivo."
+      }
+    }
   },
   "seo": {
     "root": {

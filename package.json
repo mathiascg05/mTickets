@@ -19,6 +19,7 @@
     "backfill:messages": "tsx scripts/backfill-message-tokens.ts"
   },
   "dependencies": {
+    "@google/genai": "^2.23.0",
     "@instantdb/admin": "0.22.153",
     "@instantdb/react": "0.22.153",
     "@sentry/nextjs": "^10",
